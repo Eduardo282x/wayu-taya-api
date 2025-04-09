@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Estados {
+  id_estado  Int          @id @default(autoincrement())
+  estado     String
+  Municipios Municipios[]
+}
+
+model Municipios {
+  id_municipio Int        @id @default(autoincrement())
+  id_estado    Int
+  estado       Estados    @relation(fields: [id_estado], references: [id_estado])
+  municipio    String
+  Ciudades     Ciudades[]
+}
+
+model Ciudades {
+  id_ciudad    Int          @id @default(autoincrement())
+  id_municipio Int
+  municipio    Municipios   @relation(fields: [id_municipio], references: [id_municipio])
+  ciudad       String
+  Parroquias   Parroquias[]
+}
+
+model Parroquias {
+  id_parroquia Int          @id @default(autoincrement())
+  id_ciudad    Int
+  ciudad       Ciudades     @relation(fields: [id_ciudad], references: [id_ciudad])
+  parroquia    String
+  Persona      Persona[]
+  Documentos   Documentos[]
+}
+
+model Persona {
+  id_persona Int    @id @default(autoincrement())
+  nombre     String
+  apellido   String
+
+  edad                  Int
+  direccion             String
+  id_parroquia          Int
+  parroquia             Parroquias @relation(fields: [id_parroquia], references: [id_parroquia])
+  telefono              String
+  email                 String
+  numero_identificacion String
+  empleado              Boolean
+  razon_social          String
+  entidad               String
+
+  fecha_creacion     DateTime
+  fecha_modificacion DateTime
+  activo             Boolean
+  Colaboradores      Colaboradores[]
+}
+
+model Documentos {
+  id_documento     Int             @id @default(autoincrement())
+  nombre_documento String
+  id_parroquia     Int
+  parroquia        Parroquias      @relation(fields: [id_parroquia], references: [id_parroquia])
+  link             String
+  fecha            DateTime
+  Colaboradores    Colaboradores[]
+}
+
+model Colaboradores {
+  id           Int        @id @default(autoincrement())
+  id_documento Int
+  documento    Documentos @relation(fields: [id_documento], references: [id_documento])
+  id_persona   Int
+  persona      Persona    @relation(fields: [id_persona], references: [id_persona])
+}
