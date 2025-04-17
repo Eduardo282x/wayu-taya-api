@@ -4,10 +4,20 @@ import eslintPluginPrettierRecommended from 'eslint-plugin-prettier/recommended'
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
+import js from '@eslint/js';
+import { FlatCompat } from '@eslint/eslintrc';
+
+const compat = new FlatCompat({
+  baseDirectory: __dirname,
+  recommendedConfig: js.configs.recommended,
+  allConfig: js.configs.all,
+});
+
 export default tseslint.config(
   {
-    ignores: ['eslint.config.mjs'],
+    ignores: ['**/*.d.ts', '**/node_modules/', '**/*.js'],
   },
+  ...compat.extends('plugin:@typescript-eslint/recommended', 'prettier'),
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   eslintPluginPrettierRecommended,

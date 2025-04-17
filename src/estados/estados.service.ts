@@ -19,7 +19,7 @@ export class EstadosService {
                 estado: estado.estados
             }
         })
-        return {message: 'Estado creado existosamente.'}
+        return {message: 'Estado creado exitosamente.'}
     }
 
     async updateEstado(id_estado: number, estado: EstadoDTO) {
@@ -31,7 +31,7 @@ export class EstadosService {
                 id_estado: id_estado
             }
         })
-        return {message: 'Estado actualizado existosamente.'}
+        return {message: 'Estado actualizado exitosamente.'}
     }
 
     async deleteEstado(id_estado: number) {
@@ -40,6 +40,6 @@ export class EstadosService {
                 id_estado: id_estado
             }
         })
-        return {message: 'Estado eliminado existosamente.'}
+        return {message: 'Estado eliminado exitosamente.'}
     }
 }
