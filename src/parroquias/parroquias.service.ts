@@ -15,10 +15,12 @@ export class ParroquiasService {
     }
 
     async createParroquia(parroquia: ParroquiasDTO){
+        console.log(parroquia)
         try{
             await this.prismaService.parroquias.create({
                 data: { 
                     parroquia: parroquia.parroquias,
+                    
                     id_ciudad: parroquia.id_ciudad
                  }
              })
