@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { MunicDTO } from './municipios.dto';
+import { MunicipioDTO } from './municipios.dto';
+import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
 export class MunicipiosService {
@@ -10,53 +11,53 @@ export class MunicipiosService {
     }
 
     async getMunicipios() {
-        return await this.prismaService.municipios.findMany();
+        return await this.prismaService.municipios.findMany({
+            include: { estado: true }
+        });
     }
 
-    async createMunicipio(municipio: MunicDTO) {
-       console.log(municipio)
+    async createMunicipio(municipio: MunicipioDTO) {
         try {
-        await this.prismaService.municipios.create({
-            data: {
-                municipio: municipio.municipios,
-                id_estado: municipio.id_estado
-                
-            }
-        })
-        return {message: 'Municipio creado exitosamente.'}
-       } catch(error){
-        return {message: 'Error al crear municipio.'+ error}
-       }
+            await this.prismaService.municipios.create({
+                data: {
+                    municipio: municipio.municipio,
+                    id_estado: municipio.id_estado
+                }
+            })
+            baseResponse.message = 'Municipio creado exitosamente.'
+            return baseResponse;
+        } catch (error) {
+            badResponse.message = 'Error al crear municipio.' + error
+            return badResponse;
+        }
     }
 
-    async updateMunicipio(id_municipio: number, municipio: MunicDTO) 
-    {
-       console.log(municipio)
-        try{
+    async updateMunicipio(id_municipio: number, municipio: MunicipioDTO) {
+        try {
             await this.prismaService.municipios.update({
-                data: 
-                {
-                    municipio: municipio.municipios
-                },
-            where: 
-            {
-                id_municipio: id_municipio
-            }
-        })
-        return {message: 'Municipio actualizado exitosamente.'}
-            }
-            catch(error){
-                return {message: 'Error al actualizar municipio.'+ error}
-            }
+                data: { municipio: municipio.municipio },
+                where: { id_municipio }
+            })
+            baseResponse.message = 'Municipio actualizado exitosamente.'
+            return baseResponse;
+        }
+        catch (error) {
+            badResponse.message = 'Error al actualizar municipio.' + error
+            return badResponse;
+        }
     }
 
     async deleteMunicipio(id_municipio: number) {
-        await this.prismaService.municipios.delete({
-            where: {
-                id_municipio: id_municipio
-            }
-        })
-        return {message: 'Municipio eliminado exitosamente.'}
+        try {
+            await this.prismaService.municipios.delete({
+                where: { id_municipio }
+            })
+            baseResponse.message = 'Municipio eliminado exitosamente.'
+            return baseResponse;
+        } catch (err) {
+            badResponse.message = 'Error al eliminar municipio.' + err
+            return badResponse;
+        }
     }
 
 }

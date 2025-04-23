@@ -1,10 +1,8 @@
 import { IsNumber, IsString } from "class-validator";
 
 export class ParroquiasDTO{
-   
     @IsString() 
-    parroquias: string;
-
+    parroquia: string;
     @IsNumber()
     id_ciudad: number;
 }

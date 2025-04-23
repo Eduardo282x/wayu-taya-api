@@ -1,58 +1,61 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ParroquiasDTO } from './parroquias.dto';
-import { Parroquias } from '@prisma/client';
+import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
 export class ParroquiasService {
 
-    constructor(private prismaService: PrismaService){
+    constructor(private prismaService: PrismaService) {
 
     }
 
-    async getParroquia(){
-        return await this.prismaService.parroquias.findMany();
+    async getParroquia() {
+        return await this.prismaService.parroquias.findMany({
+            include: { ciudad: true }
+        });
     }
 
-    async createParroquia(parroquia: ParroquiasDTO){
-        console.log(parroquia)
-        try{
+    async createParroquia(parroquia: ParroquiasDTO) {
+        try {
             await this.prismaService.parroquias.create({
-                data: { 
-                    parroquia: parroquia.parroquias,
-                    
+                data: {
+                    parroquia: parroquia.parroquia,
                     id_ciudad: parroquia.id_ciudad
-                 }
-             })
-            return {message: 'Parroquia creada exitosamente. '}
-
-        }catch (error) {return {message: 'Error al ingresar la parroquia. '+ error }}
+                }
+            })
+            baseResponse.message = 'Parroquia creada exitosamente.'
+            return baseResponse;
+        } catch (error) {
+            badResponse.message = 'Error al crear la parroquia.' + error
+            return badResponse;
+        }
     }
 
-    async updateParroquia(id_parroquia: number, parroquia: ParroquiasDTO){
-       try{
-        await this.prismaService.parroquias.update({
-            data: {
-                parroquia: parroquia.parroquias
-            },
-            where: {
-                id_parroquia: id_parroquia
-            }
+    async updateParroquia(id_parroquia: number, parroquia: ParroquiasDTO) {
+        try {
+            await this.prismaService.parroquias.update({
+                data: { parroquia: parroquia.parroquia },
+                where: { id_parroquia }
             })
-            return {message: 'Parroquia Actualizada exitosamente. '}
-
-        }catch (error) {return {message: 'Error al actualizar la parroquia. '+ error }}
+            baseResponse.message = 'Parroquia actualizada exitosamente.'
+            return baseResponse;
+        } catch (error) {
+            badResponse.message = 'Error al actualizar la parroquia.' + error
+            return badResponse;
+        }
     }
 
-    async deleteParroquia(id_parroquia:number) {
-        try{
-        await this.prismaService.parroquias.delete({
-            where: {
-                id_parroquia: id_parroquia
-            }
+    async deleteParroquia(id_parroquia: number) {
+        try {
+            await this.prismaService.parroquias.delete({
+                where: { id_parroquia }
             })
-        return{ message: 'Parroquia Eliminada exitosamente. '}
-
-    }catch (error) {return {message: 'Error al eliminar la parroquia. '+ error }}
+            baseResponse.message = 'Parroquia eliminada exitosamente.'
+            return baseResponse;
+        } catch (error) {
+            badResponse.message = 'Error al eliminar la parroquia.' + error
+            return badResponse;
+        }
     }
 }
