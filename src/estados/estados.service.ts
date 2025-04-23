@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { EstadoDTO } from './estados.dto';
+import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
 export class EstadosService {
@@ -14,32 +15,44 @@ export class EstadosService {
     }
 
     async createEstado(estado: EstadoDTO) {
-        await this.prismaService.estados.create({
-            data: {
-                estado: estado.estados
-            }
-        })
-        return {message: 'Estado creado exitosamente.'}
+        try {
+            await this.prismaService.estados.create({
+                data: {
+                    estado: estado.estado
+                }
+            })
+            baseResponse.message = 'Estado creado exitosamente.'
+            return baseResponse;
+        } catch (err) {
+            badResponse.message = 'Error al crear el estado.' + err
+            return badResponse;
+        }
     }
 
     async updateEstado(id_estado: number, estado: EstadoDTO) {
-        await this.prismaService.estados.update({
-            data: {
-                estado: estado.estados
-            },
-            where: {
-                id_estado: id_estado
-            }
-        })
-        return {message: 'Estado actualizado exitosamente.'}
+        try {
+            await this.prismaService.estados.update({
+                data: { estado: estado.estado },
+                where: { id_estado }
+            })
+            baseResponse.message = 'Estado actualizado exitosamente.'
+            return baseResponse
+        } catch (err) {
+            badResponse.message = 'Error al actualizar el estado.' + err
+            return badResponse;
+        }
     }
 
     async deleteEstado(id_estado: number) {
-        await this.prismaService.estados.delete({
-            where: {
-                id_estado: id_estado
-            }
-        })
-        return {message: 'Estado eliminado exitosamente.'}
+        try {
+            await this.prismaService.estados.delete({
+                where: { id_estado }
+            })
+            baseResponse.message = 'Estado eliminado exitosamente.'
+            return baseResponse;
+        } catch (err) {
+            badResponse.message = 'Error al eliminar el estado.' + err
+            return badResponse;
+        }
     }
 }
