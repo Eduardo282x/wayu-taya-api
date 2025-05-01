@@ -34,40 +34,56 @@ model Parroquias {
   id_ciudad    Int
   ciudad       Ciudades     @relation(fields: [id_ciudad], references: [id_ciudad])
   parroquia    String
-  Persona      Persona[]
   Documentos   Documentos[]
+  Persona      Personas[]
+  Eventos      Eventos[]
 }
 
-model Persona {
-  id_persona Int    @id @default(autoincrement())
-  nombre     String
-  apellido   String
+model Personas {
+  id_persona       Int        @id @default(autoincrement())
+  nombre           String
+  apellido         String
+  direccion        String
+  id_parroquia     Int
+  parroquia        Parroquias @relation(fields: [id_parroquia], references: [id_parroquia])
+  email            String
+  telefono         String
+  cedula           String
+  sexo             String
+  fecha_nacimiento DateTime
 
-  edad                  Int
-  direccion             String
-  id_parroquia          Int
-  parroquia             Parroquias @relation(fields: [id_parroquia], references: [id_parroquia])
-  telefono              String
-  email                 String
-  numero_identificacion String
-  empleado              Boolean
-  razon_social          String
-  entidad               String
-
-  fecha_creacion     DateTime
-  fecha_modificacion DateTime
+  fecha_creacion     DateTime            @default(now())
+  fecha_modificacion DateTime            @default(now())
   activo             Boolean
+  PersonasProgramas  PersonasProgramas[]
   Colaboradores      Colaboradores[]
 }
 
+// -------------------------------------------
+
+model Programas {
+  id_programa             Int                 @id @default(autoincrement())
+  programa                String
+  tipo_programa           String
+  PersonasProgramasMusica PersonasProgramas[]
+}
+
+model PersonasProgramas {
+  id_personas_programa_musica Int       @id @default(autoincrement())
+  id_persona                  Int
+  persona                     Personas  @relation(fields: [id_persona], references: [id_persona])
+  id_programa                 Int
+  programa                    Programas @relation(fields: [id_programa], references: [id_programa])
+}
+
+// --------------------------------------------
 model Documentos {
-  id_documento     Int             @id @default(autoincrement())
-  nombre_documento String
-  id_parroquia     Int
-  parroquia        Parroquias      @relation(fields: [id_parroquia], references: [id_parroquia])
-  link             String
-  fecha            DateTime
-  Colaboradores    Colaboradores[]
+  id_documento           Int             @id @default(autoincrement())
+  nombre_documento       String
+  fecha                  DateTime
+  Colaboradores          Colaboradores[]
+  Parroquias             Parroquias?     @relation(fields: [parroquiasId_parroquia], references: [id_parroquia])
+  parroquiasId_parroquia Int?
 }
 
 model Colaboradores {
@@ -75,5 +91,37 @@ model Colaboradores {
   id_documento Int
   documento    Documentos @relation(fields: [id_documento], references: [id_documento])
   id_persona   Int
-  persona      Persona    @relation(fields: [id_persona], references: [id_persona])
+  personas     Personas   @relation(fields: [id_persona], references: [id_persona])
+}
+
+// ---------------------------------------------------
+
+model Eventos {
+  id_eventos         Int                  @id @default(autoincrement())
+  nombre             String
+  descripcion        String
+  direccion          String
+  id_parroquia       Int
+  parroquias         Parroquias           @relation(fields: [id_parroquia], references: [id_parroquia])
+  fecha              DateTime
+  fecha_creacion     DateTime             @default(now())
+  ProveedoresEventos ProveedoresEventos[]
+}
+
+model Proveedores {
+  id_proveedor       Int                  @id @default(autoincrement())
+  nombre             String
+  rif                String //J0560276543650
+  direccion          String //Av. La limpia
+  pais               String
+  correo             String
+  ProveedoresEventos ProveedoresEventos[]
+}
+
+model ProveedoresEventos {
+  id           Int         @id @default(autoincrement())
+  id_evento    Int
+  eventos      Eventos     @relation(fields: [id_evento], references: [id_eventos])
+  id_proveedor Int
+  proveedores  Proveedores @relation(fields: [id_proveedor], references: [id_proveedor])
 }
