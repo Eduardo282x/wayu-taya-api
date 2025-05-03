@@ -18,7 +18,8 @@ export class EventosService {
 
     async createEvento(evento: EventosDTO) {
         try {
-            await this.prismaService.eventos.create({
+
+            const eventoCreated = await this.prismaService.eventos.create({
                 data: {
                     nombre: evento.nombre,
                     descripcion: evento.descripcion,
@@ -27,6 +28,18 @@ export class EventosService {
                     fecha: evento.fecha,
                 }
             })
+
+            const dataProveedoresEventos = evento.id_proveedores.map((pro) => {
+                return {
+                    id_evento: eventoCreated.id_eventos,
+                    id_proveedor: pro
+                }
+            })
+
+            await this.prismaService.proveedoresEventos.createMany({
+                data: dataProveedoresEventos
+            })
+
             baseResponse.message = 'Eventos creado exitosamente.'
             return baseResponse;
         } catch (error) {
@@ -38,15 +51,27 @@ export class EventosService {
     async updateEvento(id_eventos: number, evento: EventosDTO) {
         try {
             await this.prismaService.eventos.update({
-                data: { 
+                data: {
                     nombre: evento.nombre,
                     descripcion: evento.descripcion,
                     direccion: evento.direccion,
                     id_parroquia: evento.id_parroquia,
                     fecha: evento.fecha,
-                 },
+                },
                 where: { id_eventos }
             })
+
+            const dataProveedoresEventos = evento.id_proveedores.map((pro) => {
+                return {
+                    id_evento: id_eventos,
+                    id_proveedor: pro
+                }
+            })
+
+            await this.prismaService.proveedoresEventos.updateMany({
+                data: dataProveedoresEventos
+            })
+
             baseResponse.message = 'Evento actualizado exitosamente.'
             return baseResponse;
         }
@@ -60,6 +85,10 @@ export class EventosService {
         try {
             await this.prismaService.eventos.delete({
                 where: { id_eventos }
+            })
+
+            await this.prismaService.proveedoresEventos.deleteMany({
+                where: { id_evento: id_eventos }
             })
             baseResponse.message = 'Evento eliminado exitosamente.'
             return baseResponse;
