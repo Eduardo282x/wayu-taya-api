@@ -11,7 +11,9 @@ export class ProveedoresService {
     }
 
     async getProveedores() {
-        return await this.prismaService.proveedores.findMany();
+        return await this.prismaService.proveedores.findMany({
+            include: { ProveedoresEventos: true}
+        });
     }
 
     async createProveedores(proveedores: ProveedoresDTO) {
@@ -56,13 +58,15 @@ export class ProveedoresService {
 
     async deleteProveedores(id_proveedor: number) {
         try {
-            await this.prismaService.proveedores.delete({
-                where: { id_proveedor }
-            })
-            baseResponse.message = 'Proveedor eliminado exitosamente.'
+            
+            await this.prismaService.proveedores.update({
+                where: { id_proveedor },
+                data: { eliminada: true },
+            });
+            baseResponse.message = 'Evento marcado como eliminado exitosamente.';
             return baseResponse;
-        } catch (err) {
-            badResponse.message = 'Error al eliminar al Proveedor.' + err
+        } catch (error) {
+            badResponse.message = 'Error al marcar el evento como eliminado.' + error;
             return badResponse;
         }
     }

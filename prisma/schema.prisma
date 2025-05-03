@@ -117,6 +117,7 @@ model Proveedores {
   pais               String
   correo             String
   ProveedoresEventos ProveedoresEventos[]
+  eliminada          Boolean              @default(false)
 }
 
 model ProveedoresEventos {
@@ -125,5 +126,4 @@ model ProveedoresEventos {
   eventos      Eventos     @relation(fields: [id_evento], references: [id_eventos])
   id_proveedor Int
   proveedores  Proveedores @relation(fields: [id_proveedor], references: [id_proveedor])
-  eliminada          Boolean              @default(false)
 }

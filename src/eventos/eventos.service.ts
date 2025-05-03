@@ -12,7 +12,7 @@ export class EventosService {
 
     async getEventos() {
         return await this.prismaService.eventos.findMany({
-            include: { parroquias: true }
+            include: { parroquias: true , ProveedoresEventos: true}
         });
     }
 
@@ -88,13 +88,6 @@ export class EventosService {
                 where: { id_eventos },
                 data: { eliminada: true },
             });
-    
-            // Opcional: También puedes marcar como eliminados los registros relacionados
-             await this.prismaService.proveedoresEventos.updateMany({
-                 where: { id_evento: id_eventos },
-                 data: { eliminada: true },
-             });
-    
             baseResponse.message = 'Evento marcado como eliminado exitosamente.';
             return baseResponse;
         } catch (error) {
