@@ -14,6 +14,7 @@ export class EventosDTO {
     @IsDateString()
     fecha: string;
     @IsArray()
-    @IsNumber()
+    @IsNumber( {}, { each: true })
     id_proveedores: number[];
+
 }

@@ -12,7 +12,7 @@ export class EventosService {
 
     async getEventos() {
         return await this.prismaService.eventos.findMany({
-            include: { parroquias: true, ProveedoresEventos: true }
+            include: { parroquias: true }
         });
     }
 
@@ -83,17 +83,22 @@ export class EventosService {
 
     async deleteEvento(id_eventos: number) {
         try {
-            await this.prismaService.eventos.delete({
-                where: { id_eventos }
-            })
-
-            await this.prismaService.proveedoresEventos.deleteMany({
-                where: { id_evento: id_eventos }
-            })
-            baseResponse.message = 'Evento eliminado exitosamente.'
+            
+            await this.prismaService.eventos.update({
+                where: { id_eventos },
+                data: { eliminada: true },
+            });
+    
+            // Opcional: También puedes marcar como eliminados los registros relacionados
+             await this.prismaService.proveedoresEventos.updateMany({
+                 where: { id_evento: id_eventos },
+                 data: { eliminada: true },
+             });
+    
+            baseResponse.message = 'Evento marcado como eliminado exitosamente.';
             return baseResponse;
-        } catch (err) {
-            badResponse.message = 'Error al eliminar el Evento.' + err
+        } catch (error) {
+            badResponse.message = 'Error al marcar el evento como eliminado.' + error;
             return badResponse;
         }
     }
