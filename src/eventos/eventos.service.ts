@@ -12,7 +12,7 @@ export class EventosService {
 
     async getEventos() {
         return await this.prismaService.eventos.findMany({
-            include: { parroquias: true }
+            include: { parroquias: true, ProveedoresEventos: true }
         });
     }
 
