@@ -7,9 +7,10 @@ import { CiudadesModule } from './ciudades/ciudades.module';
 import { ParroquiasModule } from './parroquias/parroquias.module';
 import { MunicipiosModule } from './municipios/municipios.module';
 import { EventosModule } from './eventos/eventos.module';
+import { ProveedoresModule } from './proveedores/proveedores.module';
 
 @Module({
-  imports: [EstadosModule, CiudadesModule, ParroquiasModule, MunicipiosModule, EventosModule],
+  imports: [EstadosModule, CiudadesModule, ParroquiasModule, MunicipiosModule, EventosModule, ProveedoresModule],
   controllers: [AppController],
   providers: [AppService, PrismaService],
 })

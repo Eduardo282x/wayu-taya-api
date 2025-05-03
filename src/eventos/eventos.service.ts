@@ -61,10 +61,10 @@ export class EventosService {
             await this.prismaService.eventos.delete({
                 where: { id_eventos }
             })
-            baseResponse.message = 'Municipio eliminado exitosamente.'
+            baseResponse.message = 'Evento eliminado exitosamente.'
             return baseResponse;
         } catch (err) {
-            badResponse.message = 'Error al eliminar municipio.' + err
+            badResponse.message = 'Error al eliminar el Evento.' + err
             return badResponse;
         }
     }
