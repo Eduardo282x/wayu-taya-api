@@ -1,6 +1,5 @@
-import { IsArray, IsNumber } from "class-validator";
-import { IsString } from "class-validator";
-import { IsDateString } from "class-validator";
+import { Transform } from "class-transformer";
+import { IsArray, IsDate, IsNumber, IsString } from "class-validator";
 
 export class EventosDTO {
     @IsNumber()
@@ -11,10 +10,11 @@ export class EventosDTO {
     descripcion: string;
     @IsString()
     direccion: string;
-    @IsDateString()
-    fecha: string;
+    @IsDate()
+    @Transform(({ value }) => new Date(value))
+    fecha: Date;
     @IsArray()
-    @IsNumber( {}, { each: true })
+    @IsNumber({}, { each: true })
     id_proveedores: number[];
 
 }

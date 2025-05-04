@@ -44,7 +44,7 @@ export class ProveedoresService {
                     direccion: proveedores.direccion,
                     pais: proveedores.pais,
                     correo: proveedores.correo,
-                 },
+                },
                 where: { id_proveedor }
             })
             baseResponse.message = 'Proveedor actualizado exitosamente.'
@@ -58,7 +58,6 @@ export class ProveedoresService {
 
     async deleteProveedores(id_proveedor: number) {
         try {
-            
             await this.prismaService.proveedores.update({
                 where: { id_proveedor },
                 data: { eliminada: true },

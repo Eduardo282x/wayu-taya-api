@@ -12,13 +12,12 @@ export class EventosService {
 
     async getEventos() {
         return await this.prismaService.eventos.findMany({
-            include: { parroquias: true , ProveedoresEventos: true}
+            include: { parroquias: true, ProveedoresEventos: { include: { proveedores: true } } }
         });
     }
 
     async createEvento(evento: EventosDTO) {
         try {
-
             const eventoCreated = await this.prismaService.eventos.create({
                 data: {
                     nombre: evento.nombre,
@@ -69,7 +68,7 @@ export class EventosService {
             })
 
             await this.prismaService.proveedoresEventos.updateMany({
-                data: dataProveedoresEventos
+                data: dataProveedoresEventos,
             })
 
             baseResponse.message = 'Evento actualizado exitosamente.'
@@ -83,7 +82,6 @@ export class EventosService {
 
     async deleteEvento(id_eventos: number) {
         try {
-            
             await this.prismaService.eventos.update({
                 where: { id_eventos },
                 data: { eliminada: true },
