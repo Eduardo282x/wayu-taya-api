@@ -6,14 +6,17 @@ import { badResponse, baseResponse } from 'src/dto/base.dto';
 @Injectable()
 export class ProveedoresService {
 
-    constructor(private prismaService: PrismaService){
+    constructor(private prismaService: PrismaService) {
 
     }
 
     async getProveedores() {
-        return await this.prismaService.proveedores.findMany({
-            include: { ProveedoresEventos: true}
-        });
+        return await this.prismaService.proveedores.findMany(
+            {
+                where: { eliminada: false } ,
+                orderBy: { id_proveedor: 'asc' }
+            },
+        );
     }
 
     async createProveedores(proveedores: ProveedoresDTO) {
@@ -38,7 +41,7 @@ export class ProveedoresService {
     async updateProveedores(id_proveedor: number, proveedores: ProveedoresDTO) {
         try {
             await this.prismaService.proveedores.update({
-                data: { 
+                data: {
                     nombre: proveedores.nombre,
                     rif: proveedores.rif,
                     direccion: proveedores.direccion,
@@ -69,5 +72,5 @@ export class ProveedoresService {
             return badResponse;
         }
     }
-    
+
 }
