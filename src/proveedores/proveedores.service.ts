@@ -12,7 +12,7 @@ export class ProveedoresService {
 
     async getProveedores() {
         return await this.prismaService.proveedores.findMany({
-            include: { ProveedoresEventos: true}
+            include: { ProveedoresEventos: {include: {proveedores:true}}}
         });
     }
 

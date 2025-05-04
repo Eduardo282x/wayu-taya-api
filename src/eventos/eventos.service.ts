@@ -12,7 +12,7 @@ export class EventosService {
 
     async getEventos() {
         return await this.prismaService.eventos.findMany({
-            include: { parroquias: true , ProveedoresEventos: true}
+            include: { parroquias: true , ProveedoresEventos: {include: {proveedores:true}}}
         });
     }
 
@@ -50,36 +50,44 @@ export class EventosService {
 
     async updateEvento(id_eventos: number, evento: EventosDTO) {
         try {
-            await this.prismaService.eventos.update({
-                data: {
-                    nombre: evento.nombre,
-                    descripcion: evento.descripcion,
-                    direccion: evento.direccion,
-                    id_parroquia: evento.id_parroquia,
-                    fecha: evento.fecha,
-                },
-                where: { id_eventos }
-            })
-
-            const dataProveedoresEventos = evento.id_proveedores.map((pro) => {
-                return {
-                    id_evento: id_eventos,
-                    id_proveedor: pro
-                }
-            })
-
-            await this.prismaService.proveedoresEventos.updateMany({
-                data: dataProveedoresEventos
-            })
-
-            baseResponse.message = 'Evento actualizado exitosamente.'
-            return baseResponse;
+          await this.prismaService.eventos.update({
+            data: {
+              nombre: evento.nombre,
+              descripcion: evento.descripcion,
+              direccion: evento.direccion,
+              id_parroquia: evento.id_parroquia,
+              fecha: evento.fecha,
+            },
+            where: { id_eventos }
+          });
+      
+          await this.prismaService.proveedoresEventos.deleteMany({
+            where: { id_evento: id_eventos }
+          });
+      
+          // Si hay proveedores, crea las nuevas relaciones
+          if (evento.id_proveedores && evento.id_proveedores.length > 0) {
+            await this.prismaService.proveedoresEventos.deleteMany({
+                where: { id_evento: id_eventos }
+              });
+              
+            const dataProveedoresEventos = evento.id_proveedores.map((pro) => ({
+              id_evento: id_eventos,
+              id_proveedor: pro
+            }));
+      
+            await this.prismaService.proveedoresEventos.createMany({
+              data: dataProveedoresEventos
+            });
+          }
+      
+          baseResponse.message = 'Evento actualizado exitosamente.'
+          return baseResponse;
+        } catch (error) {
+          badResponse.message = 'Error al actualizar el Evento. ' + error
+          return badResponse;
         }
-        catch (error) {
-            badResponse.message = 'Error al actualizar el Evento. ' + error
-            return badResponse;
-        }
-    }
+      }
 
     async deleteEvento(id_eventos: number) {
         try {
