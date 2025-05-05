@@ -1,4 +1,4 @@
-import { IsArray, IsNumber, IsOptional } from "class-validator";
+import { IsArray, IsBoolean, IsNumber, IsOptional } from "class-validator";
 import { IsString } from "class-validator";
 import { IsDateString } from "class-validator";
 
@@ -15,7 +15,9 @@ export class EventosDTO {
     fecha: string;
     @IsArray()
     @IsNumber( {}, { each: true })
-    @IsOptional()
     id_proveedores: number[];
-
+    @IsOptional()
+    @IsBoolean()
+    cambio_proveedores: boolean;
+    
 }

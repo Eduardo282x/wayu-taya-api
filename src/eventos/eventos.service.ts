@@ -60,17 +60,13 @@ export class EventosService {
             },
             where: { id_eventos }
           });
-      
-          await this.prismaService.proveedoresEventos.deleteMany({
-            where: { id_evento: id_eventos }
-          });
-      
+
           // Si hay proveedores, crea las nuevas relaciones
-          if (evento.id_proveedores && evento.id_proveedores.length > 0) {
+          if (evento.cambio_proveedores) {
             await this.prismaService.proveedoresEventos.deleteMany({
                 where: { id_evento: id_eventos }
               });
-              
+
             const dataProveedoresEventos = evento.id_proveedores.map((pro) => ({
               id_evento: id_eventos,
               id_proveedor: pro
