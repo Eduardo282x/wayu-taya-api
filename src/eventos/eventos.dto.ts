@@ -1,5 +1,5 @@
 import { Transform } from "class-transformer";
-import { IsArray, IsDate, IsNumber, IsString } from "class-validator";
+import { IsArray, IsBoolean, IsDate, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class EventosDTO {
     @IsNumber()
@@ -16,5 +16,7 @@ export class EventosDTO {
     @IsArray()
     @IsNumber({}, { each: true })
     id_proveedores: number[];
-
+    @IsOptional()
+    @IsBoolean()
+    cambio_proveedores: boolean;
 }

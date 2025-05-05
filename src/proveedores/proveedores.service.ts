@@ -10,13 +10,17 @@ export class ProveedoresService {
 
     }
 
+    async getProveedoresAll() {
+        return await this.prismaService.proveedores.findMany({
+            orderBy: { id_proveedor: 'asc' }
+        });
+    }
+
     async getProveedores() {
-        return await this.prismaService.proveedores.findMany(
-            {
-                where: { eliminada: false } ,
-                orderBy: { id_proveedor: 'asc' }
-            },
-        );
+        return await this.prismaService.proveedores.findMany({
+            orderBy: { id_proveedor: 'asc' },
+            where: { eliminada: false }
+        });
     }
 
     async createProveedores(proveedores: ProveedoresDTO) {
@@ -65,10 +69,10 @@ export class ProveedoresService {
                 where: { id_proveedor },
                 data: { eliminada: true },
             });
-            baseResponse.message = 'Evento marcado como eliminado exitosamente.';
+            baseResponse.message = 'Proveedor marcado como eliminado exitosamente.';
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al marcar el evento como eliminado.' + error;
+            badResponse.message = 'Error al marcar el proveedor como eliminado.' + error;
             return badResponse;
         }
     }

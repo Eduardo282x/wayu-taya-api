@@ -12,6 +12,11 @@ export class EventosController {
         return await this.eventosService.getEventos()
     }
 
+    @Get('/fixed')
+    async getEventosFixed() {
+        return await this.eventosService.getEventosFixed()
+    }
+
     @Post()
     async createEvento(@Body() datos: EventosDTO) {
         return await this.eventosService.createEvento(datos);
