@@ -106,6 +106,7 @@ model Eventos {
   fecha              DateTime
   fecha_creacion     DateTime             @default(now())
   ProveedoresEventos ProveedoresEventos[]
+  eliminada          Boolean              @default(false)
 }
 
 model Proveedores {
@@ -116,6 +117,7 @@ model Proveedores {
   pais               String
   correo             String
   ProveedoresEventos ProveedoresEventos[]
+  eliminada          Boolean              @default(false)
 }
 
 model ProveedoresEventos {
