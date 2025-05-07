@@ -9,6 +9,8 @@ import { MunicipiosModule } from './municipios/municipios.module';
 import { EventosModule } from './eventos/eventos.module';
 import { ProveedoresModule } from './proveedores/proveedores.module';
 import { DocumentosModule } from './documentos/documentos.module';
+import { UsuariosModule } from './usuarios/usuarios.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -18,7 +20,9 @@ import { DocumentosModule } from './documentos/documentos.module';
     MunicipiosModule, 
     EventosModule, 
     ProveedoresModule,
-    DocumentosModule
+    DocumentosModule,
+    UsuariosModule,
+    AuthModule
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

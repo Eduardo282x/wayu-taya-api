@@ -127,3 +127,12 @@ model ProveedoresEventos {
   id_proveedor Int
   proveedores  Proveedores @relation(fields: [id_proveedor], references: [id_proveedor])
 }
+
+model Usuarios {
+  id       Int    @id @default(autoincrement())
+  nombre   String
+  apellido String
+  correo   String
+  usuario  String
+  password String
+}
