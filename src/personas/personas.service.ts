@@ -12,7 +12,7 @@ export class PersonasService {
 
     async getPersonas(){
         return await this.prismaService.personas.findMany({
-            include: {  parroquia: true    }
+            include: {  parroquia: true,  PersonasProgramas: {include:{programa:true}}    }
         });
     }
 

@@ -1,5 +1,5 @@
 
-import { IsArray, IsDate, IsNumber, IsString } from "class-validator";
+import { IsArray, IsBoolean, IsDate, IsNumber, IsOptional, IsString } from "class-validator";
 import { Transform } from "class-transformer";
 
 export class PersonasDTO{
@@ -26,4 +26,7 @@ export class PersonasDTO{
     @IsArray()
     @IsNumber({}, { each: true })
     id_programa: number[];
+    @IsBoolean()
+    @IsOptional()
+    cambioPersona: boolean;
 }

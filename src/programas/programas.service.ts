@@ -19,7 +19,7 @@ export class ProgramasService {
         try{
            await this.prismaService.programas.create({
                 data: {
-                    id_programa: programa.id_programa,
+                    
                     programa: programa.programa,
                     tipo_programa: programa.tipo_programa
                 }
@@ -32,24 +32,24 @@ export class ProgramasService {
                 }
     }
 
-    async updatePrograma(id_programas: number, programas : ProgramasDTO ){
+    async updateProgramas(id_programas: number, programas : ProgramasDTO ){
         try{
             await this.prismaService.programas.update({
                  data: {
-                     id_programa: programas.id_programa,
+                     
                      programa: programas.programa,
                      tipo_programa: programas.tipo_programa,
                  },
                  where: { id_programa: id_programas}
              });
-                     baseResponse.message = 'exito al crear el programa.'
+                     baseResponse.message = 'exito al actualizar el programa.'
                      return baseResponse;
          }catch (error) {
-                     badResponse.message = 'Error al crear el programa.' + error
+                     badResponse.message = 'Error al actualizar el programa.' + error
                      return badResponse;
                  }
     }
-    async deletePrograma(id_programa: number) {
+    async deleteProgramas(id_programa: number) {
                 try {
                     await this.prismaService.programas.update({
                         where: { id_programa: id_programa },
