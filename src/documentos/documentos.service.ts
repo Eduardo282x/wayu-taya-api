@@ -62,7 +62,7 @@ export class DocumentosService {
                 },
                 where: { id_documento }
             })
-            //eliminar colaboradores para agregar nuevos colaboradores
+
             await this.prismaService.colaboradores.deleteMany({
                 where: { id_documento },
               });
