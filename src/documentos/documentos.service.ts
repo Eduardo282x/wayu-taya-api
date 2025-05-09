@@ -12,45 +12,55 @@ export class DocumentosService {
 
     async getDocumentos() {
         return await this.prismaService.documentos.findMany({
+            orderBy: { id_documento: 'asc' },
             include: {
                 Parroquias: true,
                 Colaboradores: {
                     include: {
-                      personas: true
+                        personas: true
                     }
-                  }
+                }
             }
         });
+    }
+
+    async getDocumentosFixed() {
+        return this.getDocumentos().then(res => res.map(data => {
+            return {
+                ...data,
+                Colaboradores: data.Colaboradores.map(co => co.personas)
+            }
+        }))
     }
 
     async createDocumento(documento: DocumentoDTO) {
         try {
             const documentoCreated = await this.prismaService.documentos.create({
                 data: {
-                  nombre_documento: documento.nombre_documento,
-                  fecha: documento.fecha,
-                  parroquiasId_parroquia: documento.parroquiasId_parroquia,
+                    nombre_documento: documento.nombre_documento,
+                    fecha: documento.fecha,
+                    parroquiasId_parroquia: documento.parroquiasId_parroquia,
                 },
-              });
-            
+            });
+
             const dataColaboradores = documento.id_personas.map((idp) => {
-            return {
-                id_documento: documentoCreated.id_documento,
-                id_persona: idp
-            }
-        });
+                return {
+                    id_documento: documentoCreated.id_documento,
+                    id_persona: idp
+                }
+            });
 
-        await this.prismaService.colaboradores.createMany({
-          data: dataColaboradores
-        })
+            await this.prismaService.colaboradores.createMany({
+                data: dataColaboradores
+            })
 
-      baseResponse.message = 'Documento creado exitosamente.';
-      return baseResponse;
-    } catch (error) {
-      badResponse.message = 'Error al crear el documento: ' + error
-      return badResponse;
+            baseResponse.message = 'Documento creado exitosamente.';
+            return baseResponse;
+        } catch (error) {
+            badResponse.message = 'Error al crear el documento: ' + error
+            return badResponse;
+        }
     }
-}
 
     async updateDocumento(id_documento: number, documento: DocumentoDTO) {
         try {
@@ -65,8 +75,8 @@ export class DocumentosService {
 
             await this.prismaService.colaboradores.deleteMany({
                 where: { id_documento },
-              });
-        
+            });
+
             const dataColaboradores = documento.id_personas.map((idp) => {
                 return {
                     id_documento: id_documento,
@@ -85,16 +95,16 @@ export class DocumentosService {
             return badResponse;
         }
     }
-        
+
     async deleteDocumento(id_documento: number) {
         try {
-            await this.prismaService.colaboradores.deleteMany({
-                where: { id_documento }
-              })
 
-            await this.prismaService.documentos.delete({
-                where: { id_documento }
-            })
+            await this.prismaService.documentos.update({
+                where: { id_documento },
+                data: { eliminado: true }
+            });
+
+
             baseResponse.message = 'Documento eliminado exitosamente.'
             return baseResponse;
         } catch (error) {
