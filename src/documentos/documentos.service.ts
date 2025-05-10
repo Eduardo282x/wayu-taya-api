@@ -72,7 +72,7 @@ export class DocumentosService {
                 },
                 where: { id_documento }
             })
-            //eliminar colaboradores para agregar nuevos colaboradores
+
             await this.prismaService.colaboradores.deleteMany({
                 where: { id_documento },
             });
@@ -98,13 +98,13 @@ export class DocumentosService {
 
     async deleteDocumento(id_documento: number) {
         try {
-            await this.prismaService.colaboradores.deleteMany({
-                where: { id_documento }
-            })
 
-            await this.prismaService.documentos.delete({
-                where: { id_documento }
-            })
+            await this.prismaService.documentos.update({
+                where: { id_documento },
+                data: { eliminado: true }
+            });
+
+
             baseResponse.message = 'Documento eliminado exitosamente.'
             return baseResponse;
         } catch (error) {
