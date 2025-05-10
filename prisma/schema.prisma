@@ -84,6 +84,7 @@ model Documentos {
   nombre_documento       String
   fecha                  DateTime
   Colaboradores          Colaboradores[]
+  eliminado              Boolean             @default(false)
   Parroquias             Parroquias?     @relation(fields: [parroquiasId_parroquia], references: [id_parroquia])
   parroquiasId_parroquia Int?
 }
