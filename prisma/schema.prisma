@@ -7,135 +7,229 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Estados {
-  id_estado  Int          @id @default(autoincrement())
-  estado     String
-  Municipios Municipios[]
+model State {
+  id     Int    @id @default(autoincrement())
+  name   String
+  cities City[]
 }
 
-model Municipios {
-  id_municipio Int        @id @default(autoincrement())
-  id_estado    Int
-  estado       Estados    @relation(fields: [id_estado], references: [id_estado])
-  municipio    String
-  Ciudades     Ciudades[]
+model City {
+  id      Int    @id @default(autoincrement())
+  name    String
+  stateId Int
+  state   State  @relation(fields: [stateId], references: [id])
+  towns   Town[]
 }
 
-model Ciudades {
-  id_ciudad    Int          @id @default(autoincrement())
-  id_municipio Int
-  municipio    Municipios   @relation(fields: [id_municipio], references: [id_municipio])
-  ciudad       String
-  Parroquias   Parroquias[]
+model Town {
+  id       Int      @id @default(autoincrement())
+  name     String
+  cityId   Int
+  city     City     @relation(fields: [cityId], references: [id])
+  parishes Parish[]
 }
 
-model Parroquias {
-  id_parroquia Int          @id @default(autoincrement())
-  id_ciudad    Int
-  ciudad       Ciudades     @relation(fields: [id_ciudad], references: [id_ciudad])
-  parroquia    String
-  Documentos   Documentos[]
-  Persona      Personas[]
-  Eventos      Eventos[]
+model Parish {
+  id     Int      @id @default(autoincrement())
+  name   String
+  townId Int
+  town   Town     @relation(fields: [townId], references: [id])
+  people People[]
+  events Events[]
 }
 
-model Personas {
-  id_persona       Int        @id @default(autoincrement())
-  nombre           String
-  apellido         String
-  direccion        String
-  id_parroquia     Int
-  parroquia        Parroquias @relation(fields: [id_parroquia], references: [id_parroquia])
-  email            String
-  telefono         String
-  cedula           String
-  sexo             String
-  fecha_nacimiento DateTime
+model People {
+  id             Int      @id @default(autoincrement())
+  name           String
+  lastName       String
+  address        String
+  parishId       Int
+  parish         Parish   @relation(fields: [parishId], references: [id])
+  email          String
+  phone          String
+  identification String
+  sex            String
+  birthdate      DateTime
 
-  fecha_creacion     DateTime            @default(now())
-  fecha_modificacion DateTime            @default(now())
-  activo             Boolean
-  PersonasProgramas  PersonasProgramas[]
-  Colaboradores      Colaboradores[]
-  eliminado          Boolean             @default(false)
+  createAt       DateTime         @default(now())
+  updateAt       DateTime         @default(now())
+  peoplePrograms PeoplePrograms[]
+  collaborators  Collaborators[]
+  deleted        Boolean          @default(false)
 }
 
 // -------------------------------------------
 
-model Programas {
-  id_programa             Int                 @id @default(autoincrement())
-  programa                String
-  tipo_programa           String
-  PersonasProgramasMusica PersonasProgramas[]
-  eliminado               Boolean             @default(false)
+model Programs {
+  id             Int              @id @default(autoincrement())
+  program        String
+  type           String
+  deleted        Boolean          @default(false)
+  peoplePrograms PeoplePrograms[]
 }
 
-model PersonasProgramas {
-  id_personas_programa_musica Int       @id @default(autoincrement())
-  id_persona                  Int
-  persona                     Personas  @relation(fields: [id_persona], references: [id_persona])
-  id_programa                 Int
-  programa                    Programas @relation(fields: [id_programa], references: [id_programa])
+model PeoplePrograms {
+  id        Int      @id @default(autoincrement())
+  peopleId  Int
+  people    People   @relation(fields: [peopleId], references: [id])
+  programId Int
+  program   Programs @relation(fields: [programId], references: [id])
 }
 
 // --------------------------------------------
-model Documentos {
-  id_documento           Int             @id @default(autoincrement())
-  nombre_documento       String
-  fecha                  DateTime
-  Colaboradores          Colaboradores[]
-  eliminado              Boolean             @default(false)
-  Parroquias             Parroquias?     @relation(fields: [parroquiasId_parroquia], references: [id_parroquia])
-  parroquiasId_parroquia Int?
+model Documents {
+  id            Int             @id @default(autoincrement())
+  name          String
+  date          DateTime
+  collaborators Collaborators[]
+  deleted       Boolean         @default(false)
 }
 
-model Colaboradores {
-  id           Int        @id @default(autoincrement())
-  id_documento Int
-  documento    Documentos @relation(fields: [id_documento], references: [id_documento])
-  id_persona   Int
-  personas     Personas   @relation(fields: [id_persona], references: [id_persona])
+model Collaborators {
+  id         Int       @id @default(autoincrement())
+  documentId Int
+  documento  Documents @relation(fields: [documentId], references: [id])
+  peopleId   Int
+  people     People    @relation(fields: [peopleId], references: [id])
 }
 
 // ---------------------------------------------------
 
-model Eventos {
-  id_eventos         Int                  @id @default(autoincrement())
-  nombre             String
-  descripcion        String
-  direccion          String
-  id_parroquia       Int
-  parroquias         Parroquias           @relation(fields: [id_parroquia], references: [id_parroquia])
-  fecha              DateTime
-  fecha_creacion     DateTime             @default(now())
-  ProveedoresEventos ProveedoresEventos[]
-  eliminada          Boolean              @default(false)
+model Events {
+  id              Int               @id @default(autoincrement())
+  name            String
+  description     String
+  address         String
+  parishId        Int
+  parish          Parish            @relation(fields: [parishId], references: [id])
+  date            DateTime
+  providersEvents ProvidersEvents[]
+  deleted         Boolean           @default(false)
+  createAt        DateTime          @default(now())
+  updateAt        DateTime          @default(now())
 }
 
-model Proveedores {
-  id_proveedor       Int                  @id @default(autoincrement())
-  nombre             String
-  rif                String //J0560276543650
-  direccion          String //Av. La limpia
-  pais               String
-  correo             String
-  ProveedoresEventos ProveedoresEventos[]
-  eliminada          Boolean              @default(false)
+model Providers {
+  id              Int               @id @default(autoincrement())
+  name            String
+  rif             String //J0560276543650
+  address         String //Av. La limpia
+  country         String
+  email           String
+  providersEvents ProvidersEvents[]
+  deleted         Boolean           @default(false)
 }
 
-model ProveedoresEventos {
-  id           Int         @id @default(autoincrement())
-  id_evento    Int
-  eventos      Eventos     @relation(fields: [id_evento], references: [id_eventos])
-  id_proveedor Int
-  proveedores  Proveedores @relation(fields: [id_proveedor], references: [id_proveedor])
+model ProvidersEvents {
+  id         Int       @id @default(autoincrement())
+  eventId    Int
+  events     Events    @relation(fields: [eventId], references: [id])
+  providerId Int
+  providers  Providers @relation(fields: [providerId], references: [id])
 }
 
-model Usuarios {
+model Users {
   id       Int    @id @default(autoincrement())
-  nombre   String
-  apellido String
+  name     String
+  lastName String
   correo   String
-  usuario  String
+  username String
   password String
+}
+
+// ---------------------------------------
+
+model Category {
+  id       Int        @id @default(autoincrement())
+  category String
+  medicine Medicine[]
+}
+
+model Forms {
+  id       Int        @id @default(autoincrement())
+  forms    String
+  medicine Medicine[]
+}
+
+model Medicine {
+  id               Int                @id @default(autoincrement())
+  name             String
+  description      String
+  categoryId       Int
+  category         Category           @relation(fields: [categoryId], references: [id])
+  medicine         Boolean
+  unit             String
+  amount           Int
+  temperate        String
+  manufacturer     String
+  activeIngredient String
+  formId           Int
+  form             Forms              @relation(fields: [formId], references: [id])
+  detDonation      DetDonation[]
+  inventory        Inventory[]
+  historyInventory HistoryInventory[]
+}
+
+model Store {
+  id               Int                @id @default(autoincrement())
+  name             String
+  address          String
+  inventory        Inventory[]
+  historyInventory HistoryInventory[]
+}
+
+model Donation {
+  id               Int                @id @default(autoincrement())
+  peopleId         Int?
+  providerId       Int?
+  type             String
+  date             DateTime
+  lote             String
+  createAt         DateTime           @default(now())
+  updateAt         DateTime           @default(now())
+  detDonation      DetDonation[]
+  inventory        Inventory[]
+  historyInventory HistoryInventory[]
+}
+
+model DetDonation {
+  id         Int      @id @default(autoincrement())
+  donationId Int
+  donation   Donation @relation(fields: [donationId], references: [id])
+  medicineId Int
+  medicine   Medicine @relation(fields: [medicineId], references: [id])
+  amount     Int
+}
+
+model Inventory {
+  id             Int      @id @default(autoincrement())
+  donationId     Int
+  donation       Donation @relation(fields: [donationId], references: [id])
+  medicineId     Int
+  medicine       Medicine @relation(fields: [medicineId], references: [id])
+  storeId        Int
+  store          Store    @relation(fields: [storeId], references: [id])
+  stock          Int
+  admissionDate  DateTime
+  expirationDate DateTime
+  createAt       DateTime @default(now())
+  updateAt       DateTime @default(now())
+}
+
+model HistoryInventory {
+  id             Int      @id @default(autoincrement())
+  medicineId     Int
+  medicine       Medicine @relation(fields: [medicineId], references: [id])
+  storeId        Int
+  store          Store    @relation(fields: [storeId], references: [id])
+  type           String
+  amount         Int
+  date           DateTime
+  donationId     Int
+  donation       Donation @relation(fields: [donationId], references: [id])
+  observations   String
+  admissionDate  DateTime
+  expirationDate DateTime
+  createAt       DateTime @default(now())
+  updateAt       DateTime @default(now())
 }
