@@ -8,44 +8,57 @@ export class MainLoadService {
     constructor(private readonly prismaService: PrismaService) { }
 
     async seedLocations() {
-        const dataStates = locations.map(lo => {
-            return {
-                id: lo.id_estado,
-                name: lo.estado
+        for (const loc of locations) {
+            // Insertar estado
+            const state = await this.prismaService.state.create({
+                data: {
+                    id: loc.id_estado,
+                    name: loc.estado,
+                },
+            });
+
+            // Insertar ciudades del estado
+            const createdCities = [];
+            for (const cityName of loc.ciudades) {
+                const city = await this.prismaService.city.create({
+                    data: {
+                        name: cityName,
+                        stateId: state.id,
+                    },
+                });
+                createdCities.push(city);
             }
-        });
 
-        const dataCities = locations.map(lo => {
-            return lo.ciudades.map(ci => {
-                return {
-                    name: ci,
-                    stateId: lo.id_estado
+            // Insertar municipios (towns) y parroquias
+            for (const municipio of loc.municipios) {
+                // Buscar la ciudad correspondiente a este municipio
+                // Puede coincidir con el nombre de la capital del municipio
+                const matchingCity = createdCities.find(city => city.name.toLowerCase() === municipio.capital.toLowerCase());
+
+                if (!matchingCity) {
+                    console.warn(`⚠️ No se encontró ciudad para el municipio ${municipio.municipio} (${municipio.capital})`);
+                    continue;
                 }
-            })
-        })
 
-        const dataParish = locations.map(lo => {
-            return lo.ciudades.map(ci => {
-                return lo.municipios.map(mu => {
-                    return mu.parroquias.map(pa => {
-                        return {
-                            name: pa,
-                            townId: 1,
-                        }
-                    })
-                })
-            })
-        })
+                // Insertar municipio como "town"
+                const town = await this.prismaService.town.create({
+                    data: {
+                        name: municipio.municipio,
+                        cityId: matchingCity.id,
+                    },
+                });
 
-        await this.prismaService.state.createMany({
-            data: dataStates,
-            skipDuplicates: true
-        });
-
-        await this.prismaService.city.createMany({
-            data: dataCities.flat(),
-            skipDuplicates: true
-        });
+                // Insertar parroquias
+                for (const parishName of municipio.parroquias) {
+                    await this.prismaService.parish.create({
+                        data: {
+                            name: parishName,
+                            townId: town.id,
+                        },
+                    });
+                }
+            }
+        }
 
         await this.prismaService.people.createMany({
             data: people
