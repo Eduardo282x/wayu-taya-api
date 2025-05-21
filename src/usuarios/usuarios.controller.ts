@@ -14,12 +14,12 @@ export class UsuariosController {
         return await this.usuarioService.getUsers();
     }
     @Post()
-    async createUser(@Body() usuario: DTOUsuarios) {
-        return await this.usuarioService.createUser(usuario);
+    async createUser(@Body() username: DTOUsuarios) {
+        return await this.usuarioService.createUser(username);
     }
     @Put('/:id')
-    async updateUser(@Param('id') id: string, @Body() usuario: DTOUsuarios) {
-        return await this.usuarioService.updateUser(Number(id), usuario);
+    async updateUser(@Param('id') id: string, @Body() username: DTOUsuarios) {
+        return await this.usuarioService.updateUser(Number(id), username);
     }
     @Delete('/:id')
     async deleteUser(@Param('id') id: string) {

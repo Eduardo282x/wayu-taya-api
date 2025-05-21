@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
-import { EstadosController } from './estados.controller';
-import { EstadosService } from './estados.service';
+import { EstadosController } from './state.controller';
+import { StateService } from './state.service';
 import { PrismaService } from 'src/prisma/prisma.service';
 
 @Module({
     controllers: [EstadosController],
-    providers: [EstadosService, PrismaService]
+    providers: [StateService, PrismaService]
 })
 export class EstadosModule { }

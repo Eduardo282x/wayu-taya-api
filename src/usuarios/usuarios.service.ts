@@ -11,18 +11,18 @@ export class UsuariosService {
     }
 
     async getUsers() {
-        return this.prismaService.usuarios.findMany()
+        return this.prismaService.users.findMany()
     }
 
-    async createUser(usuario: DTOUsuarios) {
+    async createUser(username: DTOUsuarios) {
         try {
-            await this.prismaService.usuarios.create({
+            await this.prismaService.users.create({
                 data: {
-                    usuario: usuario.usuario,
-                    nombre: usuario.nombre,
-                    apellido: usuario.apellido,
+                    username: username.username,
+                    name: username.name,
+                    lastName: username.lastName,
                     password: '1234',
-                    correo: usuario.correo
+                    correo: username.correo
                 }
             })
 
@@ -35,14 +35,14 @@ export class UsuariosService {
         }
     }
 
-    async updateUser(id_usuario: number, usuario: DTOUsuarios) {
+    async updateUser(id_usuario: number, username: DTOUsuarios) {
         try {
-            await this.prismaService.usuarios.update({
+            await this.prismaService.users.update({
                 data: {
-                    usuario: usuario.usuario,
-                    nombre: usuario.nombre,
-                    apellido: usuario.apellido,
-                    correo: usuario.correo
+                    username: username.username,
+                    name: username.name,
+                    lastName: username.lastName,
+                    correo: username.correo
                 },
                 where: { id: id_usuario }
             })
@@ -58,11 +58,11 @@ export class UsuariosService {
 
     async deleteUser(id_usuario: number) {
         try {
-            await this.prismaService.usuarios.delete({
+            await this.prismaService.users.delete({
                 where: { id: id_usuario }
             })
 
-            baseResponse.message = 'Usuario eliminado exitosamente';
+            baseResponse.message = 'Usuario deleted exitosamente';
             return baseResponse;
         }
         catch (err) {

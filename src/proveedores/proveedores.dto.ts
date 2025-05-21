@@ -2,13 +2,13 @@ import { IsString } from "class-validator";
 
 export class ProveedoresDTO {
     @IsString()
-    nombre: string;
+    name: string;
     @IsString()
     rif: string;
     @IsString()
-    direccion: string;
+    address: string;
     @IsString()
-    pais: string;
+    country: string;
     @IsString()
     correo: string;
 }

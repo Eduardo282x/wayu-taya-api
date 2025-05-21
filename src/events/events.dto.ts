@@ -1,21 +1,21 @@
 import { Transform } from "class-transformer";
 import { IsArray, IsBoolean, IsDate, IsNumber, IsOptional, IsString } from "class-validator";
 
-export class EventosDTO {
+export class EventsDTO {
     @IsNumber()
-    id_parroquia: number;
+    parishId: number;
     @IsString()
-    nombre: string;
+    name: string;
     @IsString()
-    descripcion: string;
+    description: string;
     @IsString()
-    direccion: string;
+    address: string;
     @IsDate()
     @Transform(({ value }) => new Date(value))
-    fecha: Date;
+    date: Date;
     @IsArray()
     @IsNumber({}, { each: true })
-    id_proveedores: number[];
+    providersId: number[];
     @IsOptional()
     @IsBoolean()
     cambio_proveedores: boolean;

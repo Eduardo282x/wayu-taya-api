@@ -11,17 +11,17 @@ export class MunicipiosService {
     }
 
     async getMunicipios() {
-        return await this.prismaService.municipios.findMany({
-            include: { estado: true }
+        return await this.prismaService.city.findMany({
+            include: { state: true }
         });
     }
 
     async createMunicipio(municipio: MunicipioDTO) {
         try {
-            await this.prismaService.municipios.create({
+            await this.prismaService.city.create({
                 data: {
-                    municipio: municipio.municipio,
-                    id_estado: municipio.id_estado
+                    name: municipio.municipio,
+                    stateId: municipio.id_estado
                 }
             })
             baseResponse.message = 'Municipio creado exitosamente.'
@@ -34,9 +34,9 @@ export class MunicipiosService {
 
     async updateMunicipio(id_municipio: number, municipio: MunicipioDTO) {
         try {
-            await this.prismaService.municipios.update({
-                data: { municipio: municipio.municipio },
-                where: { id_municipio }
+            await this.prismaService.city.update({
+                data: { name: municipio.municipio },
+                where: { id: id_municipio }
             })
             baseResponse.message = 'Municipio actualizado exitosamente.'
             return baseResponse;
@@ -49,10 +49,10 @@ export class MunicipiosService {
 
     async deleteMunicipio(id_municipio: number) {
         try {
-            await this.prismaService.municipios.delete({
-                where: { id_municipio }
+            await this.prismaService.city.delete({
+                where: { id: id_municipio }
             })
-            baseResponse.message = 'Municipio eliminado exitosamente.'
+            baseResponse.message = 'Municipio deleted exitosamente.'
             return baseResponse;
         } catch (err) {
             badResponse.message = 'Error al eliminar municipio.' + err

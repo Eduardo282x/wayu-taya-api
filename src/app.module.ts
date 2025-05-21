@@ -2,17 +2,18 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaService } from './prisma/prisma.service';
-import { EstadosModule } from './estados/estados.module';
-import { CiudadesModule } from './ciudades/ciudades.module';
+import { EstadosModule } from './state/state.module';
+import { CiudadesModule } from './town/town.module';
 import { ParroquiasModule } from './parroquias/parroquias.module';
 import { MunicipiosModule } from './municipios/municipios.module';
-import { EventosModule } from './eventos/eventos.module';
+import { EventsModule } from './events/events.module';
 import { ProveedoresModule } from './proveedores/proveedores.module';
-import { DocumentosModule } from './documentos/documentos.module';
+import { DocumentsModule } from './documents/documents.module';
 import { UsuariosModule } from './usuarios/usuarios.module';
 import { AuthModule } from './auth/auth.module';
 import { PersonasModule } from './personas/personas.module';
 import { ProgramasModule } from './programas/programas.module';
+import { MainLoadModule } from './main-load/main-load.module';
 
 @Module({
   imports: [
@@ -20,13 +21,14 @@ import { ProgramasModule } from './programas/programas.module';
     CiudadesModule, 
     ParroquiasModule, 
     MunicipiosModule, 
-    EventosModule, 
+    EventsModule, 
     ProveedoresModule,
-    DocumentosModule,
+    DocumentsModule,
     UsuariosModule,
     AuthModule,
     PersonasModule,
-    ProgramasModule
+    ProgramasModule,
+    MainLoadModule
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],

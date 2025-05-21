@@ -12,9 +12,9 @@ export class AuthService {
 
     async authLogin(login: DTOLogin) {
         try {
-            const findUser = await this.prismaService.usuarios.findFirst({
+            const findUser = await this.prismaService.users.findFirst({
                 where: {
-                    usuario: login.username,
+                    username: login.username,
                     password: login.password
                 }
             })
@@ -29,7 +29,7 @@ export class AuthService {
                 token: JSON.stringify(findUser)
             }
 
-            responseLogin.message = `Bienvenido ${findUser.nombre} ${findUser.apellido}`
+            responseLogin.message = `Bienvenido ${findUser.name} ${findUser.lastName}`
             return responseLogin
         } catch (error) {
             badResponse.message = `Ha ocurrido un error ${error}`;

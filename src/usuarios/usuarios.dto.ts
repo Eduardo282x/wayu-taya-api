@@ -2,11 +2,11 @@ import { IsEmail, IsString } from "class-validator";
 
 export class DTOUsuarios {
     @IsString()
-    usuario: string;
+    username: string;
     @IsString()
-    nombre: string;
+    name: string;
     @IsString()
-    apellido: string;
+    lastName: string;
     @IsString()
     @IsEmail()
     correo: string;
