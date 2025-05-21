@@ -86,6 +86,6 @@ export class MainLoadService {
             data: medicineAndProducts
         })
 
-        return { message: 'Ubicaciones cargadas correctamente.' };
+        return { message: 'Datos cargadas correctamente.' };
     }
 }
