@@ -36,20 +36,20 @@ CREATE TABLE "Parroquias" (
 -- CreateTable
 CREATE TABLE "Persona" (
     "id_persona" SERIAL NOT NULL,
-    "nombre" TEXT NOT NULL,
-    "apellido" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "lastName" TEXT NOT NULL,
     "edad" INTEGER NOT NULL,
-    "direccion" TEXT NOT NULL,
+    "address" TEXT NOT NULL,
     "id_parroquia" INTEGER NOT NULL,
-    "telefono" TEXT NOT NULL,
+    "phone" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "numero_identificacion" TEXT NOT NULL,
     "empleado" BOOLEAN NOT NULL,
     "razon_social" TEXT NOT NULL,
     "entidad" TEXT NOT NULL,
-    "fecha_creacion" TIMESTAMP(3) NOT NULL,
-    "fecha_modificacion" TIMESTAMP(3) NOT NULL,
-    "activo" BOOLEAN NOT NULL,
+    "createAt" TIMESTAMP(3) NOT NULL,
+    "updateAt" TIMESTAMP(3) NOT NULL,
+    "active" BOOLEAN NOT NULL,
 
     CONSTRAINT "Persona_pkey" PRIMARY KEY ("id_persona")
 );
@@ -57,7 +57,7 @@ CREATE TABLE "Persona" (
 -- CreateTable
 CREATE TABLE "Documentos" (
     "id_documento" SERIAL NOT NULL,
-    "nombre_documento" TEXT NOT NULL,
+    "name_documento" TEXT NOT NULL,
     "id_parroquia" INTEGER NOT NULL,
     "link" TEXT NOT NULL,
     "fecha" TIMESTAMP(3) NOT NULL,

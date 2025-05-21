@@ -7,22 +7,22 @@ export class PersonasDTO{
     @IsNumber()
     id_parroquia: number;
     @IsString()
-    nombre: string;
+    name: string;
     @IsString()
-    apellido: string;
+    lastName: string;
     @IsString()
-    direccion: string;
+    address: string;
     @IsString()
     email: string;
     @IsString()
-    telefono: string;
+    phone: string;
     @IsString()
-    cedula: string;
+    identification: string;
     @IsString()
-    sexo: string;
+    sex: string;
     @IsDate()
     @Transform(({value}) => new Date(value))
-    fecha_nacimiento: Date;
+    birthdate: Date;
     @IsArray()
     @IsNumber({}, { each: true })
     id_programa: number[];

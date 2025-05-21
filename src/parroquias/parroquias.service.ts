@@ -11,17 +11,17 @@ export class ParroquiasService {
     }
 
     async getParroquia() {
-        return await this.prismaService.parroquias.findMany({
-            include: { ciudad: true }
+        return await this.prismaService.parish.findMany({
+            include: { town: true }
         });
     }
 
     async createParroquia(parroquia: ParroquiasDTO) {
         try {
-            await this.prismaService.parroquias.create({
+            await this.prismaService.parish.create({
                 data: {
-                    parroquia: parroquia.parroquia,
-                    id_ciudad: parroquia.id_ciudad
+                    name: parroquia.parroquia,
+                    townId: parroquia.id_ciudad
                 }
             })
             baseResponse.message = 'Parroquia creada exitosamente.'
@@ -34,9 +34,9 @@ export class ParroquiasService {
 
     async updateParroquia(id_parroquia: number, parroquia: ParroquiasDTO) {
         try {
-            await this.prismaService.parroquias.update({
-                data: { parroquia: parroquia.parroquia },
-                where: { id_parroquia }
+            await this.prismaService.parish.update({
+                data: { name: parroquia.parroquia },
+                where: { id: id_parroquia }
             })
             baseResponse.message = 'Parroquia actualizada exitosamente.'
             return baseResponse;
@@ -48,10 +48,10 @@ export class ParroquiasService {
 
     async deleteParroquia(id_parroquia: number) {
         try {
-            await this.prismaService.parroquias.delete({
-                where: { id_parroquia }
+            await this.prismaService.parish.delete({
+                where: { id: id_parroquia }
             })
-            baseResponse.message = 'Parroquia eliminada exitosamente.'
+            baseResponse.message = 'Parroquia deleted exitosamente.'
             return baseResponse;
         } catch (error) {
             badResponse.message = 'Error al eliminar la parroquia.' + error

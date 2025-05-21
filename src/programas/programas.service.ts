@@ -1,64 +1,63 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { ProgramasDTO } from './programas.dto';
+import { ProgramsDTO } from './programs.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
-export class ProgramasService {
+export class ProgramsService {
 
     constructor(private prismaService: PrismaService) {
 
     }
 
-    async getProgramas() {
-        return await this.prismaService.programas.findMany({
-            orderBy: { id_programa: 'asc' },
-            where: { eliminado: false }
+    async getPrograms() {
+        return await this.prismaService.programs.findMany({
+            orderBy: { id: 'asc' },
+            where: { deleted: false }
         })
     }
 
-    async createProgramas(programa: ProgramasDTO) {
+    async createPrograms(program: ProgramsDTO) {
         try {
-            await this.prismaService.programas.create({
+            await this.prismaService.programs.create({
                 data: {
-                    programa: programa.programa,
-                    tipo_programa: programa.tipo_programa
+                    program: program.program,
+                    type: program.type
                 }
             })
-            baseResponse.message = 'exito al crear el programa.'
+            baseResponse.message = 'exito al crear el program.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al crear el programa.' + error
+            badResponse.message = 'Error al crear el program.' + error
             return badResponse;
         }
     }
 
-    async updateProgramas(id_programas: number, programas: ProgramasDTO) {
+    async updatePrograms(id_programs: number, programs: ProgramsDTO) {
         try {
-            await this.prismaService.programas.update({
+            await this.prismaService.programs.update({
                 data: {
-
-                    programa: programas.programa,
-                    tipo_programa: programas.tipo_programa,
+                    program: programs.program,
+                    type: programs.type,
                 },
-                where: { id_programa: id_programas }
+                where: { id: id_programs }
             });
-            baseResponse.message = 'exito al actualizar el programa.'
+            baseResponse.message = 'exito al actualizar el program.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al actualizar el programa.' + error
+            badResponse.message = 'Error al actualizar el program.' + error
             return badResponse;
         }
     }
-    async deleteProgramas(id_programa: number) {
+
+    async deletePrograms(id: number) {
         try {
-            await this.prismaService.programas.update({
-                where: { id_programa: id_programa },
-                data: { eliminado: true }
+            await this.prismaService.programs.update({
+                where: { id: id },
+                data: { deleted: true }
             });
 
-
-            baseResponse.message = 'persona eliminado exitosamente.'
+            baseResponse.message = 'persona deleted exitosamente.'
             return baseResponse;
         } catch (error) {
             badResponse.message = 'Error al eliminar persona.' + error

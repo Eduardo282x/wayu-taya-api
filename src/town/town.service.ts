@@ -1,28 +1,28 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { CiudadDTO } from './ciudades.dto';
+import { TownDTO } from './town.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
-export class CiudadesService {
+export class TownService {
 
     constructor(private prismaService: PrismaService) {
     }
 
-    async getCiudades() {
-        return await this.prismaService.ciudades.findMany({
+    async getTown() {
+        return await this.prismaService.town.findMany({
             include: {
-                municipio: true
+                city: true
             }
         });
     }
 
-    async createCiudad(ciudad: CiudadDTO) {
+    async createCiudad(ciudad: TownDTO) {
         try {
-            await this.prismaService.ciudades.create({
+            await this.prismaService.town.create({
                 data: {
-                    ciudad: ciudad.ciudad,
-                    id_municipio: ciudad.id_municipio
+                    name: ciudad.town,
+                    cityId: ciudad.id_municipio
                 }
             })
             baseResponse.message = 'Ciudad creada exitosamente.'
@@ -33,14 +33,14 @@ export class CiudadesService {
         }
     }
 
-    async updateCiudad(id_ciudad: number, ciudad: CiudadDTO) {
+    async updateCiudad(id_ciudad: number, ciudad: TownDTO) {
         try {
-            await this.prismaService.ciudades.update({
+            await this.prismaService.town.update({
                 data: {
-                    ciudad: ciudad.ciudad,
-                    id_municipio: ciudad.id_municipio
+                    name: ciudad.town,
+                    cityId: ciudad.id_municipio
                 },
-                where: { id_ciudad }
+                where: { id: id_ciudad }
             })
             baseResponse.message = 'Ciudad actualizada exitosamente.'
             return baseResponse;
@@ -52,10 +52,10 @@ export class CiudadesService {
 
     async deleteCiudad(id_ciudad: number) {
         try {
-            await this.prismaService.ciudades.delete({
-                where: { id_ciudad }
+            await this.prismaService.town.delete({
+                where: { id: id_ciudad }
             })
-            baseResponse.message = 'Ciudad eliminada exitosamente.'
+            baseResponse.message = 'Ciudad deleted exitosamente.'
             return baseResponse;
         } catch (error) {
             badResponse.message = 'Error al eliminar la ciudad.' + error

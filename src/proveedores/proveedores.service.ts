@@ -11,27 +11,27 @@ export class ProveedoresService {
     }
 
     async getProveedoresAll() {
-        return await this.prismaService.proveedores.findMany({
-            orderBy: { id_proveedor: 'asc' }
+        return await this.prismaService.providers.findMany({
+            orderBy: { id: 'asc' }
         });
     }
 
     async getProveedores() {
-        return await this.prismaService.proveedores.findMany({
-            orderBy: { id_proveedor: 'asc' },
-            where: { eliminada: false }
+        return await this.prismaService.providers.findMany({
+            orderBy: { id: 'asc' },
+            where: { deleted: false }
         });
     }
 
     async createProveedores(proveedores: ProveedoresDTO) {
         try {
-            await this.prismaService.proveedores.create({
+            await this.prismaService.providers.create({
                 data: {
-                    nombre: proveedores.nombre,
+                    name: proveedores.name,
                     rif: proveedores.rif,
-                    direccion: proveedores.direccion,
-                    pais: proveedores.pais,
-                    correo: proveedores.correo,
+                    address: proveedores.address,
+                    country: proveedores.country,
+                    email: proveedores.correo,
                 }
             })
             baseResponse.message = 'Proveedor creado exitosamente.'
@@ -44,15 +44,15 @@ export class ProveedoresService {
 
     async updateProveedores(id_proveedor: number, proveedores: ProveedoresDTO) {
         try {
-            await this.prismaService.proveedores.update({
+            await this.prismaService.providers.update({
                 data: {
-                    nombre: proveedores.nombre,
+                    name: proveedores.name,
                     rif: proveedores.rif,
-                    direccion: proveedores.direccion,
-                    pais: proveedores.pais,
-                    correo: proveedores.correo,
+                    address: proveedores.address,
+                    country: proveedores.country,
+                    email: proveedores.correo,
                 },
-                where: { id_proveedor }
+                where: { id: id_proveedor }
             })
             baseResponse.message = 'Proveedor actualizado exitosamente.'
             return baseResponse;
@@ -65,14 +65,14 @@ export class ProveedoresService {
 
     async deleteProveedores(id_proveedor: number) {
         try {
-            await this.prismaService.proveedores.update({
-                where: { id_proveedor },
-                data: { eliminada: true },
+            await this.prismaService.providers.update({
+                where: { id: id_proveedor },
+                data: { deleted: true },
             });
-            baseResponse.message = 'Proveedor marcado como eliminado exitosamente.';
+            baseResponse.message = 'Proveedor marcado como deleted exitosamente.';
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al marcar el proveedor como eliminado.' + error;
+            badResponse.message = 'Error al marcar el proveedor como deleted.' + error;
             return badResponse;
         }
     }

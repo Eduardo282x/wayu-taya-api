@@ -1,8 +1,8 @@
 import { IsString, IsNumber } from 'class-validator';
 
-export class CiudadDTO {
+export class TownDTO {
     @IsString()
-    ciudad: string;
+    town: string;
     @IsNumber()
     id_municipio: number;
 }

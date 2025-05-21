@@ -11,16 +11,16 @@ export class PersonasService {
     }
 
     async getPersonas() {
-        return await this.prismaService.personas.findMany({
-            include: { parroquia: true },
-            where: { eliminado: false },
-            orderBy: { id_persona: 'asc' }
+        return await this.prismaService.people.findMany({
+            include: { parish: true },
+            where: { deleted: false },
+            orderBy: { id: 'asc' }
         });
     }
 
     async getPersonasByProgram(id_programa: number) {
-        const findProgram = await this.prismaService.programas.findFirst({
-            where: { id_programa }
+        const findProgram = await this.prismaService.programs.findFirst({
+            where: { id: id_programa }
         });
 
         if(!findProgram){
@@ -29,42 +29,41 @@ export class PersonasService {
         }
 
 
-        return await this.prismaService.personasProgramas.findMany({
-            where: { id_programa },
-            include: { persona: true, programa: true }
+        return await this.prismaService.peoplePrograms.findMany({
+            where: { id: id_programa },
+            include: { people: true, program: true }
         }).then(data => {
             return {
-                programa: data[0].programa,
-                personas: data.map(item => item.persona)
+                programa: data[0].program,
+                personas: data.map(item => item.people)
             }
         })
     }
 
     async createPersonas(personas: PersonasDTO) {
         try {
-            const personaCreate = await this.prismaService.personas.create({
+            const personaCreate = await this.prismaService.people.create({
                 data: {
-                    nombre: personas.nombre,
-                    apellido: personas.apellido,
-                    direccion: personas.direccion,
+                    name: personas.name,
+                    lastName: personas.lastName,
+                    address: personas.address,
                     email: personas.email,
-                    telefono: personas.telefono,
-                    cedula: personas.cedula,
-                    sexo: personas.sexo,
-                    fecha_nacimiento: personas.fecha_nacimiento,
-                    activo: true,
-                    id_parroquia: personas.id_parroquia
+                    phone: personas.phone,
+                    identification: personas.identification,
+                    sex: personas.sex,
+                    birthdate: personas.birthdate,
+                    parishId: personas.id_parroquia
                 }
             })
 
             const dataPersonasProgramas = personas.id_programa.map((pro) => {
                 return {
-                    id_persona: personaCreate.id_persona,
-                    id_programa: pro
+                    peopleId: personaCreate.id,
+                    programId: pro
                 }
             })
 
-            await this.prismaService.personasProgramas.createMany({
+            await this.prismaService.peoplePrograms.createMany({
                 data: dataPersonasProgramas
 
             })
@@ -79,34 +78,34 @@ export class PersonasService {
 
     async updatePersonas(id_personas: number, personas: PersonasDTO) {
         try {
-            await this.prismaService.personas.update({
+            await this.prismaService.people.update({
                 data: {
-                    id_parroquia: personas.id_parroquia,
-                    nombre: personas.nombre,
-                    apellido: personas.apellido,
-                    direccion: personas.direccion,
+                    parishId: personas.id_parroquia,
+                    name: personas.name,
+                    lastName: personas.lastName,
+                    address: personas.address,
                     email: personas.email,
-                    telefono: personas.telefono,
-                    cedula: personas.cedula,
-                    sexo: personas.sexo,
-                    fecha_nacimiento: personas.fecha_nacimiento
+                    phone: personas.phone,
+                    identification: personas.identification,
+                    sex: personas.sex,
+                    birthdate: personas.birthdate
                 },
-                where: { id_persona: id_personas }
+                where: { id: id_personas }
             });
             if (personas.cambioPersona) {
-                await this.prismaService.personasProgramas.deleteMany({
-                    where: { id_persona: id_personas }
+                await this.prismaService.peoplePrograms.deleteMany({
+                    where: { peopleId: id_personas }
                 })
             }
 
             const dataPersonasProgramas = personas.id_programa.map((pro) => {
                 return {
-                    id_persona: id_personas,
-                    id_programa: pro
+                    peopleId: id_personas,
+                    programId: pro
                 }
             })
 
-            await this.prismaService.personasProgramas.createMany({
+            await this.prismaService.peoplePrograms.createMany({
                 data: dataPersonasProgramas
             })
 
@@ -120,13 +119,13 @@ export class PersonasService {
 
     async deletePersonas(id_persona: number) {
         try {
-            await this.prismaService.personas.update({
-                where: { id_persona: id_persona },
-                data: { eliminado: true }
+            await this.prismaService.people.update({
+                where: { id: id_persona },
+                data: { deleted: true }
             });
 
 
-            baseResponse.message = 'persona eliminado exitosamente.'
+            baseResponse.message = 'persona deleted exitosamente.'
             return baseResponse;
         } catch (error) {
             badResponse.message = 'Error al eliminar persona.' + error
