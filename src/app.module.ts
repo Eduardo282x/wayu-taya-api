@@ -14,23 +14,29 @@ import { AuthModule } from './auth/auth.module';
 import { PersonasModule } from './personas/personas.module';
 import { ProgramasModule } from './programas/programas.module';
 import { MainLoadModule } from './main-load/main-load.module';
+import { AlmacenModule } from './almacen/almacen.module';
+import { MedicinaModule } from './medicina/medicina.module';
+import { DonacionesModule } from './donaciones/donaciones.module';
 
 @Module({
   imports: [
-    EstadosModule, 
-    CiudadesModule, 
-    ParroquiasModule, 
-    MunicipiosModule, 
-    EventsModule, 
+    EstadosModule,
+    CiudadesModule,
+    ParroquiasModule,
+    MunicipiosModule,
+    EventsModule,
     ProveedoresModule,
     DocumentsModule,
     UsuariosModule,
     AuthModule,
     PersonasModule,
     ProgramasModule,
-    MainLoadModule
+    MainLoadModule,
+    AlmacenModule,
+    MedicinaModule,
+    DonacionesModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
 })
-export class AppModule {}
+export class AppModule { }
