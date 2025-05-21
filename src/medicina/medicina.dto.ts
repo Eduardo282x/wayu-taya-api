@@ -9,6 +9,7 @@ export class MedicinaDTO{
     categoryId: number;
     @IsBoolean()
     medicine: boolean;
+    
     @IsString()
     unit: string;
     @IsNumber()

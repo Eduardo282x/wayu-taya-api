@@ -6,30 +6,30 @@ import { badResponse, baseResponse } from 'src/dto/base.dto';
 @Injectable()
 export class AlmacenService {
 
-    constructor(private prismaService: PrismaService){
+    constructor(private prismaService: PrismaService) {
 
     }
-    async getStore(){
-        return await this.prismaService.store.findMany({include: {inventory: true, historyInventory: true }});
+    async getStore() {
+        return await this.prismaService.store.findMany({ include: { inventory: true, historyInventory: true } });
     }
 
-    async createStore(store: AlmacenDTO){
-        try{
+    async createStore(store: AlmacenDTO) {
+        try {
             await this.prismaService.store.create({
-                data:{
+                data: {
                     name: store.name,
                     address: store.address
                 }
             });
-            baseResponse.message = 'Almacen creado exitosamente.'
+            baseResponse.message = 'Almacén creado exitosamente.'
             return baseResponse;
-        } catch(err){
-            badResponse.message = 'Error al crear el Almacen.' + {err}
+        } catch (err) {
+            badResponse.message = `Error al crear el Almacén. ${err}`
             return badResponse;
         }
     }
 
-    async updateStore(id: number, store: AlmacenDTO){
+    async updateStore(id: number, store: AlmacenDTO) {
         try {
             await this.prismaService.store.update({
                 data: {
@@ -41,21 +41,21 @@ export class AlmacenService {
             baseResponse.message = 'exito al actualizar el Almacen.'
             return baseResponse;
         } catch (err) {
-            badResponse.message = 'Error al actualizar el Almacen.' + {err}
+            badResponse.message = 'Error al actualizar el Almacen.' + { err }
             return badResponse;
         }
     }
-  
-    async deleteStore(id: number){
+
+    async deleteStore(id: number) {
         try {
             await this.prismaService.store.delete({
-                where: {id:id}
+                where: { id: id }
             })
 
             baseResponse.message = 'almacen eliminado exitosamente';
             return baseResponse;
         } catch (err) {
-            badResponse.message = 'Error al eliminar el Almacen.' + {err}
+            badResponse.message = 'Error al eliminar el Almacen.' + { err }
             return badResponse;
         }
 

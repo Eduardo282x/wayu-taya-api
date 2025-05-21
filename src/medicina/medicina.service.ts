@@ -6,23 +6,22 @@ import { badResponse, baseResponse } from 'src/dto/base.dto';
 @Injectable()
 export class MedicinaService {
 
-    constructor(private prismaService: PrismaService){
+    constructor(private prismaService: PrismaService) {
 
     }
-    async getMedicine(){
+    async getMedicine() {
         return await this.prismaService.medicine.findMany({
-            include:{category: true,
-                     form: true,
-                     detDonation: true,
-                     inventory: true,
-                     historyInventory: true,
-    }});
+            include: {
+                category: true,
+                form: true
+            }
+        });
     }
 
-    async createMedicine(medicine: MedicinaDTO){
+    async createMedicine(medicine: MedicinaDTO) {
         try {
             await this.prismaService.medicine.create({
-                data:{
+                data: {
                     name: medicine.name,
                     description: medicine.description,
                     categoryId: medicine.categoryId,
@@ -40,12 +39,12 @@ export class MedicinaService {
         } catch (err) {
             badResponse.message = 'Error al crear el Medicina.' + err
             return badResponse;
-            }
         }
-    
-        async updateMedicine(id: number, medicine: MedicinaDTO){
-            try {
-                 await this.prismaService.medicine.update({
+    }
+
+    async updateMedicine(id: number, medicine: MedicinaDTO) {
+        try {
+            await this.prismaService.medicine.update({
                 data: {
                     name: medicine.name,
                     description: medicine.description,
@@ -67,7 +66,7 @@ export class MedicinaService {
             badResponse.message = 'Error al actualizar la Medicina.' + err
             return badResponse;
         }
-        
-        }
+
+    }
 
 }
