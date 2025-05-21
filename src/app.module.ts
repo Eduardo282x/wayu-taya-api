@@ -14,6 +14,8 @@ import { AuthModule } from './auth/auth.module';
 import { PersonasModule } from './personas/personas.module';
 import { ProgramasModule } from './programas/programas.module';
 import { MainLoadModule } from './main-load/main-load.module';
+import { AlmacenModule } from './almacen/almacen.module';
+import { MedicinaModule } from './medicina/medicina.module';
 
 @Module({
   imports: [
@@ -28,7 +30,9 @@ import { MainLoadModule } from './main-load/main-load.module';
     AuthModule,
     PersonasModule,
     ProgramasModule,
-    MainLoadModule
+    MainLoadModule,
+    AlmacenModule,
+    MedicinaModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
