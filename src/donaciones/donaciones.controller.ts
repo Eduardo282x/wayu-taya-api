@@ -14,6 +14,6 @@ export class DonacionesController {
 
     @Post()
     async createDonations(@Body() datos: DonacionesDTO) {
-        return await this.donationsService.createDonacion(datos);
+        return await this.donationsService.createDonation(datos);
     }
 }

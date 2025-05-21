@@ -15,7 +15,7 @@ export class DonacionesService {
         })
     }
 
-    async createDonacion(donation: DonacionesDTO) {
+    async createDonation(donation: DonacionesDTO) {
         try {
           // 1. Crear la donación principal
           const donationCreated = await this.prismaService.donation.create({

@@ -1,11 +1,12 @@
-import { Transform } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import { IsArray, IsDate, ValidateNested, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class DonacionesDTO {
     @IsNumber()
-    peopleId: number;
     @IsOptional()
-    @IsArray()
+    peopleId: number;
+    @IsNumber()
+    @IsOptional()
     providerId: number;
     @IsString()
     type: string;
@@ -17,10 +18,11 @@ export class DonacionesDTO {
 
     @IsArray()
     @ValidateNested({ each: true })
-    medicines: DetDonacionDTO[]=[];
+    @Type(() => DetDonationDTO)
+    medicines: DetDonationDTO[];
 }
 
-export class DetDonacionDTO {
+export class DetDonationDTO {
     @IsNumber()
     medicineId: number;
     @IsNumber()
