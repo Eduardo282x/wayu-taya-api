@@ -1,4 +1,4 @@
-import { IsBoolean, IsInt, IsNumber, IsString } from "class-validator";
+import { IsBoolean, IsInt, IsNumber, IsOptional, IsString } from "class-validator";
 
 export class MedicinaDTO{
     @IsString()
@@ -11,15 +11,21 @@ export class MedicinaDTO{
     medicine: boolean;
     
     @IsString()
+    @IsOptional()
     unit: string;
+    @IsOptional()
     @IsNumber()
     amount: number;
+    @IsOptional()
     @IsString()
     temperate: string;
+    @IsOptional()
     @IsString()
     manufacturer: string;
+    @IsOptional()
     @IsString()
     activeIngredient: string;
+    @IsOptional()
     @IsNumber()
     formId: number;
 }

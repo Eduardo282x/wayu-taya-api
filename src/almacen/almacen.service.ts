@@ -10,7 +10,7 @@ export class AlmacenService {
 
     }
     async getStore() {
-        return await this.prismaService.store.findMany({ include: { inventory: true, historyInventory: true } });
+        return await this.prismaService.store.findMany();
     }
 
     async createStore(store: AlmacenDTO) {

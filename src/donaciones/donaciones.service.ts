@@ -25,11 +25,9 @@ export class DonacionesService {
               type: donation.type,
               date: donation.date,
               lote: donation.lote,
-              //createAt: new Date(),
-              
             },
           });
-          console.log('medicines:', donation.medicines);
+          
           // 2. Preparar los detalles de las medicinas
           const dataDetDonation = donation.medicines.map((pro) => {
             return {

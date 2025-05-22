@@ -26,12 +26,13 @@ export class MedicinaService {
                     description: medicine.description,
                     categoryId: medicine.categoryId,
                     medicine: medicine.medicine,
-                    unit: medicine.unit,
-                    amount: medicine.amount,
-                    temperate: medicine.temperate,
-                    manufacturer: medicine.manufacturer,
-                    activeIngredient: medicine.activeIngredient,
-                    formId: medicine.formId,
+                    
+                    unit: medicine.unit ? medicine.unit : '',
+                    amount: medicine.amount ? medicine.amount : 0,
+                    temperate: medicine.temperate ? medicine.temperate : '',
+                    manufacturer: medicine.manufacturer ? medicine.manufacturer : '',
+                    activeIngredient: medicine.activeIngredient ? medicine.activeIngredient : '',
+                    formId: medicine.formId ? medicine.formId : 14,
                 }
             });
             baseResponse.message = 'Medicina creado exitosamente.'
