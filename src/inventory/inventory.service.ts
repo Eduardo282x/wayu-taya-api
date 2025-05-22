@@ -11,49 +11,49 @@ export class InventoryService {
     async getInventory() {
         const inventory = await this.prisma.inventory.findMany({
             include: {
-            donation: true,
-            medicine: true,
-            store: true,
+                donation: true,
+                medicine: true,
+                store: true,
             },
         });
 
-    const groupedByMedicine = inventory.reduce((accu, item) => {
-        const medicineId = item.medicine.id;
-        if (!accu[medicineId]) {
-        accu[medicineId] = {
-            medicine: item.medicine,
-            totalStock: 0,
-            stores: [],
-        };
-        }
-        accu[medicineId].totalStock += item.stock;
+        const groupedByMedicine = inventory.reduce((accu, item) => {
+            const medicineId = item.medicine.id;
+            if (!accu[medicineId]) {
+                accu[medicineId] = {
+                    medicine: item.medicine,
+                    totalStock: 0,
+                    stores: [],
+                };
+            }
+            accu[medicineId].totalStock += item.stock;
 
-        accu[medicineId].stores.push({
-        donationId: item.donationId,
-        donation: item.donation,
-        storeId: item.store.id,
-        storeName: item.store.name,
-        stock: item.stock,
-        admissionDate: item.admissionDate,
-        expirationDate: item.expirationDate,
-        });
+            accu[medicineId].stores.push({
+                donationId: item.donationId,
+                donation: item.donation,
+                storeId: item.store.id,
+                storeName: item.store.name,
+                stock: item.stock,
+                admissionDate: item.admissionDate,
+                expirationDate: item.expirationDate,
+            });
 
-        return accu;
-    }, {} as Record<number, {
-        medicine: typeof inventory[number]['medicine'],
-        totalStock: number,
-        stores: {
-        donationId: number;
-        donation: typeof inventory[number]['donation'];
-        storeId: number;
-        storeName: string;
-        stock: number;
-        admissionDate: Date;
-        expirationDate: Date;
-        }[];
-    }>);
+            return accu;
+        }, {} as Record<number, {
+            medicine: typeof inventory[number]['medicine'],
+            totalStock: number,
+            stores: {
+                donationId: number;
+                donation: typeof inventory[number]['donation'];
+                storeId: number;
+                storeName: string;
+                stock: number;
+                admissionDate: Date;
+                expirationDate: Date;
+            }[];
+        }>);
 
-    return Object.values(groupedByMedicine);
+        return Object.values(groupedByMedicine);
     }
 
     async createInventory(inventory: InventoryDto) {
@@ -72,13 +72,12 @@ export class InventoryService {
             baseResponse.message = 'Guardado en el inventario exitosamente.';
             return baseResponse;
         } catch (error) {
-                    badResponse.message = 'Error guardar en el inventario: ' + error
-                    return badResponse;
+            badResponse.message = 'Error guardar en el inventario: ' + error
+            return badResponse;
         }
-
     }
 
 
 }
-    
+
 
