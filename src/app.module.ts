@@ -17,6 +17,7 @@ import { MainLoadModule } from './main-load/main-load.module';
 import { AlmacenModule } from './almacen/almacen.module';
 import { MedicinaModule } from './medicina/medicina.module';
 import { DonacionesModule } from './donaciones/donaciones.module';
+import { InventoryModule } from './inventory/inventory.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { DonacionesModule } from './donaciones/donaciones.module';
     AlmacenModule,
     MedicinaModule,
     DonacionesModule,
+    InventoryModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
