@@ -1,7 +1,7 @@
 import { Transform, Type } from "class-transformer";
-import { IsArray, IsDate, ValidateNested, IsNumber, IsOptional, IsString } from "class-validator";
+import { IsArray, IsDate, ValidateNested, IsNumber, IsOptional, IsString, IsBoolean } from "class-validator";
 
-export class DonacionesDTO {
+export class DonationsDTO {
     @IsNumber()
     @IsOptional()
     peopleId: number;
@@ -15,6 +15,10 @@ export class DonacionesDTO {
     date: Date;
     @IsString()
     lote: string;
+
+    @IsOptional()
+    @IsBoolean()
+    changeDonDetails: boolean;
 
     @IsArray()
     @ValidateNested({ each: true })
