@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { AlmacenDTO } from './almacen.dto';
+import { StoreDTO } from './store.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
-export class AlmacenService {
+export class StoreService {
 
     constructor(private prismaService: PrismaService){
 
@@ -13,7 +13,7 @@ export class AlmacenService {
         return await this.prismaService.store.findMany({include: {inventory: true, historyInventory: true }});
     }
 
-    async createStore(store: AlmacenDTO){
+    async createStore(store: StoreDTO){
         try{
             await this.prismaService.store.create({
                 data:{
@@ -23,13 +23,13 @@ export class AlmacenService {
             });
             baseResponse.message = 'Almacen creado exitosamente.'
             return baseResponse;
-        } catch(err){
-            badResponse.message = 'Error al crear el Almacen.' + {err}
+        } catch(error){
+            badResponse.message = 'Error al crear el Almacen.' + error
             return badResponse;
         }
     }
 
-    async updateStore(id: number, store: AlmacenDTO){
+    async updateStore(id: number, store: StoreDTO){
         try {
             await this.prismaService.store.update({
                 data: {
@@ -40,8 +40,8 @@ export class AlmacenService {
             });
             baseResponse.message = 'exito al actualizar el Almacen.'
             return baseResponse;
-        } catch (err) {
-            badResponse.message = 'Error al actualizar el Almacen.' + {err}
+        } catch (error) {
+            badResponse.message = 'erroror al actualizar el Almacen.' + error
             return badResponse;
         }
     }
@@ -54,8 +54,8 @@ export class AlmacenService {
 
             baseResponse.message = 'almacen eliminado exitosamente';
             return baseResponse;
-        } catch (err) {
-            badResponse.message = 'Error al eliminar el Almacen.' + {err}
+        } catch (error) {
+            badResponse.message = 'Error al eliminar el Almacen.' + error
             return badResponse;
         }
 

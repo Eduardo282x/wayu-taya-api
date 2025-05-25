@@ -1,6 +1,6 @@
 import { IsString } from "class-validator";
 
-export class AlmacenDTO{
+export class StoreDTO{
     @IsString()
     name: string
     @IsString()

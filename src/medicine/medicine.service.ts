@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { MedicinaDTO } from './medicina.dto';
+import { MedicineDTO } from './medicine.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
-export class MedicinaService {
+export class MedicineService {
 
     constructor(private prismaService: PrismaService){
 
@@ -13,15 +13,13 @@ export class MedicinaService {
         return await this.prismaService.medicine.findMany({
             include:{category: true,
                      form: true,
-                     detDonation: true,
-                     inventory: true,
-                     historyInventory: true,
     }});
     }
-
-    async createMedicine(medicine: MedicinaDTO){
+    async createMedicine(medicine: MedicineDTO){
         try {
+
             await this.prismaService.medicine.create({
+                
                 data:{
                     name: medicine.name,
                     description: medicine.description,
@@ -37,13 +35,13 @@ export class MedicinaService {
             });
             baseResponse.message = 'Medicina creado exitosamente.'
             return baseResponse;
-        } catch (err) {
-            badResponse.message = 'Error al crear el Medicina.' + err
+        } catch (error) {
+            badResponse.message = 'erroror al crear el Medicina.' + error
             return badResponse;
             }
         }
     
-        async updateMedicine(id: number, medicine: MedicinaDTO){
+        async updateMedicine(id: number, medicine: MedicineDTO){
             try {
                  await this.prismaService.medicine.update({
                 data: {
@@ -63,11 +61,26 @@ export class MedicinaService {
 
             baseResponse.message = 'exito al actualizar la Medicina.'
             return baseResponse;
-        } catch (err) {
-            badResponse.message = 'Error al actualizar la Medicina.' + err
+        } catch (error) {
+            badResponse.message = 'Error al actualizar la Medicina.' + error
             return badResponse;
         }
         
         }
+
+        async deletemedicine(id: number){
+        try {
+            await this.prismaService.medicine.delete({
+                where: {id:id}
+            })
+
+            baseResponse.message = 'Medicina/Producto eliminado exitosamente';
+            return baseResponse;
+        } catch (error) {
+            badResponse.message = 'Error al eliminar la Medicina/Producto.' + error
+            return badResponse;
+        }
+
+    }    
 
 }
