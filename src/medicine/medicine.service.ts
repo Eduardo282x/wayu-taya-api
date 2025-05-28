@@ -1,16 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { MedicinaDTO } from './medicina.dto';
+import { MedicineDTO } from './medicine.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
-export class MedicinaService {
+export class MedicineService {
 
     constructor(private prismaService: PrismaService) {
 
     }
     async getMedicine() {
         return await this.prismaService.medicine.findMany({
+<<<<<<< HEAD:src/medicina/medicina.service.ts
             include: {
                 category: true,
                 form: true
@@ -19,9 +20,22 @@ export class MedicinaService {
     }
 
     async createMedicine(medicine: MedicinaDTO) {
+=======
+            include:{category: true,
+                     form: true,
+    }});
+    }
+    async createMedicine(medicine: MedicineDTO){
+>>>>>>> 4ea71d267badf7dcbe6af4b5b0b705423a9604cf:src/medicine/medicine.service.ts
         try {
+
             await this.prismaService.medicine.create({
+<<<<<<< HEAD:src/medicina/medicina.service.ts
                 data: {
+=======
+                
+                data:{
+>>>>>>> 4ea71d267badf7dcbe6af4b5b0b705423a9604cf:src/medicine/medicine.service.ts
                     name: medicine.name,
                     description: medicine.description,
                     categoryId: medicine.categoryId,
@@ -37,15 +51,22 @@ export class MedicinaService {
             });
             baseResponse.message = 'Medicina creado exitosamente.'
             return baseResponse;
-        } catch (err) {
-            badResponse.message = 'Error al crear el Medicina.' + err
+        } catch (error) {
+            badResponse.message = 'erroror al crear el Medicina.' + error
             return badResponse;
         }
+<<<<<<< HEAD:src/medicina/medicina.service.ts
     }
 
     async updateMedicine(id: number, medicine: MedicinaDTO) {
         try {
             await this.prismaService.medicine.update({
+=======
+    
+        async updateMedicine(id: number, medicine: MedicineDTO){
+            try {
+                 await this.prismaService.medicine.update({
+>>>>>>> 4ea71d267badf7dcbe6af4b5b0b705423a9604cf:src/medicine/medicine.service.ts
                 data: {
                     name: medicine.name,
                     description: medicine.description,
@@ -63,11 +84,26 @@ export class MedicinaService {
 
             baseResponse.message = 'exito al actualizar la Medicina.'
             return baseResponse;
-        } catch (err) {
-            badResponse.message = 'Error al actualizar la Medicina.' + err
+        } catch (error) {
+            badResponse.message = 'Error al actualizar la Medicina.' + error
             return badResponse;
         }
 
     }
+
+        async deletemedicine(id: number){
+        try {
+            await this.prismaService.medicine.delete({
+                where: {id:id}
+            })
+
+            baseResponse.message = 'Medicina/Producto eliminado exitosamente';
+            return baseResponse;
+        } catch (error) {
+            badResponse.message = 'Error al eliminar la Medicina/Producto.' + error
+            return badResponse;
+        }
+
+    }    
 
 }

@@ -14,10 +14,15 @@ import { AuthModule } from './auth/auth.module';
 import { PersonasModule } from './personas/personas.module';
 import { ProgramasModule } from './programas/programas.module';
 import { MainLoadModule } from './main-load/main-load.module';
+<<<<<<< HEAD
 import { AlmacenModule } from './almacen/almacen.module';
 import { MedicinaModule } from './medicina/medicina.module';
 import { DonacionesModule } from './donaciones/donaciones.module';
 import { InventoryModule } from './inventory/inventory.module';
+=======
+import { StoreModule } from './store/store.module';
+import { MedicineModule } from './medicine/medicine.module';
+>>>>>>> 4ea71d267badf7dcbe6af4b5b0b705423a9604cf
 
 @Module({
   imports: [
@@ -33,10 +38,15 @@ import { InventoryModule } from './inventory/inventory.module';
     PersonasModule,
     ProgramasModule,
     MainLoadModule,
+<<<<<<< HEAD
     AlmacenModule,
     MedicinaModule,
     DonacionesModule,
     InventoryModule,
+=======
+    StoreModule,
+    MedicineModule,
+>>>>>>> 4ea71d267badf7dcbe6af4b5b0b705423a9604cf
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
