@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { DonationsDTO } from './donaciones.dto';
+import { DonationsDTO } from './donations.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
 import { InventoryDto, MedicinesDto } from 'src/inventory/inventory.dto';
 
 @Injectable()
-export class DonacionesService {
+export class DonationsService {
 
   constructor(
     private prismaService: PrismaService,
