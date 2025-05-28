@@ -9,38 +9,25 @@ export class MedicineService {
     constructor(private prismaService: PrismaService) {
 
     }
+
     async getMedicine() {
         return await this.prismaService.medicine.findMany({
-<<<<<<< HEAD:src/medicina/medicina.service.ts
             include: {
                 category: true,
-                form: true
+                form: true,
             }
         });
     }
 
-    async createMedicine(medicine: MedicinaDTO) {
-=======
-            include:{category: true,
-                     form: true,
-    }});
-    }
-    async createMedicine(medicine: MedicineDTO){
->>>>>>> 4ea71d267badf7dcbe6af4b5b0b705423a9604cf:src/medicine/medicine.service.ts
+    async createMedicine(medicine: MedicineDTO) {
         try {
-
             await this.prismaService.medicine.create({
-<<<<<<< HEAD:src/medicina/medicina.service.ts
                 data: {
-=======
-                
-                data:{
->>>>>>> 4ea71d267badf7dcbe6af4b5b0b705423a9604cf:src/medicine/medicine.service.ts
                     name: medicine.name,
                     description: medicine.description,
                     categoryId: medicine.categoryId,
                     medicine: medicine.medicine,
-                    
+
                     unit: medicine.unit ? medicine.unit : '',
                     amount: medicine.amount ? medicine.amount : 0,
                     temperate: medicine.temperate ? medicine.temperate : '',
@@ -55,18 +42,11 @@ export class MedicineService {
             badResponse.message = 'erroror al crear el Medicina.' + error
             return badResponse;
         }
-<<<<<<< HEAD:src/medicina/medicina.service.ts
     }
 
-    async updateMedicine(id: number, medicine: MedicinaDTO) {
+    async updateMedicine(id: number, medicine: MedicineDTO) {
         try {
             await this.prismaService.medicine.update({
-=======
-    
-        async updateMedicine(id: number, medicine: MedicineDTO){
-            try {
-                 await this.prismaService.medicine.update({
->>>>>>> 4ea71d267badf7dcbe6af4b5b0b705423a9604cf:src/medicine/medicine.service.ts
                 data: {
                     name: medicine.name,
                     description: medicine.description,
@@ -88,13 +68,12 @@ export class MedicineService {
             badResponse.message = 'Error al actualizar la Medicina.' + error
             return badResponse;
         }
-
     }
 
-        async deletemedicine(id: number){
+    async deleteMedicine(id: number) {
         try {
             await this.prismaService.medicine.delete({
-                where: {id:id}
+                where: { id: id }
             })
 
             baseResponse.message = 'Medicina/Producto eliminado exitosamente';
@@ -103,7 +82,5 @@ export class MedicineService {
             badResponse.message = 'Error al eliminar la Medicina/Producto.' + error
             return badResponse;
         }
-
-    }    
-
+    }
 }
