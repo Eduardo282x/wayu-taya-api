@@ -1,6 +1,6 @@
-import { IsBoolean, IsInt, IsNumber, IsString } from "class-validator";
+import { IsBoolean, IsNumber, IsOptional, IsString } from "class-validator";
 
-export class MedicinaDTO{
+export class MedicineDTO{
     @IsString()
     name: string;
     @IsString()
@@ -10,16 +10,28 @@ export class MedicinaDTO{
     @IsBoolean()
     medicine: boolean;
     
+    @IsOptional()
     @IsString()
+    @IsOptional()
     unit: string;
+
+    @IsOptional()
     @IsNumber()
     amount: number;
+
+    @IsOptional()
     @IsString()
     temperate: string;
+
+    @IsOptional()
     @IsString()
     manufacturer: string;
+
+    @IsOptional()
     @IsString()
     activeIngredient: string;
+
+    @IsOptional()
     @IsNumber()
     formId: number;
 }

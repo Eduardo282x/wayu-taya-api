@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
 import { DonacionesService } from './donaciones.service';
-import { DonacionesDTO } from './donaciones.dto';
+import { DonationsDTO } from './donaciones.dto';
 
 @Controller('donations')
 export class DonacionesController {
@@ -13,7 +13,12 @@ export class DonacionesController {
     }
 
     @Post()
-    async createDonations(@Body() datos: DonacionesDTO) {
-        return await this.donationsService.createDonation(datos);
+    async createDonations(@Body() data: DonationsDTO) {
+        return await this.donationsService.createDonation(data);
+    }
+
+    @Put('/:id')
+    async updateDonations(@Param('id') id: string, @Body() data: DonationsDTO) {
+        return await this.donationsService.updateDonation(Number(id), data);
     }
 }

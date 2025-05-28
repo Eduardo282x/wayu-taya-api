@@ -1,7 +1,7 @@
 import { Transform, Type } from "class-transformer";
-import { IsArray, IsDate, ValidateNested, IsNumber, IsOptional, IsString } from "class-validator";
+import { IsArray, IsDate, ValidateNested, IsNumber, IsOptional, IsString, IsBoolean } from "class-validator";
 
-export class DonacionesDTO {
+export class DonationsDTO {
     @IsNumber()
     @IsOptional()
     peopleId: number;
@@ -16,6 +16,10 @@ export class DonacionesDTO {
     @IsString()
     lote: string;
 
+    @IsOptional()
+    @IsBoolean()
+    changeDonDetails: boolean;
+
     @IsArray()
     @ValidateNested({ each: true })
     @Type(() => DetDonationDTO)
@@ -27,5 +31,13 @@ export class DetDonationDTO {
     medicineId: number;
     @IsNumber()
     amount: number;
+
+    @IsDate()
+    @Transform(({ value }) => new Date(value))
+    admissionDate: Date;
+
+    @IsDate()
+    @Transform(({ value }) => new Date(value))
+    expirationDate: Date;
 }
 
