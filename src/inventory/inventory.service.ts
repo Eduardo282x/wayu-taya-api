@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { InventoryDto } from './inventory.dto';
+import { HistoryQueryDto, InventoryDto } from './inventory.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
@@ -58,14 +58,30 @@ export class InventoryService {
 
     async createInventory(inventory: InventoryDto) {
         try {
-            await this.prisma.inventory.create({
+            // register for Inventory
+            const createdinv = await this.prisma.inventory.create({
                 data: {
-                    donationId: inventory.donationId,
-                    medicineId: inventory.medicineId,
-                    storeId: inventory.storeId,
-                    stock: inventory.stock,
-                    admissionDate: inventory.admissionDate,
-                    expirationDate: inventory.expirationDate,
+                donationId:     inventory.donationId,
+                medicineId:     inventory.medicineId,
+                storeId:        inventory.storeId,
+                stock:          inventory.stock,
+                admissionDate:  new Date(inventory.admissionDate),
+                expirationDate: new Date(inventory.expirationDate),
+                },
+            });
+
+            // register for History 
+            await this.prisma.historyInventory.create({
+                data: {
+                medicineId:     createdinv.medicineId,
+                storeId:        createdinv.storeId,
+                donationId:     createdinv.donationId,
+                amount:         createdinv.stock,
+                type:           inventory.type,
+                date:           new Date(inventory.date),
+                observations:   inventory.observations,
+                admissionDate:  createdinv.admissionDate, 
+                expirationDate: createdinv.expirationDate,
                 },
             });
 
@@ -77,7 +93,26 @@ export class InventoryService {
         }
     }
 
+    async getHistory(query: HistoryQueryDto) {
+    const where: any = {};
+        if (query.from || query.to) {
+            where.date = {};
+            if (query.from) where.date.gte = new Date(query.from);
+            if (query.to) where.date.lte = new Date(query.to);
+        }
+
+    return this.prisma.historyInventory.findMany({
+        where,
+        orderBy: { date: 'desc' },
+            include: {
+            medicine: true,
+            store: true,
+            donation: true,
+            },
+    });
+}
 
 }
 
+    
 

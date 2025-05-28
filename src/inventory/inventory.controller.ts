@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
-import { InventoryDto } from './inventory.dto';
+import { HistoryQueryDto, InventoryDto } from './inventory.dto';
 
 @Controller('inventario')
 export class InventoryController {
@@ -11,6 +11,11 @@ export class InventoryController {
     @Get()
     async getInventory() {
     return await this.inventoryService.getInventory();
+    }
+
+    @Get('historial')
+    async getHistory(@Query() query: HistoryQueryDto) {
+    return await this.inventoryService.getHistory(query);
     }
     
     @Post()
