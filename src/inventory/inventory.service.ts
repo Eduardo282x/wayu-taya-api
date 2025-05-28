@@ -25,6 +25,8 @@ export class InventoryService {
                     medicine: item.medicine,
                     totalStock: 0,
                     stores: [],
+                    datesMedicine: [],
+                    lotes: []
                 };
             }
             accu[medicineId].totalStock += item.stock;
@@ -34,44 +36,64 @@ export class InventoryService {
                 name: item.store.name,
                 address: item.store.address,
             });
+            accu[medicineId].datesMedicine.push({
+                admissionDate: item.admissionDate,
+                expirationDate: item.expirationDate,
+            })
+            accu[medicineId].lotes.push(item.donation.lote)
 
             return accu;
         }, {} as Record<number, {
             medicine: typeof inventory[number]['medicine'],
             totalStock: number,
-            stores: Store[];
+            stores: Store[],
+            datesMedicine: any[],
+            lotes: string[],
         }>);
 
         return Object.values(groupedByMedicine);
     }
 
     async createInventory(inventory: InventoryDto) {
+        const findInventory = await this.prisma.inventory.findFirst({
+            where: { medicineId: 1, storeId: 1, donation: { lote: '' } }
+        })
+
+        if (findInventory) {
+
+        } else {
+
+        }
         try {
             // register for Inventory
-            const createdInv = await this.prisma.inventory.create({
-                data: {
+            const dataInventroy = inventory.medicines.map(item => {
+                return {
                     donationId: inventory.donationId,
-                    medicineId: inventory.medicineId,
-                    storeId: inventory.storeId,
-                    stock: inventory.stock,
-                    admissionDate: new Date(inventory.admissionDate),
-                    expirationDate: new Date(inventory.expirationDate),
-                },
+                    medicineId: item.medicineId,
+                    stock: item.stock,
+                    storeId: 1,
+                    admissionDate: new Date(),
+                    expirationDate: new Date()
+                }
+            })
+
+            await this.prisma.inventory.createMany({
+                data: dataInventroy,
             });
 
-            // register for History 
-            await this.prisma.historyInventory.create({
-                data: {
-                    medicineId: createdInv.medicineId,
-                    storeId: createdInv.storeId,
-                    donationId: createdInv.donationId,
-                    amount: createdInv.stock,
+            const dataHistorialInventory = dataInventroy.map(item => {
+                return {
+                    ...item,
                     type: inventory.type,
-                    date: new Date(inventory.date),
+                    amount: item.stock,
+                    date: new Date(),
                     observations: inventory.observations,
-                    admissionDate: createdInv.admissionDate,
-                    expirationDate: createdInv.expirationDate,
-                },
+                }
+            })
+
+            // register for History 
+            await this.prisma.historyInventory.createMany({
+                data: dataHistorialInventory,
             });
 
             baseResponse.message = 'Guardado en el inventario exitosamente.';

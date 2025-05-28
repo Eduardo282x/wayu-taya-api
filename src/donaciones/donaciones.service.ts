@@ -2,11 +2,16 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DonationsDTO } from './donaciones.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
+import { InventoryService } from 'src/inventory/inventory.service';
+import { InventoryDto, MedicinesDto } from 'src/inventory/inventory.dto';
 
 @Injectable()
 export class DonacionesService {
 
-  constructor(private prismaService: PrismaService) { }
+  constructor(
+    private prismaService: PrismaService,
+    private inventoryService: InventoryService
+  ) { }
 
   async getDonations() {
     return await this.prismaService.donation.findMany({
@@ -36,10 +41,29 @@ export class DonacionesService {
         };
       });
 
+      const dataDetDonationCopy: MedicinesDto[] = donation.medicines.map((pro) => {
+        return {
+          medicineId: pro.medicineId,
+          stock: pro.amount,
+          storeId: 1,
+          admissionDate: new Date(),
+          expirationDate: new Date()
+        };
+      });
+
       // Crear todos los detalles en lote
       await this.prismaService.detDonation.createMany({
         data: dataDetDonation
       });
+
+      const dataInvntory: InventoryDto = {
+        donationId: donationCreated.id,
+        type: 'Entrada',
+        date: donationCreated.date,
+        medicines: dataDetDonationCopy
+      }
+
+      await this.inventoryService.createInventory(dataInvntory)
 
       baseResponse.message = 'Donación creada exitosamente.'
       return baseResponse;

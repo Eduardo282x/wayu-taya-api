@@ -31,5 +31,13 @@ export class DetDonationDTO {
     medicineId: number;
     @IsNumber()
     amount: number;
+
+    @IsDate()
+    @Transform(({ value }) => new Date(value))
+    admissionDate: Date;
+
+    @IsDate()
+    @Transform(({ value }) => new Date(value))
+    expirationDate: Date;
 }
 

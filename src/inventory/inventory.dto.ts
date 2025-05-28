@@ -1,11 +1,32 @@
-import { Transform } from 'class-transformer';
-import { IsInt, Min, IsDate, IsOptional, IsString, IsNotEmpty } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import { IsInt, Min, IsDate, IsOptional, IsString, IsNotEmpty, ValidateNested, IsArray } from 'class-validator';
 
 
 export class InventoryDto {
   @IsInt()
   donationId: number;
 
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MedicinesDto)
+  medicines: MedicinesDto[]
+
+  // for history
+  @IsString()
+  @IsNotEmpty()
+  type: string;
+
+  @IsDate()
+  @Transform(({ value }) => new Date(value))
+  date: Date;
+
+  @IsOptional()
+  @IsString()
+  observations?: string;
+
+}
+
+export class MedicinesDto {
   @IsInt()
   medicineId: number;
 
@@ -23,20 +44,6 @@ export class InventoryDto {
   @IsDate()
   @Transform(({ value }) => new Date(value))
   expirationDate: Date;
-
-  // for history
-  @IsString()
-  @IsNotEmpty()
-  type: string;
-
-  @IsDate()
-  @Transform(({ value }) => new Date(value))
-  date: Date;
-
-  @IsOptional()
-  @IsString()
-  observations?: string;
-
 }
 
 export class HistoryQueryDto {
