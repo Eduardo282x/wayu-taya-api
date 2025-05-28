@@ -40,15 +40,13 @@ export class InventoryDto {
 }
 
 export class HistoryQueryDto {
-  @IsOptional()
   @IsDate()
   @Transform(({ value }) => new Date(value))
-  from?: Date;
+  from: Date;
 
-  @IsOptional()
   @IsDate()
   @Transform(({ value }) => new Date(value))
-  to?: Date;
+  to: Date;
 }
 
 

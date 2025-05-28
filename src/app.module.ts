@@ -16,6 +16,8 @@ import { ProgramasModule } from './programas/programas.module';
 import { MainLoadModule } from './main-load/main-load.module';
 import { StoreModule } from './store/store.module';
 import { MedicineModule } from './medicine/medicine.module';
+import { InventoryModule } from './inventory/inventory.module';
+import { DonacionesModule } from './donaciones/donaciones.module';
 
 @Module({
   imports: [
@@ -33,6 +35,8 @@ import { MedicineModule } from './medicine/medicine.module';
     MainLoadModule,
     StoreModule,
     MedicineModule,
+    InventoryModule,
+    DonacionesModule
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
