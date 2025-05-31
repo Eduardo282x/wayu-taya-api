@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { DonationsDTO } from './donaciones.dto';
+import { DonationsDTO } from './donations.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
 import { InventoryDto, MedicinesDto } from 'src/inventory/inventory.dto';
 
 @Injectable()
-export class DonacionesService {
+export class DonationsService {
 
   constructor(
     private prismaService: PrismaService,
@@ -27,7 +27,7 @@ export class DonacionesService {
         data: {
           peopleId: donation.peopleId,
           providerId: donation.providerId,
-          type: donation.type,
+          type: donation.type, // Entrada o Salida
           date: donation.date,
           lote: donation.lote,
         },
@@ -41,13 +41,14 @@ export class DonacionesService {
         };
       });
 
-      const dataDetDonationCopy: MedicinesDto[] = donation.medicines.map((pro) => {
+      const dataDetDonation4Inv: MedicinesDto[] = donation.medicines.map((pro) => {
         return {
+          // Todo esto va dentro de medicine {}, pones una llave por cada medicina a ingresar
           medicineId: pro.medicineId,
           stock: pro.amount,
-          storeId: 1,
-          admissionDate: new Date(),
-          expirationDate: new Date()
+          storeId: pro.storageId,
+          admissionDate: pro.admissionDate,
+          expirationDate: pro.expirationDate
         };
       });
 
@@ -56,14 +57,15 @@ export class DonacionesService {
         data: dataDetDonation
       });
 
-      const dataInvntory: InventoryDto = {
+      // """"""""""""""""Crear los medicamentos en inventario"""""""""""""""" Supuestamente 
+      const data4Inventory: InventoryDto = {
         donationId: donationCreated.id,
-        type: 'Entrada',
+        type: donationCreated.type,
         date: donationCreated.date,
-        medicines: dataDetDonationCopy
+        medicines: dataDetDonation4Inv
       }
 
-      await this.inventoryService.createInventory(dataInvntory)
+      await this.inventoryService.createInventory(data4Inventory)
 
       baseResponse.message = 'Donación creada exitosamente.'
       return baseResponse;
@@ -103,14 +105,14 @@ export class DonacionesService {
           data: dataDetDonation
         });
       }
-      baseResponse.message = 'Event actualizado exitosamente.'
+      baseResponse.message = 'Donacion actualizada exitosamente.'
       return baseResponse;
     } catch (error) {
-      badResponse.message = 'Error al actualizar el Event. ' + error
+      badResponse.message = 'Error al actualizar la Donacion. ' + error
       return badResponse;
     }
 
   }
 }
 
-// 🤡
+// 🤡🤡

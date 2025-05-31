@@ -1,11 +1,11 @@
 import { Body, Controller, Get, Param, Post, Put } from '@nestjs/common';
-import { DonacionesService } from './donaciones.service';
-import { DonationsDTO } from './donaciones.dto';
+import { DonationsService } from './donations.service';
+import { DonationsDTO } from './donations.dto';
 
 @Controller('donations')
-export class DonacionesController {
+export class DonationsController {
 
-    constructor(private donationsService: DonacionesService){}
+    constructor(private donationsService: DonationsService){}
 
     @Get()
     async getDonations() {

@@ -31,6 +31,8 @@ export class DetDonationDTO {
     medicineId: number;
     @IsNumber()
     amount: number;
+    @IsNumber()
+    storageId:number;
 
     @IsDate()
     @Transform(({ value }) => new Date(value))
