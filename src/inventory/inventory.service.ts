@@ -71,9 +71,9 @@ export class InventoryService {
                     donationId: inventory.donationId,
                     medicineId: item.medicineId,
                     stock: item.stock,
-                    storeId: 1,
-                    admissionDate: new Date(),
-                    expirationDate: new Date()
+                    storeId: item.storeId,
+                    admissionDate: item.admissionDate,
+                    expirationDate: item.expirationDate
                 }
             })
 
