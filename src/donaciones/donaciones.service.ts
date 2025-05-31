@@ -57,8 +57,8 @@ export class DonacionesService {
       });
 
       const dataInvntory: InventoryDto = {
+        // borre el type: "Entrada" porque me daba error despues de borrarlo del dto y ya lo puse para que se manejara automaticamente 
         donationId: donationCreated.id,
-        type: 'Entrada',
         date: donationCreated.date,
         medicines: dataDetDonationCopy
       }

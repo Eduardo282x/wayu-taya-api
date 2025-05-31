@@ -1,6 +1,6 @@
 import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
-import { HistoryQueryDto, InventoryDto } from './inventory.dto';
+import { HistoryQueryDto, InventoryDto, InventoryOutDto } from './inventory.dto';
 
 @Controller('inventario')
 export class InventoryController {
@@ -21,6 +21,11 @@ export class InventoryController {
     @Post()
     async createInventory(@Body() inventory: InventoryDto) {
         return await this.inventoryService.createInventory(inventory);
+    }
+
+    @Post('salida')
+    async removeInventory(@Body() inventory: InventoryOutDto) {
+        return await this.inventoryService.removeInventory(inventory);
     }
 
 
