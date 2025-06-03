@@ -1,12 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { DonationsDTO } from './donaciones.dto';
+import { DonationsDTO } from './donations.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
 import { InventoryDto, MedicinesDto } from 'src/inventory/inventory.dto';
 
 @Injectable()
-export class DonacionesService {
+export class DonationsService {
 
   constructor(
     private prismaService: PrismaService,
@@ -14,10 +14,46 @@ export class DonacionesService {
   ) { }
 
   async getDonations() {
-    return await this.prismaService.donation.findMany({
+    // grab all
+    const donations = await this.prismaService.donation.findMany({
       orderBy: { id: 'asc' },
-      include: { detDonation: { include: { medicine: true } } }
-    })
+      include: {
+        detDonation: {
+          include: { medicine: true }
+        }
+      }
+    });
+  
+    // id from all 4 inven
+    const donationIds = donations.map(donation => donation.id);
+  
+    // grab from inv where id is from above
+    const inventories = await this.prismaService.inventory.findMany({
+      where: {
+        donationId: { in: donationIds }
+      }
+    });
+  
+    // what got from inv >tie to> donations thingamajig
+    const donationsWithDates = donations.map(donation => {
+      const detDonationsWithDates = donation.detDonation.map(det => {
+        const inventoryRecord = inventories.find(inv =>
+          inv.donationId === donation.id && inv.medicineId === det.medicineId);
+  
+        return {
+          ...det,
+          admissionDate: inventoryRecord?.admissionDate,
+          expirationDate: inventoryRecord?.expirationDate,
+        };
+      });
+  
+      return {
+        ...donation,
+        detDonation: detDonationsWithDates,
+      };
+    });
+  
+    return donationsWithDates;
   }
 
   async createDonation(donation: DonationsDTO) {
@@ -27,7 +63,7 @@ export class DonacionesService {
         data: {
           peopleId: donation.peopleId,
           providerId: donation.providerId,
-          type: donation.type,
+          type: donation.type, // Entrada o Salida
           date: donation.date,
           lote: donation.lote,
         },
@@ -41,13 +77,14 @@ export class DonacionesService {
         };
       });
 
-      const dataDetDonationCopy: MedicinesDto[] = donation.medicines.map((pro) => {
+      const dataDetDonation4Inv: MedicinesDto[] = donation.medicines.map((pro) => {
         return {
+          // Todo esto va dentro de medicine {}, pones una llave por cada medicina a ingresar
           medicineId: pro.medicineId,
           stock: pro.amount,
-          storeId: 1,
-          admissionDate: new Date(),
-          expirationDate: new Date()
+          storeId: pro.storageId,
+          admissionDate: pro.admissionDate,
+          expirationDate: pro.expirationDate
         };
       });
 
@@ -56,14 +93,16 @@ export class DonacionesService {
         data: dataDetDonation
       });
 
-      const dataInvntory: InventoryDto = {
+      const dataInventory: InventoryDto = {
+        // borre el type: "Entrada" porque me daba error despues de borrarlo del dto y ya lo puse para que se manejara automaticamente 
+        // """"""""""""""""Crear los medicamentos en inventario"""""""""""""""" Supuestamente 
         donationId: donationCreated.id,
-        type: 'Entrada',
+        type: donationCreated.type,
         date: donationCreated.date,
-        medicines: dataDetDonationCopy
+        medicines: dataDetDonation4Inv
       }
 
-      await this.inventoryService.createInventory(dataInvntory)
+      await this.inventoryService.createInventory(dataInventory)
 
       baseResponse.message = 'Donación creada exitosamente.'
       return baseResponse;
@@ -103,14 +142,14 @@ export class DonacionesService {
           data: dataDetDonation
         });
       }
-      baseResponse.message = 'Event actualizado exitosamente.'
+      baseResponse.message = 'Donacion actualizada exitosamente.'
       return baseResponse;
     } catch (error) {
-      badResponse.message = 'Error al actualizar el Event. ' + error
+      badResponse.message = 'Error al actualizar la Donacion. ' + error
       return badResponse;
     }
 
   }
 }
 
-// 🤡
+// 🤡🤡
