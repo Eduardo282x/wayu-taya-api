@@ -14,10 +14,46 @@ export class DonationsService {
   ) { }
 
   async getDonations() {
-    return await this.prismaService.donation.findMany({
+    // grab all
+    const donations = await this.prismaService.donation.findMany({
       orderBy: { id: 'asc' },
-      include: { detDonation: { include: { medicine: true } } }
-    })
+      include: {
+        detDonation: {
+          include: { medicine: true }
+        }
+      }
+    });
+  
+    // id from all 4 inven
+    const donationIds = donations.map(donation => donation.id);
+  
+    // grab from inv where id is from above
+    const inventories = await this.prismaService.inventory.findMany({
+      where: {
+        donationId: { in: donationIds }
+      }
+    });
+  
+    // what got from inv >tie to> donations thingamajig
+    const donationsWithDates = donations.map(donation => {
+      const detDonationsWithDates = donation.detDonation.map(det => {
+        const inventoryRecord = inventories.find(inv =>
+          inv.donationId === donation.id && inv.medicineId === det.medicineId);
+  
+        return {
+          ...det,
+          admissionDate: inventoryRecord?.admissionDate,
+          expirationDate: inventoryRecord?.expirationDate,
+        };
+      });
+  
+      return {
+        ...donation,
+        detDonation: detDonationsWithDates,
+      };
+    });
+  
+    return donationsWithDates;
   }
 
   async createDonation(donation: DonationsDTO) {
