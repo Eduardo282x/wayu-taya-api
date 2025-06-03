@@ -57,15 +57,16 @@ export class DonationsService {
         data: dataDetDonation
       });
 
-      // """"""""""""""""Crear los medicamentos en inventario"""""""""""""""" Supuestamente 
-      const data4Inventory: InventoryDto = {
+      const dataInventory: InventoryDto = {
+        // borre el type: "Entrada" porque me daba error despues de borrarlo del dto y ya lo puse para que se manejara automaticamente 
+        // """"""""""""""""Crear los medicamentos en inventario"""""""""""""""" Supuestamente 
         donationId: donationCreated.id,
         type: donationCreated.type,
         date: donationCreated.date,
         medicines: dataDetDonation4Inv
       }
 
-      await this.inventoryService.createInventory(data4Inventory)
+      await this.inventoryService.createInventory(dataInventory)
 
       baseResponse.message = 'Donación creada exitosamente.'
       return baseResponse;
