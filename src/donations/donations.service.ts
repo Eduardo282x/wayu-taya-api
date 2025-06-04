@@ -4,6 +4,8 @@ import { DonationsDTO } from './donations.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
 import { InventoryDto, MedicinesDto } from 'src/inventory/inventory.dto';
+import * as PDFDocument from 'pdfkit';
+import * as fs from 'fs';
 
 @Injectable()
 export class DonationsService {
@@ -150,6 +152,117 @@ export class DonationsService {
     }
 
   }
-}
 
-// 🤡🤡
+  async generateDonationPDF(donationId: number, filePath: string) {
+    // 1. Obtener datos de la donación y detalles
+  const donation = await this.prismaService.donation.findUnique({
+    where: { id: donationId },
+    include: {
+      detDonation: { include: { medicine: true } }
+    }
+  });
+
+  const people = donation.peopleId
+    ? await this.prismaService.people.findUnique({ where: { id: donation.peopleId } })
+    : null;
+
+  const provider = donation.providerId
+    ? await this.prismaService.providers.findUnique({ where: { id: donation.providerId } })
+    : null;
+
+  const inventories = await this.prismaService.inventory.findMany({
+    where: { donationId }
+  });
+
+  // 2. Crear el documento PDF
+  const doc = new PDFDocument({ margin: 30, size: 'A4' });
+  doc.pipe(fs.createWriteStream(filePath));
+
+  // 3. Encabezado y datos principales
+  doc.fontSize(10).text('FACTURA NO COMERCIAL', 50, 30, { align: 'center' });
+  doc.fontSize(8).text('ASISTENCIA DE SALUD\nNO PARA RE-VENTA O FINES COMERCIALES', 50, 45, { align: 'center' });
+  doc.moveDown();
+
+  doc.fontSize(9);
+  doc.text(`NUMERO DE DONACION: D-${donation.id}`, 30, 80);
+  doc.text(`FECHA: ${donation.date.toLocaleDateString('es-VE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`, 350, 80);
+  doc.text(`CONSIGNATARIO: ${provider?.name || '---'}`, 30, 100);
+  doc.text(`NOMBRE: ${people?.name || ''} ${people?.lastName || ''}`, 30, 115);
+  doc.text(`RIF.: ${provider?.rif || 'SIN INF.'}`, 350, 115);
+  doc.text(`DIRECCIÓN: ${people?.address || ''}`, 30, 130);
+  doc.text(`TELÉFONO: ${people?.phone || ''}`, 350, 130);
+  doc.text(`ATENCIÓN: ${people?.name || ''} ${people?.lastName || ''}`, 30, 145);
+  doc.text(`CORREO-E: ${people?.email || ''}`, 350, 145);
+
+  doc.moveDown(2);
+
+  // 4. Título de la tabla
+  doc.font('Helvetica-Bold').fontSize(10).fillColor('#1997B1').text('LISTA DE MEDICAMENTOS', { align: 'left' });
+  doc.moveDown(0.5);
+
+  // 5. Dibujar tabla manualmente
+  const startX = 30;
+  let startY = doc.y;
+  const rowHeight = 20;
+
+  // Columnas y sus anchos
+  const columns = [
+    { header: 'N°', width: 30 },
+    { header: 'ID', width: 40 },
+    { header: 'PRODUCTO', width: 150 },
+    { header: 'CANT', width: 40 },
+    { header: 'UND', width: 40 },
+    { header: 'NDC', width: 40 },
+    { header: 'LOTE', width: 60 },
+    { header: 'ORIGEN', width: 50 },
+    { header: 'F. VENCE', width: 70 },
+    { header: 'VALOR', width: 50 },
+  ];
+
+  // Dibujar encabezados
+  let x = startX;
+  doc.font('Helvetica-Bold').fontSize(8).fillColor('#1997B1');
+  for (const col of columns) {
+    doc.text(col.header, x, startY, { width: col.width, align: 'center' });
+    x += col.width;
+  }
+
+  // Línea bajo encabezados
+  startY += rowHeight - 5;
+  doc.moveTo(startX, startY).lineTo(x, startY).stroke();
+
+  // Dibujar filas
+  doc.font('Helvetica').fontSize(8).fillColor('black');
+  startY += 5;
+
+  donation.detDonation.forEach((det, idx) => {
+    const inventory = inventories.find(inv => inv.medicineId === det.medicineId);
+    x = startX;
+
+    const row = [
+      (idx + 1).toString(),
+      det.medicine.id.toString(),
+      det.medicine.name,
+      det.amount.toString(),
+      det.medicine.unit,
+      'NDC',
+      donation.lote || '',
+      'S/N',
+      inventory?.expirationDate ? inventory.expirationDate.toISOString().slice(0, 10) : '',
+      '',
+    ];
+
+    for (let i = 0; i < columns.length; i++) {
+      doc.text(row[i], x, startY, { width: columns[i].width, align: 'center' });
+      x += columns[i].width;
+    }
+
+    startY += rowHeight;
+
+    // Opcional: línea divisoria entre filas
+    doc.moveTo(startX, startY - 5).lineTo(x, startY - 5).stroke();
+  });
+
+  doc.end();
+  }
+}
