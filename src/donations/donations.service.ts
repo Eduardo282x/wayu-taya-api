@@ -153,117 +153,142 @@ export class DonationsService {
   }
 
   async generateDonationPDF(donationId: number, filePath: string) {
-    // 1. Obtener datos de la donación y detalles
-  const donation = await this.prismaService.donation.findUnique({
-    where: { id: donationId },
-    include: {
-      detDonation: { include: { medicine: true } }
+      //1. Obtener datos de la donación y detalles
+      const donation = await this.prismaService.donation.findUnique({
+        where: { id: donationId },
+        include: {
+          detDonation: { include: { medicine: true } }
+        }
+      });
+    
+      const people = donation.peopleId
+        ? await this.prismaService.people.findUnique({ where: { id: donation.peopleId } })
+        : null;
+    
+      const provider = donation.providerId
+        ? await this.prismaService.providers.findUnique({ where: { id: donation.providerId } })
+        : null;
+    
+      const inventories = await this.prismaService.inventory.findMany({
+        where: { donationId }
+      });
+    
+      // 2. Función auxiliar para obtener datos de persona o proveedor
+      function getPersonOrProviderInfo(people, provider) {
+        if (!people || !people.name) {
+          return {
+            name: provider?.name || '---',
+            lastName: '',
+            address: provider?.address || '',
+            phone: provider?.phone || 'SIN INF',
+            email: provider?.email || '',
+            rif: provider?.rif || 'SIN INF.',
+          };
+        }
+        return {
+          name: people.name || '',
+          lastName: people.lastName || '',
+          address: people.address || '',
+          phone: people.phone || '',
+          email: people.email || '',
+          rif: provider?.rif || 'SIN INF.',
+        };
+      }
+    
+      const personOrProvider = getPersonOrProviderInfo(people, provider);
+    
+      // 3. Crear el documento PDF
+      const doc = new PDFDocument({ margin: 30, size: 'A4' });
+      doc.pipe(fs.createWriteStream(filePath));
+    
+      // 4. Insertar el logotipo (ajusta la ruta)
+      try {
+        doc.image('src/assets/logo.png', 30, 0, { width: 150 });
+      } catch (err) {
+        console.warn('No se pudo cargar el logotipo:', err);
+      }
+    
+      // 5. Encabezado y datos principales
+      doc.fontSize(10).text('FACTURA NO COMERCIAL', 45, 30, { align: 'center' });
+      doc.fontSize(8).text('ASISTENCIA DE SALUD\nNO PARA RE-VENTA O FINES COMERCIALES', 45, 45, { align: 'center' });
+      doc.moveDown();
+    
+      doc.fontSize(9);
+      doc.text(`NUMERO DE DONACION: D-${donation.id}`, 30, 80);
+      doc.text(`FECHA: ${donation.date.toLocaleDateString('es-VE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`, 350, 80);
+      doc.text(`PROVEEDOR: ${provider?.name || '---'}`, 30, 100);
+      doc.text(`NOMBRE: ${personOrProvider.name} ${personOrProvider.lastName}`, 30, 115);
+      doc.text(`RIF.: ${personOrProvider.rif}`, 30, 145);
+      doc.text(`DIRECCION: ${personOrProvider.address}`, 30, 130);
+      doc.text(`TELEFONO: ${personOrProvider.phone}`, 350, 130)
+      doc.text(`CORREO-E: ${personOrProvider.email}`, 350, 145);
+    
+      doc.moveDown(2);
+    
+      // 6. Título de la tabla
+      doc.font('Helvetica-Bold').fontSize(10).fillColor('#1997B1').text('LISTA DE MEDICAMENTOS', 45,175, { align: 'center' });
+      doc.moveDown(0.5);
+    
+      // 7. Dibujar tabla manualmente
+      const startX = 30;
+      let startY = doc.y;
+      const rowHeight = 20;
+    
+      const columns = [
+        { header: 'N°', width: 30 },
+        { header: 'ID', width: 40 },
+        { header: 'PRODUCTO', width: 150 },
+        { header: 'CANT', width: 40 },
+        { header: 'UND', width: 40 },
+        { header: 'NDC', width: 40 },
+        { header: 'LOTE', width: 60 },
+        { header: 'ORIGEN', width: 50 },
+        { header: 'F. VENCE', width: 70 },
+      ];
+    
+      // Encabezados tabla
+      let x = startX;
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('#1997B1');
+      for (const col of columns) {
+        doc.text(col.header, x, startY, { width: col.width, align: 'center' });
+        x += col.width;
+      }
+    
+      startY += rowHeight - 5;
+      doc.moveTo(startX, startY).lineTo(x, startY).stroke();
+    
+      // Filas con datos
+      doc.font('Helvetica').fontSize(8).fillColor('black');
+      startY += 5;
+    
+      donation.detDonation.forEach((det, idx) => {
+        const inventory = inventories.find(inv => inv.medicineId === det.medicineId);
+        x = startX;
+    
+        const row = [
+          (idx + 1).toString(),
+          det.medicine.id.toString(),
+          det.medicine.name,
+          det.amount.toString(),
+          det.medicine.unit,
+          'NDC',
+          donation.lote || '',
+          'S/N',
+          inventory?.expirationDate ? inventory.expirationDate.toISOString().slice(0, 10) : '',
+          '',
+        ];
+    
+        for (let i = 0; i < columns.length; i++) {
+          doc.text(row[i], x, startY, { width: columns[i].width, align: 'center' });
+          x += columns[i].width;
+        }
+    
+        startY += rowHeight;
+        doc.moveTo(startX, startY - 5).lineTo(x, startY - 5).stroke();
+      });
+    
+      doc.end();
     }
-  });
-
-  const people = donation.peopleId
-    ? await this.prismaService.people.findUnique({ where: { id: donation.peopleId } })
-    : null;
-
-  const provider = donation.providerId
-    ? await this.prismaService.providers.findUnique({ where: { id: donation.providerId } })
-    : null;
-
-  const inventories = await this.prismaService.inventory.findMany({
-    where: { donationId }
-  });
-
-  // 2. Crear el documento PDF
-  const doc = new PDFDocument({ margin: 30, size: 'A4' });
-  doc.pipe(fs.createWriteStream(filePath));
-
-  // 3. Encabezado y datos principales
-  doc.fontSize(10).text('FACTURA NO COMERCIAL', 50, 30, { align: 'center' });
-  doc.fontSize(8).text('ASISTENCIA DE SALUD\nNO PARA RE-VENTA O FINES COMERCIALES', 50, 45, { align: 'center' });
-  doc.moveDown();
-
-  doc.fontSize(9);
-  doc.text(`NUMERO DE DONACION: D-${donation.id}`, 30, 80);
-  doc.text(`FECHA: ${donation.date.toLocaleDateString('es-VE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`, 350, 80);
-  doc.text(`CONSIGNATARIO: ${provider?.name || '---'}`, 30, 100);
-  doc.text(`NOMBRE: ${people?.name || ''} ${people?.lastName || ''}`, 30, 115);
-  doc.text(`RIF.: ${provider?.rif || 'SIN INF.'}`, 350, 115);
-  doc.text(`DIRECCION: ${people?.address || ''}`, 30, 130);
-  doc.text(`TELEFONO: ${people?.phone || ''}`, 350, 130);
-  doc.text(`ATENCION: ${people?.name || ''} ${people?.lastName || ''}`, 30, 145);
-  doc.text(`CORREO-E: ${people?.email || ''}`, 350, 145);
-
-  doc.moveDown(2);
-
-  // 4. Título de la tabla
-  doc.font('Helvetica-Bold').fontSize(10).fillColor('#1997B1').text('LISTA DE MEDICAMENTOS', { align: 'left' });
-  doc.moveDown(0.5);
-
-  // 5. Dibujar tabla manualmente
-  const startX = 30;
-  let startY = doc.y;
-  const rowHeight = 20;
-
-  // Columnas y sus anchos
-  const columns = [
-    { header: 'N°', width: 30 },
-    { header: 'ID', width: 40 },
-    { header: 'PRODUCTO', width: 150 },
-    { header: 'CANT', width: 40 },
-    { header: 'UND', width: 40 },
-    { header: 'NDC', width: 40 },
-    { header: 'LOTE', width: 60 },
-    { header: 'ORIGEN', width: 50 },
-    { header: 'F. VENCE', width: 70 },
-    { header: 'VALOR', width: 50 },
-  ];
-
-  // Dibujar encabezados
-  let x = startX;
-  doc.font('Helvetica-Bold').fontSize(8).fillColor('#1997B1');
-  for (const col of columns) {
-    doc.text(col.header, x, startY, { width: col.width, align: 'center' });
-    x += col.width;
-  }
-
-  // Línea bajo encabezados
-  startY += rowHeight - 5;
-  doc.moveTo(startX, startY).lineTo(x, startY).stroke();
-
-  // Dibujar filas
-  doc.font('Helvetica').fontSize(8).fillColor('black');
-  startY += 5;
-
-  donation.detDonation.forEach((det, idx) => {
-    const inventory = inventories.find(inv => inv.medicineId === det.medicineId);
-    x = startX;
-
-    const row = [
-      (idx + 1).toString(),
-      det.medicine.id.toString(),
-      det.medicine.name,
-      det.amount.toString(),
-      det.medicine.unit,
-      'NDC',
-      donation.lote || '',
-      'S/N',
-      inventory?.expirationDate ? inventory.expirationDate.toISOString().slice(0, 10) : '',
-      '',
-    ];
-
-    for (let i = 0; i < columns.length; i++) {
-      doc.text(row[i], x, startY, { width: columns[i].width, align: 'center' });
-      x += columns[i].width;
-    }
-
-    startY += rowHeight;
-
-    // Opcional: línea divisoria entre filas
-    doc.moveTo(startX, startY - 5).lineTo(x, startY - 5).stroke();
-  });
-
-  doc.end();
-  }
 }
 
-// 🤡🤡🤡🤡🤡
+// 🤡🤡🤡🤡🤡🤡
