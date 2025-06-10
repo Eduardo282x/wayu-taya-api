@@ -41,25 +41,24 @@ export class EventsService {
           description: event.description,
           address: event.address,
           parishId: event.parishId,
-          date: event.date,
+          startDate: event.startDate,
+          endDate: event.endDate,
         }
-      })
-
-      const dataProvidersEvents = event.providersId.map((pro) => {
-        return {
-          eventId: eventCreated.id,
-          providerId: pro
-        }
-      })
-
+      });
+  
+      const dataProvidersEvents = event.providersId.map((pro) => ({
+        eventId: eventCreated.id,
+        providerId: pro
+      }));
+  
       await this.prismaService.providersEvents.createMany({
         data: dataProvidersEvents
-      })
-
-      baseResponse.message = 'Events creado exitosamente.'
+      });
+  
+      baseResponse.message = 'Events creado exitosamente.';
       return baseResponse;
     } catch (error) {
-      badResponse.message = 'Error al crear event.' + error
+      badResponse.message = 'Error al crear event.' + error;
       return badResponse;
     }
   }
@@ -72,31 +71,31 @@ export class EventsService {
           description: event.description,
           address: event.address,
           parishId: event.parishId,
-          date: event.date,
+          startDate: event.startDate,
+          endDate: event.endDate,
         },
         where: { id }
       });
-
-      // Si hay providers, crea las nuevas relaciones
+  
       if (event.cambio_proveedores) {
         await this.prismaService.providersEvents.deleteMany({
           where: { eventId: id }
         });
-
+  
         const dataProvidersEvents = event.providersId.map((pro) => ({
           eventId: id,
           providerId: pro
         }));
-
+  
         await this.prismaService.providersEvents.createMany({
           data: dataProvidersEvents
         });
       }
-
-      baseResponse.message = 'Event actualizado exitosamente.'
+  
+      baseResponse.message = 'Event actualizado exitosamente.';
       return baseResponse;
     } catch (error) {
-      badResponse.message = 'Error al actualizar el Event. ' + error
+      badResponse.message = 'Error al actualizar el Event. ' + error;
       return badResponse;
     }
   }
@@ -118,3 +117,4 @@ export class EventsService {
 
 
 }
+//                                  🤡=>🥥
