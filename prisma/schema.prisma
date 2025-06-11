@@ -103,7 +103,8 @@ model Events {
   address         String
   parishId        Int
   parish          Parish            @relation(fields: [parishId], references: [id])
-  date            DateTime
+  startDate       DateTime          
+  endDate         DateTime          
   providersEvents ProvidersEvents[]
   deleted         Boolean           @default(false)
   createAt        DateTime          @default(now())

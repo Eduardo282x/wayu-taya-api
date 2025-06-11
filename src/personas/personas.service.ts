@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { PersonasDTO } from './personas.dto';
+import { PersonaProgramDTO, PersonasDTO } from './personas.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
@@ -23,7 +23,7 @@ export class PersonasService {
             where: { id: id_programa }
         });
 
-        if(!findProgram){
+        if (!findProgram) {
             badResponse.message = 'No se encontró el programa'
             return badResponse;
         }
@@ -40,7 +40,7 @@ export class PersonasService {
         })
     }
 
-    async createPersonas(personas: PersonasDTO) {
+    async createPersonas(personas: PersonaProgramDTO) {
         try {
             const personaCreate = await this.prismaService.people.create({
                 data: {
@@ -76,7 +76,31 @@ export class PersonasService {
         }
     }
 
-    async updatePersonas(id_personas: number, personas: PersonasDTO) {
+    async createPersonaWithoutProgram(personas: PersonasDTO) {
+        try {
+            await this.prismaService.people.create({
+                data: {
+                    name: personas.name,
+                    lastName: personas.lastName,
+                    address: personas.address,
+                    email: personas.email,
+                    phone: personas.phone,
+                    identification: personas.identification,
+                    sex: personas.sex,
+                    birthdate: personas.birthdate,
+                    parishId: personas.id_parroquia
+                }
+            })
+
+            baseResponse.message = 'Persona guardada exitosamente.'
+            return baseResponse;
+        } catch (error) {
+            badResponse.message = 'Error al crear a la persona.' + error
+            return badResponse;
+        }
+    }
+
+    async updatePersonas(id_personas: number, personas: PersonaProgramDTO) {
         try {
             await this.prismaService.people.update({
                 data: {
@@ -117,13 +141,37 @@ export class PersonasService {
         }
     }
 
+    async updatePersonasWithoutProgram(id_personas: number, personas: PersonasDTO) {
+        try {
+            await this.prismaService.people.update({
+                data: {
+                    parishId: personas.id_parroquia,
+                    name: personas.name,
+                    lastName: personas.lastName,
+                    address: personas.address,
+                    email: personas.email,
+                    phone: personas.phone,
+                    identification: personas.identification,
+                    sex: personas.sex,
+                    birthdate: personas.birthdate
+                },
+                where: { id: id_personas }
+            });
+
+            baseResponse.message = 'persona actualizada exitosamente.'
+            return baseResponse;
+        } catch (error) {
+            badResponse.message = 'Error al actualizar la persona.' + error
+            return badResponse;
+        }
+    }
+
     async deletePersonas(id_persona: number) {
         try {
             await this.prismaService.people.update({
                 where: { id: id_persona },
                 data: { deleted: true }
             });
-
 
             baseResponse.message = 'persona deleted exitosamente.'
             return baseResponse;

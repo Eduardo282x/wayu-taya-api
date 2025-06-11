@@ -4211,11 +4211,11 @@ export const products = [
         description: "Pasta dental con flúor para niños.",
         categoryId: 16, // Higiene Personal
         medicine: false,
-        unit: "ml",
-        amount: 75,
-        temperate: "Ambiente",
-        manufacturer: "Colgate",
-        activeIngredient: "-",
+        unit: "",
+        amount: 0,
+        temperate: "",
+        manufacturer: "",
+        activeIngredient: "",
         formId: 14 // Ninguno
     },
     {
@@ -4223,11 +4223,11 @@ export const products = [
         description: "Jabón líquido para higiene de manos.",
         categoryId: 16,
         medicine: false,
-        unit: "ml",
-        amount: 250,
-        temperate: "Ambiente",
-        manufacturer: "Protex",
-        activeIngredient: "-",
+        unit: "",
+        amount: 0,
+        temperate: "",
+        manufacturer: "",
+        activeIngredient: "",
         formId: 14
     },
     {
@@ -4235,11 +4235,11 @@ export const products = [
         description: "Toallas higiénicas absorbentes para uso femenino.",
         categoryId: 16,
         medicine: false,
-        unit: "unidades",
-        amount: 10,
-        temperate: "Ambiente",
-        manufacturer: "Always",
-        activeIngredient: "-",
+        unit: "",
+        amount: 0,
+        temperate: "",
+        manufacturer: "",
+        activeIngredient: "",
         formId: 14
     },
     {
@@ -4247,12 +4247,12 @@ export const products = [
         description: "Suplemento alimenticio con hierro.",
         categoryId: 19, // Suplemento Nutricional
         medicine: false,
-        unit: "mg",
-        amount: 100,
-        temperate: "Ambiente",
-        manufacturer: "Centrum",
-        activeIngredient: "Hierro",
-        formId: 1
+        unit: "",
+        amount: 0,
+        temperate: "",
+        manufacturer: "",
+        activeIngredient: "",
+        formId: 14
     },
     {
         name: "Kit de primeros auxilios",
