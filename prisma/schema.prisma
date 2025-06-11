@@ -165,6 +165,7 @@ model Medicine {
   temperate        String
   manufacturer     String
   activeIngredient String
+  countryOfOrigin  String
   formId           Int
   form             Forms              @relation(fields: [formId], references: [id])
   detDonation      DetDonation[]
