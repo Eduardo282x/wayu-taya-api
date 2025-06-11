@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import { HistoryQueryDto, InventoryDto, InventoryOutDto } from './inventory.dto';
 
-@Controller('inventario')
+@Controller('inventory')
 export class InventoryController {
 
     constructor(private inventoryService: InventoryService) {
