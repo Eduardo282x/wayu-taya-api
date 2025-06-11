@@ -2,7 +2,7 @@ import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common'
 import { UsuariosService } from './usuarios.service';
 import { DTOUsuarios } from './usuarios.dto';
 
-@Controller('usuarios')
+@Controller('users')
 export class UsuariosController {
 
     constructor(private readonly usuarioService: UsuariosService) {
