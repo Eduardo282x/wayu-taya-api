@@ -32,6 +32,10 @@ export class MedicineDTO{
     activeIngredient: string;
 
     @IsOptional()
+    @IsString()
+    countryOfOrigin: string;
+
+    @IsOptional()
     @IsNumber()
     formId: number;
 }
