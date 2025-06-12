@@ -177,6 +177,98 @@ export class DonationsService {
       // 5. Crear el documento PDF
       const doc = new PDFDocument({ margin: 30, size: 'A4' });
       doc.pipe(fs.createWriteStream(filePath));
+
+       // --- PAGINA 1: CERTIFICADO DE DONACIÓN ---
+  // Logo
+  try {
+    doc.image('src/assets/logo.png', 40, 0, { width: 150 });
+  } catch (err) {
+    console.warn('No se pudo cargar el logotipo:', err);
+  }
+
+  // Fecha arriba a la derecha
+  const fechaActual = new Date().toLocaleDateString('es-VE', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+  doc.fontSize(10).text(fechaActual, 0, 40, { align: 'right' });
+
+  // Nombre y RIF de la fundación
+  doc.font('Helvetica-Bold').fontSize(11).text('Fundación Wayuu Taya', 40, 90);
+  doc.font('Helvetica-Bold').fontSize(10).text('J-309554050', 40, 105);
+
+  // Título centrado
+  doc.moveDown(2);
+  doc.font('Helvetica-Bold').fontSize(13).text('CERTIFICADO DE DONACIÓN', { align: 'center' });
+  doc.moveDown(1);
+
+  // Datos principales
+  doc.font('Helvetica').fontSize(10);
+  doc.text(`NUMERO DE DONACION: D-${donation.id}`, 40, 160);
+  doc.text(`CONSIGNATARIO: ${institution?.name || ''}`, 40, 175);
+  doc.text(`RIF.: ${institution?.rif || ''}`, 40, 190);
+  doc.text(`FECHA: ${donation.date.toLocaleDateString('es-VE', { year: 'numeric', month: '2-digit', day: '2-digit' })}`, 40, 205);
+
+  // Texto principal
+  doc.moveDown(8);
+  doc.font('Helvetica').fontSize(10);
+  doc.text(
+    'Este documento certifica que La Fundación Wayuu Taya ha donado provisiones médicas al consignatario mencionado arriba. Este envío es un regalo de buena fe sin ninguna consideración de valor monetario de parte del que lo reciba con respecto al valor comercial de las provisiones médicas.',
+    { align: 'justify', width: 500 }
+  );
+
+  // Espacio para firma y sellos
+  doc.moveDown(8);
+  doc.text('Atentamente,', 40);
+
+// Definir altura y márgenes para los cuadros y texto al final de la página
+const bottomMargin = 250;
+const pageHeight = doc.page.height;
+const cuadroFirmaWidth = 250;
+const cuadroFirmaHeight = 0;
+const cuadroSelloWidth = 120;
+const cuadroSelloHeight = 120;
+const espacioEntreCuadros = 40;
+
+// Posiciones Y para los cuadros y texto (cerca del pie)
+const cuadrosY = pageHeight - bottomMargin - cuadroFirmaHeight;
+const firmaX = 100;
+const selloX = firmaX + cuadroFirmaWidth + espacioEntreCuadros;
+
+// Dibujar rectángulos para firma y sello
+doc.rect(firmaX, cuadrosY, cuadroFirmaWidth, cuadroFirmaHeight).stroke();
+doc.text('Sello:', selloX,cuadrosY-20);
+doc.rect(selloX, cuadrosY, cuadroSelloWidth, cuadroSelloHeight).strokeOpacity(0.2).stroke();
+
+// Información de Roger centrada dentro del cuadro de firma, justo debajo del rectángulo
+const infoRoger = [
+  'FUNDACIÓN WAYUU TAYA',
+  'RIF J-30955405-0',
+  'Roger Ibarra',
+  'Gerente Regional Zulia',
+  'roger@wayuutaya.org / www.wayuutaya.org',
+];
+
+const infoYStart = cuadrosY + cuadroFirmaHeight + 5; // 5 pts debajo del cuadro firma
+
+infoRoger.forEach((line, index) => {
+  doc.font('Helvetica').fontSize(9).text(line, firmaX, infoYStart + index * 12, {
+    width: cuadroFirmaWidth,
+    align: 'center',
+  });
+
+});
+  // Pie de página
+  doc.font('Helvetica').fontSize(8).text(
+    'AV 13A ENTRE CALLES 75 Y 76 EDIF BELEN PISO PRIMER 1-C SECTOR TIERRA NEGRA MARACAIBO ZULIA',
+    40, doc.page.height - 60, { align: 'center' }
+  );
+
+
+  // --- PAGINA 2: TABLA DE MEDICAMENTOS ---
+  doc.addPage();
     
       // 4. Insertar el logotipo (ajusta la ruta)
       try {
