@@ -3,10 +3,8 @@ import { IsArray, IsDate, ValidateNested, IsNumber, IsOptional, IsString, IsBool
 
 export class DonationsDTO {
     @IsNumber()
-    @IsOptional()
-    peopleId: number;
+    institutionId: number;
     @IsNumber()
-    @IsOptional()
     providerId: number;
     @IsString()
     type: string;
