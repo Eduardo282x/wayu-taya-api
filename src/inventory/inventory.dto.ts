@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsInt, Min, IsDate, IsOptional, IsString, IsNotEmpty, ValidateNested, IsArray, isInt } from 'class-validator';
+import { IsInt, Min, IsDate, IsOptional, IsString, ValidateNested, IsArray } from 'class-validator';
 
 
 export class InventoryDto {
