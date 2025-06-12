@@ -90,6 +90,9 @@ model Documents {
   id            Int             @id @default(autoincrement())
   name          String
   date          DateTime
+  filePath      String?
+  fileName      String?
+  mimeType      String?
   collaborators Collaborators[]
   deleted       Boolean         @default(false)
 }
