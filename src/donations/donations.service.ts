@@ -63,7 +63,7 @@ export class DonationsService {
       // Crear la donación principal
       const donationCreated = await this.prismaService.donation.create({
         data: {
-          peopleId: donation.peopleId,
+          institutionId: donation.institutionId,
           providerId: donation.providerId,
           type: donation.type, // Entrada o Salida
           date: donation.date,
@@ -119,7 +119,7 @@ export class DonationsService {
     try {
       const donationCreated = await this.prismaService.donation.update({
         data: {
-          peopleId: donation.peopleId,
+          institutionId: donation.institutionId,
           providerId: donation.providerId,
           type: donation.type,
           date: donation.date,
@@ -153,7 +153,8 @@ export class DonationsService {
   }
 
   async generateDonationPDF(donationId: number, filePath: string) {
-      //1. Obtener datos de la donación y detalles
+
+    
       const donation = await this.prismaService.donation.findUnique({
         where: { id: donationId },
         include: {
@@ -161,8 +162,8 @@ export class DonationsService {
         }
       });
     
-      const people = donation.peopleId
-        ? await this.prismaService.people.findUnique({ where: { id: donation.peopleId } })
+      const institution = donation.institutionId
+        ? await this.prismaService.institutions.findUnique({ where: { id: donation.institutionId } })
         : null;
     
       const provider = donation.providerId
@@ -173,31 +174,7 @@ export class DonationsService {
         where: { donationId }
       });
     
-      // 2. Función auxiliar para obtener datos de persona o proveedor
-      function getPersonOrProviderInfo(people, provider) {
-        if (!people || !people.name) {
-          return {
-            name: provider?.name || '---',
-            lastName: '',
-            address: provider?.address || '',
-            phone: provider?.phone || 'SIN INF',
-            email: provider?.email || '',
-            rif: provider?.rif || 'SIN INF.',
-          };
-        }
-        return {
-          name: people.name || '',
-          lastName: people.lastName || '',
-          address: people.address || '',
-          phone: people.phone || '',
-          email: people.email || '',
-          rif: provider?.rif || 'SIN INF.',
-        };
-      }
-    
-      const personOrProvider = getPersonOrProviderInfo(people, provider);
-    
-      // 3. Crear el documento PDF
+      // 5. Crear el documento PDF
       const doc = new PDFDocument({ margin: 30, size: 'A4' });
       doc.pipe(fs.createWriteStream(filePath));
     
@@ -217,11 +194,11 @@ export class DonationsService {
       doc.text(`NUMERO DE DONACION: D-${donation.id}`, 30, 80);
       doc.text(`FECHA: ${donation.date.toLocaleDateString('es-VE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`, 350, 80);
       doc.text(`PROVEEDOR: ${provider?.name || '---'}`, 30, 100);
-      doc.text(`NOMBRE: ${personOrProvider.name} ${personOrProvider.lastName}`, 30, 115);
-      doc.text(`RIF.: ${personOrProvider.rif}`, 30, 145);
-      doc.text(`DIRECCION: ${personOrProvider.address}`, 30, 130);
-      doc.text(`TELEFONO: ${personOrProvider.phone}`, 350, 130)
-      doc.text(`CORREO-E: ${personOrProvider.email}`, 350, 145);
+      doc.text(`NOMBRE: ${institution?.name || ''}`, 30, 115);
+      doc.text(`RIF.: ${institution?.rif || 'SIN INF.'}`, 350, 115);
+      doc.text(`DIRECCION: ${institution?.address || ''}`, 30, 130);
+      doc.text(`PAIS: ${institution?.country || ''}`, 30, 145);
+      doc.text(`CORREO-E: ${institution?.email || ''}`, 350, 145)
     
       doc.moveDown(2);
     
@@ -229,42 +206,63 @@ export class DonationsService {
       doc.font('Helvetica-Bold').fontSize(10).fillColor('#1997B1').text('LISTA DE MEDICAMENTOS', 45,175, { align: 'center' });
       doc.moveDown(0.5);
     
-      // 7. Dibujar tabla manualmente
-      const startX = 30;
+
+      
+      // Definir columnas con anchos
+      const columns = [
+        { header: 'N°', width: 25 },
+        { header: 'ID', width: 35 },
+        { header: 'PRODUCTO', width: 130 },
+        { header: 'CANT', width: 35 },
+        { header: 'UND', width: 35 },
+        { header: 'NDC', width: 35 },
+        { header: 'LOTE', width: 55 },
+        { header: 'ORIGEN', width: 45 },
+        { header: 'F. ADMISION', width: 70 },
+        { header: 'F. VENCE', width: 70 },
+        { header: 'VALOR', width: 50 },
+      ];
+      
+      // Ajustar el ancho total y posición (startX) según columnas
+      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const tableWidth = columns.reduce((sum, col) => sum + col.width, 0);
+      const startX = doc.page.margins.left + (pageWidth - tableWidth) / 2;
+      
       let startY = doc.y;
       const rowHeight = 20;
-    
-      const columns = [
-        { header: 'N°', width: 30 },
-        { header: 'ID', width: 40 },
-        { header: 'PRODUCTO', width: 150 },
-        { header: 'CANT', width: 40 },
-        { header: 'UND', width: 40 },
-        { header: 'NDC', width: 40 },
-        { header: 'LOTE', width: 60 },
-        { header: 'ORIGEN', width: 50 },
-        { header: 'F. VENCE', width: 70 },
-      ];
-    
-      // Encabezados tabla
+      
+      // Función para dibujar bordes
+      function drawCellBorder(x: number, y: number, width: number, height: number) {
+        doc.lineWidth(0.5).rect(x, y, width, height).stroke();
+      }
+      
+      // Dibujar encabezados
       let x = startX;
       doc.font('Helvetica-Bold').fontSize(8).fillColor('#1997B1');
       for (const col of columns) {
-        doc.text(col.header, x, startY, { width: col.width, align: 'center' });
+        doc.text(col.header, x + 2, startY + 5, { width: col.width - 4, align: 'center' });
+        drawCellBorder(x, startY, col.width, rowHeight);
         x += col.width;
       }
-    
-      startY += rowHeight - 5;
-      doc.moveTo(startX, startY).lineTo(x, startY).stroke();
-    
-      // Filas con datos
+      startY += rowHeight;
+      
       doc.font('Helvetica').fontSize(8).fillColor('black');
-      startY += 5;
-    
+      
+      // Dibujar filas
       donation.detDonation.forEach((det, idx) => {
-        const inventory = inventories.find(inv => inv.medicineId === det.medicineId);
         x = startX;
-    
+      
+        const inventory = inventories.find(inv => inv.medicineId === det.medicineId);
+      
+        // Formatear fechas
+        const admissionDate = inventory?.admissionDate
+          ? new Date(inventory.admissionDate).toLocaleDateString('es-VE')
+          : 'S/D';
+      
+        const expirationDate = inventory?.expirationDate
+          ? new Date(inventory.expirationDate).toLocaleDateString('es-VE')
+          : 'S/D';
+      
         const row = [
           (idx + 1).toString(),
           det.medicine.id.toString(),
@@ -274,21 +272,23 @@ export class DonationsService {
           'NDC',
           donation.lote || '',
           'S/N',
-          inventory?.expirationDate ? inventory.expirationDate.toISOString().slice(0, 10) : '',
-          '',
+          admissionDate,
+          expirationDate,
+          '0,00',
         ];
-    
+      
         for (let i = 0; i < columns.length; i++) {
-          doc.text(row[i], x, startY, { width: columns[i].width, align: 'center' });
+          doc.text(row[i], x + 2, startY + 5, { width: columns[i].width - 4, align: 'center' });
+          drawCellBorder(x, startY, columns[i].width, rowHeight);
           x += columns[i].width;
         }
-    
+      
         startY += rowHeight;
-        doc.moveTo(startX, startY - 5).lineTo(x, startY - 5).stroke();
       });
     
       doc.end();
     }
 }
 
+// 🤡🤡🤡🤡🤡🤡
 // 🤡🤡🤡🤡🤡🤡

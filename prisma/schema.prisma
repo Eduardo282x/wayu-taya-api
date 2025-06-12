@@ -190,7 +190,7 @@ model Store {
 
 model Donation {
   id               Int                @id @default(autoincrement())
-  peopleId         Int?
+  institutionId    Int?
   providerId       Int?
   type             String
   date             DateTime
