@@ -5,7 +5,7 @@ generator client {
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  //directUrl = env("DIRECT_URL")
+  // directUrl = env("DIRECT_URL")
 }
 
 model State {
@@ -111,8 +111,8 @@ model Events {
   address         String
   parishId        Int
   parish          Parish            @relation(fields: [parishId], references: [id])
-  startDate       DateTime          
-  endDate         DateTime          
+  startDate       DateTime
+  endDate         DateTime
   providersEvents ProvidersEvents[]
   deleted         Boolean           @default(false)
   createAt        DateTime          @default(now())
@@ -173,6 +173,7 @@ model Medicine {
   temperate        String
   manufacturer     String
   activeIngredient String
+  countryOfOrigin  String             @default("VE")
   formId           Int
   form             Forms              @relation(fields: [formId], references: [id])
   detDonation      DetDonation[]

@@ -1,8 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
 import { PersonasService } from './personas.service';
-import { PersonasDTO } from './personas.dto';
+import { PersonaProgramDTO, PersonasDTO } from './personas.dto';
 
-@Controller('personas')
+@Controller('people')
 export class PersonasController {
 
     constructor(private personasService: PersonasService) {
@@ -20,12 +20,22 @@ export class PersonasController {
     }
 
     @Post()
-    async createPersonas(@Body() datos: PersonasDTO) {
+    async createPersonas(@Body() datos: PersonaProgramDTO) {
         return await this.personasService.createPersonas(datos);
     }
 
+    @Post('/normal')
+    async createPersonaWithoutProgram(@Body() datos: PersonasDTO) {
+        return await this.personasService.createPersonaWithoutProgram(datos);
+    }
+
+    @Put('/normal/:id')
+    async updatePersonasWithoutProgram(@Param('id') id_personas: string, @Body() datos: PersonasDTO) {
+        return await this.personasService.updatePersonasWithoutProgram(Number(id_personas), datos);
+    }
+
     @Put('/:id')
-    async updatePersonas(@Param('id') id_personas: string, @Body() datos: PersonasDTO) {
+    async updatePersonas(@Param('id') id_personas: string, @Body() datos: PersonaProgramDTO) {
         return await this.personasService.updatePersonas(Number(id_personas), datos);
     }
 

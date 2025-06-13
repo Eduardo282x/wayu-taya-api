@@ -33,6 +33,7 @@ export class MedicineService {
                     temperate: medicine.temperate ? medicine.temperate : '',
                     manufacturer: medicine.manufacturer ? medicine.manufacturer : '',
                     activeIngredient: medicine.activeIngredient ? medicine.activeIngredient : '',
+                    countryOfOrigin: medicine.countryOfOrigin ? medicine.countryOfOrigin : '',
                     formId: medicine.formId ? medicine.formId : 14,
                 }
             });
@@ -57,6 +58,7 @@ export class MedicineService {
                     temperate: medicine.temperate,
                     manufacturer: medicine.manufacturer,
                     activeIngredient: medicine.activeIngredient,
+                    countryOfOrigin: medicine.countryOfOrigin,
                     formId: medicine.formId,
                 },
                 where: { id: id }

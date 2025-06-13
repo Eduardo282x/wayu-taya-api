@@ -13,7 +13,7 @@ export class DonationsController {
         return await this.donationsService.getDonations()
     }
 
-    @Get('pdf/:id')
+    @Get('/download/:id')
     // Si quieres usar esto tiene que ser en postman y darle a enviar y descargar respuesta
   async downloadDonationPDF(@Param('id') id: string, @Res() res: Response) {
     const donationId = Number(id);

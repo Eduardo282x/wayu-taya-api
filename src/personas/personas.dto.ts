@@ -2,8 +2,7 @@
 import { IsArray, IsBoolean, IsDate, IsNumber, IsOptional, IsString } from "class-validator";
 import { Transform } from "class-transformer";
 
-export class PersonasDTO{
-
+export class PersonasDTO {
     @IsNumber()
     id_parroquia: number;
     @IsString()
@@ -21,8 +20,11 @@ export class PersonasDTO{
     @IsString()
     sex: string;
     @IsDate()
-    @Transform(({value}) => new Date(value))
+    @Transform(({ value }) => new Date(value))
     birthdate: Date;
+}
+
+export class PersonaProgramDTO extends PersonasDTO{
     @IsArray()
     @IsNumber({}, { each: true })
     id_programa: number[];
