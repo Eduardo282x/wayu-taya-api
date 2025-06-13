@@ -3,7 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { DonationsDTO } from './donations.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
-import { InventoryDto, MedicinesDto } from 'src/inventory/inventory.dto';
+import { InventoryDto, MedicinesDto,InventoryOutDto } from 'src/inventory/inventory.dto';
 import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs';
 
@@ -70,51 +70,61 @@ export class DonationsService {
           lote: donation.lote,
         },
       });
+  
       // Preparar los detalles de las medicinas
-      const dataDetDonation = donation.medicines.map((pro) => {
-        return {
-          donationId: donationCreated.id,
-          medicineId: pro.medicineId,
-          amount: pro.amount,
-        };
+      const dataDetDonation = donation.medicines.map((pro) => ({
+        donationId: donationCreated.id,
+        medicineId: pro.medicineId,
+        amount: pro.amount,
+      }));
+  
+      // Crear todos los detalles en lote
+      await this.prismaService.detDonation.createMany({
+        data: dataDetDonation,
       });
-
-      const dataDetDonation4Inv: MedicinesDto[] = donation.medicines.map((pro) => {
-        return {
-          // Todo esto va dentro de medicine {}, pones una llave por cada medicina a ingresar
+  
+      if (donation.type === "Entrada") {
+        // Para Entrada, preparar datos para crear inventario
+        const dataDetDonation4Inv: MedicinesDto[] = donation.medicines.map((pro) => ({
           medicineId: pro.medicineId,
           stock: pro.amount,
           storeId: pro.storageId,
           admissionDate: pro.admissionDate,
-          expirationDate: pro.expirationDate
+          expirationDate: pro.expirationDate,
+        }));
+  
+        const dataInventory: InventoryDto = {
+          donationId: donationCreated.id,
+          type: donationCreated.type,
+          date: donationCreated.date,
+          medicines: dataDetDonation4Inv,
         };
-      });
-
-      // Crear todos los detalles en lote
-      await this.prismaService.detDonation.createMany({
-        data: dataDetDonation
-      });
-
-      const dataInventory: InventoryDto = {
-        // borre el type: "Entrada" porque me daba error despues de borrarlo del dto y ya lo puse para que se manejara automaticamente 
-        // """"""""""""""""Crear los medicamentos en inventario"""""""""""""""" Supuestamente 
-        donationId: donationCreated.id,
-        type: donationCreated.type,
-        date: donationCreated.date,
-        medicines: dataDetDonation4Inv
+  
+        await this.inventoryService.createInventory(dataInventory);
+  
+      } else if (donation.type === "Salida") {
+        // Para Salida, preparar datos para eliminar inventario
+        for (const med of donation.medicines) {
+          const dataInventoryOut: InventoryOutDto = {
+            donationId: donationCreated.id,
+            medicineId: med.medicineId,
+            storeId: med.storageId,
+            amount: med.amount,
+            date: donationCreated.date,
+            observations: '', // puedes agregar observaciones si las tienes
+          };
+          await this.inventoryService.removeInventory(dataInventoryOut);
+        }
       }
-
-      await this.inventoryService.createInventory(dataInventory)
-
-      baseResponse.message = 'Donación creada exitosamente.'
+  
+      baseResponse.message = 'Donación creada exitosamente.';
       return baseResponse;
+  
     } catch (error) {
-
-      badResponse.message = 'Error al crear la donación: ' + error
+      badResponse.message = 'Error al crear la donación: ' + error;
       return badResponse;
     }
   }
-
 
   async updateDonation(id: number, donation: DonationsDTO) {
     try {

@@ -11,4 +11,6 @@ export class InstitutionsDTO {
     country: string;
     @IsString()
     email: string;
+    @IsString()
+    type: string;
 }

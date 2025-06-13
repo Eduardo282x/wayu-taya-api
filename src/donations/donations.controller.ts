@@ -14,7 +14,6 @@ export class DonationsController {
     }
 
     @Get('/download/:id')
-    // Si quieres usar esto tiene que ser en postman y darle a enviar y descargar respuesta
   async downloadDonationPDF(@Param('id') id: string, @Res() res: Response) {
     const donationId = Number(id);
     if (isNaN(donationId)) {

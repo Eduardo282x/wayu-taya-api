@@ -65,6 +65,7 @@ model Institutions {
   address         String 
   country         String
   email           String
+  type            String
   deleted         Boolean           @default(false)
 }
 // -------------------------------------------
