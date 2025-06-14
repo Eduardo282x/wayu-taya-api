@@ -24,7 +24,7 @@ export class InventoryController {
     }
 
     @Post('salida')
-    async removeInventory(@Body() inventory: InventoryOutDto) {
+    async removeInventory(@Body() inventory: InventoryDto) {
         return await this.inventoryService.removeInventory(inventory);
     }
 
