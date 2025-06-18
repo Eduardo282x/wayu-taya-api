@@ -35,7 +35,7 @@ export class DocumentsController {
         return await this.documentService.deleteDocument(Number(id_document));
     }
 
-    @Post('upload')
+    @Post('/upload')
     @UseInterceptors(FileInterceptor('file', {
         storage: diskStorage({
         destination: './uploads/documents',

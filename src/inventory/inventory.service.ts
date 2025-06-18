@@ -215,60 +215,60 @@ export class InventoryService {
     async removeInventory(inventoryOut: InventoryDto) {
         const errores = [];
         for (const item of inventoryOut.medicines) {
-          try {
-            const inventoryRecord = await this.prisma.inventory.findFirst({
-              where: {
-                medicineId: item.medicineId,
-                storeId: item.storeId,
-              },
-            });
-      
-            if (!inventoryRecord) {
-              errores.push(`No se encontró inventario para medicina ${item.medicineId} en almacén ${item.storeId}.`);
-              continue;
+            try {
+                const inventoryRecord = await this.prisma.inventory.findFirst({
+                    where: {
+                        medicineId: item.medicineId,
+                        storeId: item.storeId,
+                    },
+                });
+
+                if (!inventoryRecord) {
+                    errores.push(`No se encontró inventario para medicina ${item.medicineId} en almacén ${item.storeId}.`);
+                    continue;
+                }
+
+                if (inventoryRecord.stock < item.stock) {
+                    errores.push(`Stock insuficiente para medicina ${item.medicineId}: disponible ${inventoryRecord.stock}, solicitado ${item.stock}.`);
+                    continue;
+                }
+
+                if (inventoryRecord.stock === item.stock) {
+                    await this.prisma.inventory.delete({ where: { id: inventoryRecord.id } });
+                } else {
+                    await this.prisma.inventory.update({
+                        where: { id: inventoryRecord.id },
+                        data: {
+                            stock: { decrement: item.stock },
+                            updateAt: new Date(),
+                        },
+                    });
+                }
+
+                await this.prisma.historyInventory.create({
+                    data: {
+                        medicineId: item.medicineId,
+                        storeId: item.storeId,
+                        donationId: inventoryOut.donationId,
+                        amount: item.stock,
+                        type: 'Salida',
+                        date: inventoryOut.date,
+                        observations: inventoryOut.observations,
+                        admissionDate: inventoryRecord.admissionDate,
+                        expirationDate: inventoryRecord.expirationDate,
+                    },
+                });
+            } catch (error) {
+                errores.push(`Error procesando medicina ${item.medicineId}: ${error}`);
             }
-      
-            if (inventoryRecord.stock < item.stock) {
-              errores.push(`Stock insuficiente para medicina ${item.medicineId}: disponible ${inventoryRecord.stock}, solicitado ${item.stock}.`);
-              continue;
-            }
-      
-            if (inventoryRecord.stock === item.stock) {
-              await this.prisma.inventory.delete({ where: { id: inventoryRecord.id } });
-            } else {
-              await this.prisma.inventory.update({
-                where: { id: inventoryRecord.id },
-                data: {
-                  stock: { decrement: item.stock },
-                  updateAt: new Date(),
-                },
-              });
-            }
-      
-            await this.prisma.historyInventory.create({
-              data: {
-                medicineId: item.medicineId,
-                storeId: item.storeId,
-                donationId: inventoryOut.donationId,
-                amount: item.stock,
-                type: 'Salida',
-                date: inventoryOut.date,
-                observations: inventoryOut.observations,
-                admissionDate: inventoryRecord.admissionDate,
-                expirationDate: inventoryRecord.expirationDate,
-              },
-            });
-          } catch (error) {
-            errores.push(`Error procesando medicina ${item.medicineId}: ${error}`);
-          }
         }
-      
+
         if (errores.length > 0) {
-          badResponse.message = 'Algunos errores ocurrieron: ' + errores.join('; ');
-          return badResponse;
+            badResponse.message = 'Algunos errores ocurrieron: ' + errores.join('; ');
+            return badResponse;
         }
-      
+
         baseResponse.message = 'Salida registrada correctamente para todas las medicinas.';
         return baseResponse;
-      }
+    }
 }

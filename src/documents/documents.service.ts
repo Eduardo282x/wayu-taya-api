@@ -20,7 +20,7 @@ export class DocumentsService {
                     }
                 }
             }
-            
+
         });
     }
 
@@ -109,19 +109,16 @@ export class DocumentsService {
         }
     }
 
-    async createFile( file: Express.Multer.File,
-    data: { name: string; date: string }
-    ) {
+    async createFile(file: Express.Multer.File, data: { name: string; date: string }) {
         try {
-            
             await this.prismaService.documents.create({
-            data: {
-                name: data.name,
-                date: new Date(data.date),
-                fileName: file.filename,
-                filePath: file.path,
-                mimeType: file.mimetype,
-            },
+                data: {
+                    name: data.name,
+                    date: new Date(data.date),
+                    fileName: file.filename,
+                    filePath: file.path,
+                    mimeType: file.mimetype,
+                },
             });
 
             baseResponse.message = 'Documento guardado exitosamente.';
