@@ -2,11 +2,11 @@ import { Transform, Type } from "class-transformer";
 import { IsArray, IsDate, ValidateNested, IsNumber, IsOptional, IsString, IsBoolean } from "class-validator";
 
 export class DonationsDTO {
-    @IsNumber()
     @IsOptional()
-    peopleId: number;
     @IsNumber()
+    institutionId: number;
     @IsOptional()
+    @IsNumber()
     providerId: number;
     @IsString()
     type: string;

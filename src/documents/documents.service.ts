@@ -20,6 +20,7 @@ export class DocumentsService {
                     }
                 }
             }
+
         });
     }
 
@@ -52,10 +53,10 @@ export class DocumentsService {
                 data: dataCollaborators
             })
 
-            baseResponse.message = 'Document creado exitosamente.';
+            baseResponse.message = 'Documento creado exitosamente.';
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al crear el document: ' + error
+            badResponse.message = 'Error al crear el documento: ' + error
             return badResponse;
         }
     }
@@ -85,10 +86,10 @@ export class DocumentsService {
                 data: dataCollaborators
             })
 
-            baseResponse.message = 'Document actualizado exitosamente.'
+            baseResponse.message = 'Documento actualizado exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al actualizar el document.' + error
+            badResponse.message = 'Error al actualizar el documento.' + error
             return badResponse;
         }
     }
@@ -100,11 +101,32 @@ export class DocumentsService {
                 data: { deleted: true }
             });
 
-            baseResponse.message = 'Document deleted exitosamente.'
+            baseResponse.message = 'Documento deleted exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al eliminar el document.' + error
+            badResponse.message = 'Error al eliminar el documento.' + error
             return badResponse;
         }
     }
+
+    async createFile(file: Express.Multer.File, data: { name: string; date: string }) {
+        try {
+            await this.prismaService.documents.create({
+                data: {
+                    name: data.name,
+                    date: new Date(data.date),
+                    fileName: file.filename,
+                    filePath: file.path,
+                    mimeType: file.mimetype,
+                },
+            });
+
+            baseResponse.message = 'Documento guardado exitosamente.';
+            return baseResponse;
+        } catch (error) {
+            badResponse.message = 'Error al crear documento: ' + error;
+            return badResponse;
+        }
+    }
+
 }

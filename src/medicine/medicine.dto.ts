@@ -39,3 +39,19 @@ export class MedicineDTO{
     @IsNumber()
     formId: number;
 }
+
+
+
+export interface MedicineFormatExcel {
+    name:             string;
+    description:      string;
+    categoryId:       string;
+    medicine:         boolean;
+    unit:             string;
+    amount:           number;
+    temperate:        string;
+    manufacturer:     string;
+    activeIngredient: string;
+    countryOfOrigin:  string;
+    formId:           number;
+}

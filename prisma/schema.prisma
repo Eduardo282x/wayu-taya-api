@@ -58,7 +58,16 @@ model People {
   collaborators  Collaborators[]
   deleted        Boolean          @default(false)
 }
-
+model Institutions {
+  id             Int      @id @default(autoincrement())
+  name            String
+  rif             String //J0560276543650
+  address         String 
+  country         String
+  email           String
+  type            String
+  deleted         Boolean           @default(false)
+}
 // -------------------------------------------
 
 model Programs {
@@ -82,6 +91,9 @@ model Documents {
   id            Int             @id @default(autoincrement())
   name          String
   date          DateTime
+  filePath      String?
+  fileName      String?
+  mimeType      String?
   collaborators Collaborators[]
   deleted       Boolean         @default(false)
 }
@@ -183,7 +195,7 @@ model Store {
 
 model Donation {
   id               Int                @id @default(autoincrement())
-  peopleId         Int?
+  institutionId    Int?
   providerId       Int?
   type             String
   date             DateTime
