@@ -3,7 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { DonationsDTO } from './donations.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
-import { InventoryDto, MedicinesDto } from 'src/inventory/inventory.dto';
+import { InventoryDto, MedicinesDto,InventoryOutDto } from 'src/inventory/inventory.dto';
 import * as PDFDocument from 'pdfkit';
 import * as fs from 'fs';
 
@@ -60,17 +60,16 @@ export class DonationsService {
 
   async createDonation(donation: DonationsDTO) {
     try {
-      // Crear la donación principal
       const donationCreated = await this.prismaService.donation.create({
         data: {
           institutionId: donation.institutionId,
           providerId: donation.providerId,
-          type: donation.type, // Entrada o Salida
+          type: donation.type, // 'Entrada' o 'Salida'
           date: donation.date,
           lote: donation.lote,
         },
       });
-      // Preparar los detalles de las medicinas
+  
       const dataDetDonation = donation.medicines.map((pro) => {
         return {
           donationId: donationCreated.id,
@@ -78,43 +77,65 @@ export class DonationsService {
           amount: pro.amount,
         };
       });
-
-      const dataDetDonation4Inv: MedicinesDto[] = donation.medicines.map((pro) => {
-        return {
-          // Todo esto va dentro de medicine {}, pones una llave por cada medicina a ingresar
-          medicineId: pro.medicineId,
-          stock: pro.amount,
-          storeId: pro.storageId,
-          admissionDate: pro.admissionDate,
-          expirationDate: pro.expirationDate
-        };
-      });
-
-      // Crear todos los detalles en lote
+  
       await this.prismaService.detDonation.createMany({
         data: dataDetDonation
       });
-
-      const dataInventory: InventoryDto = {
-        // borre el type: "Entrada" porque me daba error despues de borrarlo del dto y ya lo puse para que se manejara automaticamente 
-        // """"""""""""""""Crear los medicamentos en inventario"""""""""""""""" Supuestamente 
-        donationId: donationCreated.id,
-        type: donationCreated.type,
-        date: donationCreated.date,
-        medicines: dataDetDonation4Inv
+  
+      if (donation.type === 'Entrada') {
+        const dataDetDonation4Inv: MedicinesDto[] = donation.medicines.map((pro) => {
+          return {
+            medicineId: pro.medicineId,
+            stock: pro.amount, 
+            storeId: pro.storageId,
+            admissionDate: pro.admissionDate,
+            expirationDate: pro.expirationDate
+          };
+        });
+  
+        const dataInventory: InventoryDto = {
+          donationId: donationCreated.id,
+          type: donationCreated.type, // >'Entrada'<
+          date: donationCreated.date,
+          medicines: dataDetDonation4Inv,
+          observations: '',
+        };
+        console.log("Lo que entra al inventario:");
+        console.log(dataInventory);
+        console.log("Fin de inventario");
+  
+        await this.inventoryService.createInventory(dataInventory);
+  
+      } else if (donation.type === 'Salida') {
+        const dataDetDonation4Out: MedicinesDto[] = donation.medicines.map((pro) => {
+          return {
+            medicineId: pro.medicineId,
+            stock: pro.amount, // 'stock' a eliminar
+            storeId: pro.storageId,
+            admissionDate: pro.admissionDate, 
+            expirationDate: pro.expirationDate, 
+          };
+        });
+  
+        const dataInventoryOut: InventoryDto = {
+          donationId: donationCreated.id,
+          type: donationCreated.type, // >'Salida'<
+          date: donationCreated.date,
+          medicines: dataDetDonation4Out,
+          observations: '', 
+        };
+        
+        await this.inventoryService.removeInventory(dataInventoryOut);
       }
-
-      await this.inventoryService.createInventory(dataInventory)
-
-      baseResponse.message = 'Donación creada exitosamente.'
+  
+      baseResponse.message = 'Donación creada exitosamente y acción de inventario procesada.';
       return baseResponse;
+  
     } catch (error) {
-
-      badResponse.message = 'Error al crear la donación: ' + error
+      badResponse.message = 'Error al crear la donación o procesar el inventario: ' + error;
       return badResponse;
     }
   }
-
 
   async updateDonation(id: number, donation: DonationsDTO) {
     try {
@@ -383,5 +404,6 @@ infoRoger.forEach((line, index) => {
     }
 }
 
+// 🤡🤡🤡🤡🤡🤡
 // 🤡🤡🤡🤡🤡🤡
 // 🤡🤡🤡🤡🤡🤡

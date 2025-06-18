@@ -32,6 +32,7 @@ export class InstitutionsService {
                     address: institutions.address,
                     country: institutions.country,
                     email: institutions.email,
+                    type: institutions.type,
                 }
             })
             baseResponse.message = 'Institucion creada exitosamente.'
