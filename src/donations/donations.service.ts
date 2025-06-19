@@ -100,9 +100,6 @@ export class DonationsService {
           medicines: dataDetDonation4Inv,
           observations: '',
         };
-        console.log("Lo que entra al inventario:");
-        console.log(dataInventory);
-        console.log("Fin de inventario");
 
         await this.inventoryService.createInventory(dataInventory);
 

@@ -111,14 +111,12 @@ export class MedicineService {
 
             const medicineAndProducts = rawData.map((data: MedicineFormatExcel) => {
                 const findCategory = categoriesDB.find(item => item.category.toLowerCase().trim().includes(data.categoryId.toLowerCase().trim()))
-                console.log(findCategory);
 
                 return {
                     ...data
                 };
             })
 
-            // console.log(medicineAndProducts);
             baseResponse.data = medicineAndProducts
             baseResponse.message = 'Medicinas cargadas exitosamente.';
             return baseResponse;
