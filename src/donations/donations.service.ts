@@ -279,17 +279,22 @@ export class DonationsService {
           }
         }
   
-        // 4. Actualizar la donación principal
+        // 4. Actualizar datos principales
+        const updateData: any = {
+          institutionId: donation.institutionId,
+          providerId: donation.providerId,
+          date: donation.date,
+          updateAt: new Date(),
+        };
+
+        // Actualizar lote solo si se cambian detalles
+        if (donation.changeDonDetails) {
+          updateData.lote = donation.lote;
+        }
+
         const updatedDonation = await tx.donation.update({
           where: { id },
-          data: {
-            institutionId: donation.institutionId,
-            providerId: donation.providerId,
-            type: donation.type,
-            date: donation.date,
-            lote: donation.lote,
-            updateAt: new Date(),
-          },
+          data: updateData
         });
   
         // 5. Actualizar detalles e inventario solo si changeDonDetails es true
