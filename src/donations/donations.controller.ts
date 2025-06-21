@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Res, HttpException, HttpStatus } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Delete, Res, HttpException, HttpStatus } from '@nestjs/common';
 import { DonationsService } from './donations.service';
 import { DonationsDTO } from './donations.dto';
 import { Response } from 'express';
@@ -54,4 +54,11 @@ export class DonationsController {
     async updateDonations(@Param('id') id: string, @Body() data: DonationsDTO) {
         return await this.donationsService.updateDonation(Number(id), data);
     }
+
+    @Delete(':id')
+    async deleteDonation(@Param('id') id: string) {
+    return await this.donationsService.deleteDonation(Number(id));
+    }
+
+
 }
