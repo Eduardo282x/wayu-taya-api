@@ -23,16 +23,17 @@ export class DonationsController {
     try {
       // Llama al servicio que genera el PDF y guarda en archivo temporal o buffer
       const filePath = `./donacion_${donationId}.pdf`;
-      const buffer = await this.donationsService.generateDonationPDF(donationId, filePath);
+      const buffer = await this.donationsService.generateDonationPDF(donationId, filePath) as Buffer;
 
       // Envía el archivo generado como descarga
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename=donacion_${donationId}.pdf`,
+        'Content-Length': buffer.length,
       });
 
       // res.sendFile(filePath);
-      res.end(buffer);  
+      res.end(buffer);
     } catch (error) {
       console.error('Error generando PDF:', error);
       res.status(500).send('Error generando PDF');

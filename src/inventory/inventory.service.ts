@@ -22,6 +22,7 @@ export class InventoryService {
             const medicineId = item.medicine.id;
             if (!accu[medicineId]) {
                 accu[medicineId] = {
+                    id: item.id,
                     medicine: item.medicine,
                     totalStock: 0,
                     stores: [] as Store[],
@@ -50,6 +51,7 @@ export class InventoryService {
 
             return accu;
         }, {} as Record<number, {
+            id: number,
             medicine: typeof inventory[number]['medicine'],
             totalStock: number,
             stores: Store[],
