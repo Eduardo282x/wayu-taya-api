@@ -58,16 +58,19 @@ model People {
   collaborators  Collaborators[]
   deleted        Boolean          @default(false)
 }
+
 model Institutions {
-  id             Int      @id @default(autoincrement())
-  name            String
-  rif             String //J0560276543650
-  address         String 
-  country         String
-  email           String
-  type            String
-  deleted         Boolean           @default(false)
+  id       Int        @id @default(autoincrement())
+  name     String
+  rif      String //J0560276543650
+  address  String
+  country  String
+  email    String
+  type     String
+  deleted  Boolean    @default(false)
+  Donation Donation[]
 }
+
 // -------------------------------------------
 
 model Programs {
@@ -132,6 +135,7 @@ model Providers {
   email           String
   providersEvents ProvidersEvents[]
   deleted         Boolean           @default(false)
+  Donation        Donation[]
 }
 
 model ProvidersEvents {
@@ -202,6 +206,8 @@ model Donation {
   lote             String
   createAt         DateTime           @default(now())
   updateAt         DateTime           @default(now())
+  institution      Institutions?      @relation(fields: [institutionId], references: [id])
+  provider         Providers?         @relation(fields: [providerId], references: [id])
   detDonation      DetDonation[]
   inventory        Inventory[]
   historyInventory HistoryInventory[]
