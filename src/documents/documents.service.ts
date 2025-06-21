@@ -143,21 +143,21 @@ export class DocumentsService {
       doc.on('error', (err) => reject(err));
 
     try {
-        const logoWidth = 120;
+        const logoWidth = 140;
         const pageWidth = doc.page.width;
         const x = (pageWidth - logoWidth) / 2;
         doc.image('src/assets/logo.png', x, 30, { width: logoWidth });
     } catch (err) {
         console.warn('No se pudo cargar el logotipo:', err);
     }
-    doc.moveDown(3);
+    doc.moveDown(3.5);
 
     doc.font('Helvetica-Bold').fontSize(12).text('AUTORIZACIÓN DE USO DE IMAGEN MAYORES DE EDAD', {
         align: 'center',
         underline: true,
     });
 
-    doc.moveDown(1);
+    doc.moveDown(0.8);
     doc.font('Helvetica').fontSize(10.8);
 
     const texto = `
@@ -179,17 +179,13 @@ export class DocumentsService {
     });
 
     doc.moveDown(2);
-    doc.text('Nombre y Apellido: __________________________________________ ', {
+    doc.text('Nombre y Apellido: _________________________________     Firma: _______________________', {
         align: 'left',
     });
     doc.moveDown(1);
     doc.text('C.I.: ____________________________________', {
         align: 'left',
       });
-    doc.moveDown(1)
-    doc.text('Firma: ____________________________________', {
-        align: 'left',
-    });
 
       doc.end();
     });
@@ -205,21 +201,21 @@ export class DocumentsService {
       doc.on('error', (err) => reject(err));
 
     try {
-        const logoWidth = 120;
+        const logoWidth = 140;
         const pageWidth = doc.page.width;
         const x = (pageWidth - logoWidth) / 2;
         doc.image('src/assets/logo.png', x, 30, { width: logoWidth });
     } catch (err) {
         console.warn('No se pudo cargar el logotipo:', err);
     }
-    doc.moveDown(3);
+    doc.moveDown(3.5);
 
     doc.font('Helvetica-Bold').fontSize(12).text('AUTORIZACIÓN DE USO DE IMAGEN REPRESENTANTE LEGAL', {
         align: 'center',
         underline: true,
     });
 
-    doc.moveDown(1);
+    doc.moveDown(0.8);
     doc.font('Helvetica').fontSize(10.5);
 
     const texto = `
