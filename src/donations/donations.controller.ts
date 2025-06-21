@@ -23,8 +23,6 @@ export class DonationsController {
     try {
       // Llama al servicio que genera el PDF y guarda en archivo temporal o buffer
       const filePath = `./donacion_${donationId}.pdf`;
-      console.log('Voy a descargar algo');
-      
       const buffer = await this.donationsService.generateDonationPDF(donationId, filePath) as Buffer;
 
       // Envía el archivo generado como descarga
