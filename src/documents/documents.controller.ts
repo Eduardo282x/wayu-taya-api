@@ -1,9 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, UploadedFile, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, UploadedFile, UseInterceptors, Res, HttpStatus, HttpException } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
 import { DocumentDTO } from './documents.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
+import { Response } from 'express';
 
 @Controller('documents')
 export class DocumentsController {
@@ -50,4 +51,39 @@ export class DocumentsController {
         return this.documentService.createFile(file, body);
     }
 
+    @Get('pdf/adulto')
+    async generateAdultPDF(@Res() res: Response) {
+        try {
+        const pdfBuffer = await this.documentService.generateAdultPDF();
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': 'attachment; filename=autorizacion_usodeimagen.pdf',
+            'Content-Length': pdfBuffer.length,
+        });
+
+        res.end(pdfBuffer);
+        } catch (error) {
+        console.error('Error generando PDF:', error);
+        throw new HttpException('Error generando PDF', HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @Get('pdf/representantelegal')
+    async generateMinorPDF(@Res() res: Response) {
+    try {
+        const pdfBuffer = await this.documentService.generateMinorPDF();
+
+        res.set({
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': 'attachment; filename=autorizacion_usodeimagen_representantelegal.pdf',
+            'Content-Length': pdfBuffer.length,
+        });
+
+        res.end(pdfBuffer);
+        } catch (error) {
+        console.error('Error generando PDF:', error);
+        throw new HttpException('Error generando PDF', HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 }
