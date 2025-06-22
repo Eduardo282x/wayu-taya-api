@@ -13,7 +13,7 @@ export class InventoryController {
     return await this.inventoryService.getInventory();
     }
 
-    @Get('historial')
+    @Get('/historial')
     async getHistory(@Query() query: HistoryQueryDto) {
     return await this.inventoryService.getHistory(query);
     }
@@ -23,7 +23,7 @@ export class InventoryController {
         return await this.inventoryService.createInventory(inventory);
     }
 
-    @Post('salida')
+    @Post('/salida')
     async removeInventory(@Body() inventory: InventoryDto) {
         return await this.inventoryService.removeInventory(inventory);
     }

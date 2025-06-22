@@ -1,11 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, UploadedFile, UseInterceptors, Res, HttpStatus, HttpException } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
 import { DocumentDTO } from './documents.dto';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import { extname } from 'path';
+import { Response } from 'express';
 
 @Controller('documents')
 export class DocumentsController {
 
-    constructor(private documentService: DocumentsService) {}
+    constructor(private documentService: DocumentsService) { }
 
     @Get()
     async getDocuments() {
@@ -16,19 +20,70 @@ export class DocumentsController {
     async getDocumentsFixed() {
         return await this.documentService.getDocumentsFixed()
     }
-    
+
     @Post()
-    async createDocument(@Body() datos: DocumentDTO) {
-        return await this.documentService.createDocument(datos);
+    async createDocument(@Body() data: DocumentDTO) {  
+        return await this.documentService.createDocument(data);
     }
 
     @Put('/:id')
-    async updateDocument(@Param('id') id_document: string, @Body() datos: DocumentDTO) {
-        return await this.documentService.updateDocument(Number(id_document), datos);
+    async updateDocument(@Param('id') id_document: string, @Body() data: DocumentDTO) {
+        return await this.documentService.updateDocument(Number(id_document), data);
     }
-    
+
     @Delete('/:id')
     async deleteDocument(@Param('id') id_document: string) {
         return await this.documentService.deleteDocument(Number(id_document));
+    }
+
+    @Post('/upload')
+    @UseInterceptors(FileInterceptor('file', {
+        storage: diskStorage({
+            destination: './uploads/documents',
+            filename: (req, file, cb) => {
+                const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+                const ext = extname(file.originalname);
+                cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+            },
+        }),
+    }))
+    uploadFile(@UploadedFile() file: Express.Multer.File, @Body() body: { name: string; date: string }) {
+        return this.documentService.createFile(file, body);
+    }
+
+    @Get('/pdf/adulto')
+    async generateAdultPDF(@Res() res: Response) {
+        try {
+            const pdfBuffer = await this.documentService.generateAdultPDF();
+
+            res.set({
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': 'attachment; filename=autorizacion_usodeimagen.pdf',
+                'Content-Length': pdfBuffer.length,
+            });
+
+            res.end(pdfBuffer);
+        } catch (error) {
+            console.error('Error generando PDF:', error);
+            throw new HttpException('Error generando PDF', HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    @Get('/pdf/representante-legal')
+    async generateMinorPDF(@Res() res: Response) {
+        try {
+            const pdfBuffer = await this.documentService.generateMinorPDF();
+
+            res.set({
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': 'attachment; filename=autorizacion_usodeimagen_representantelegal.pdf',
+                'Content-Length': pdfBuffer.length,
+            });
+
+            res.end(pdfBuffer);
+        } catch (error) {
+            console.error('Error generando PDF:', error);
+            throw new HttpException('Error generando PDF', HttpStatus.INTERNAL_SERVER_ERROR);
+        }
     }
 }

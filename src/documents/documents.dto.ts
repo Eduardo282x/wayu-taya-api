@@ -13,4 +13,17 @@ export class DocumentDTO {
   @IsArray()
   @IsNumber({}, { each: true })
   peopleId?: number[];
+
+  // for file upload
+
+  @IsOptional()
+  @IsString()
+  filePath?: string;
+  @IsOptional()
+  @IsString()
+  fileName?: string;
+
+  @IsOptional()
+  @IsString()
+  mimeType?: string;
 }

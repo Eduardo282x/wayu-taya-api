@@ -45,16 +45,16 @@ export class EventsService {
           endDate: event.endDate,
         }
       });
-  
+
       const dataProvidersEvents = event.providersId.map((pro) => ({
         eventId: eventCreated.id,
         providerId: pro
       }));
-  
+
       await this.prismaService.providersEvents.createMany({
         data: dataProvidersEvents
       });
-  
+
       baseResponse.message = 'Events creado exitosamente.';
       return baseResponse;
     } catch (error) {
@@ -76,22 +76,22 @@ export class EventsService {
         },
         where: { id }
       });
-  
+
       if (event.cambio_proveedores) {
         await this.prismaService.providersEvents.deleteMany({
           where: { eventId: id }
         });
-  
+
         const dataProvidersEvents = event.providersId.map((pro) => ({
           eventId: id,
           providerId: pro
         }));
-  
+
         await this.prismaService.providersEvents.createMany({
           data: dataProvidersEvents
         });
       }
-  
+
       baseResponse.message = 'Event actualizado exitosamente.';
       return baseResponse;
     } catch (error) {
@@ -113,8 +113,4 @@ export class EventsService {
       return badResponse;
     }
   }
-
-
-
 }
-//                                  🤡=>🥥
