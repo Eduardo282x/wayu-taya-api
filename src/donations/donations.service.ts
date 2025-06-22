@@ -201,243 +201,158 @@ export class DonationsService {
   async updateDonation(id: number, donation: DonationsDTO) {
     try {
       return await this.prismaService.$transaction(async (tx) => {
-      // 1. Obtener donación original con todos los datos necesarios
-      const originalDonation = await tx.donation.findUnique({
-        where: { id },
-        include: {
-          detDonation: true,
-          historyInventory: {
-            where: { type: { in: ['Entrada', 'Salida'] } }
+        const originalDonation = await tx.donation.findUnique({
+          where: { id },
+          include: {
+            detDonation: true,
+            historyInventory: true
           },
-          inventory: true
-        },
-      });
-
-      if (!originalDonation) {
-        throw new Error('Donación no encontrada');
-      }
-
-      // 2. Validación previa de stock (solo para entradas) - CORREGIDA
-      if (donation.changeDonDetails && originalDonation.type === 'Entrada') {
-        for (const originalMed of originalDonation.detDonation) {
-          // Obtener storeId del primer registro histórico
-          const medHistory = originalDonation.historyInventory.find(
-            h => h.medicineId === originalMed.medicineId
-          );
-          
-          if (!medHistory) {
-            throw new Error(
-              `Registro histórico no encontrado para medicina ${originalMed.medicineId}`
-            );
-          }
-          
-          const storeId = medHistory.storeId;
-          
-          // Buscar la medicina correspondiente en la actualización
-          const updatedMed = donation.medicines.find(m => 
-            m.medicineId === originalMed.medicineId && 
-            m.storageId === storeId
-          );
-          
-          // Calcular reducción REAL (diferencia entre lo original y lo nuevo)
-          const newAmount = updatedMed ? updatedMed.amount : 0;
-          const reduction = originalMed.amount - newAmount;
-          
-          // Solo validar si hay reducción
-          if (reduction > 0) {
-            // Obtener stock actual CORRECTO: sumar todos los registros
-            const inventoryAggregation = await tx.inventory.groupBy({
-              by: ['medicineId'],
-              where: {
-                medicineId: originalMed.medicineId,
-                storeId: storeId
-              },
-              _sum: {
-                stock: true
-              }
-            });
-            
-            const currentStock = inventoryAggregation[0]?._sum?.stock || 0;
-            
-            // VALIDACIÓN CRUCIAL: solo aplica si la reducción es mayor que el stock actual
-            if (reduction > currentStock) {
-              throw new Error(
-                `No se puede reducir ${reduction} unidades de medicina ${originalMed.medicineId} en almacén ${storeId}. ` +
-                `Stock actual: ${currentStock}. ` +
-                `Sugerencia: Actualice a ${currentStock + originalMed.amount - reduction} o menos`
-              );
-            }
-          }
-        }
-      }
-        // 3. Revertir inventario usando datos históricos
+        });
+  
+        if (!originalDonation) throw new Error('Donación no encontrada');
+  
         if (donation.changeDonDetails === true) {
-          try {
-            await this.inventoryService.revertInventoryWithHistory(tx, originalDonation);
-          } catch (revertError) {
-            const message = revertError instanceof Error 
-              ? revertError.message 
-              : 'Error desconocido al revertir inventario';
-            throw new Error(`Error al revertir inventario original: ${message}`);
+          // 1. Revertimos inventario original
+          await this.inventoryService.revertInventoryWithHistory(tx, originalDonation);
+        }
+  
+        // 2. Validamos impacto de cambios posteriores
+        const posteriores = await tx.historyInventory.findMany({
+          where: {
+            medicineId: { in: donation.medicines.map(m => m.medicineId) },
+            storeId: { in: donation.medicines.map(m => m.storageId) },
+            donationId: { not: id },
+            createAt: { gt: originalDonation.updateAt },
+          },
+        });
+  
+        const updatedDonationType = donation.type || originalDonation.type;
+  
+        for (const med of donation.medicines) {
+          const inventarioActual = await tx.inventory.findFirst({
+            where: {
+              medicineId: med.medicineId,
+              storeId: med.storageId,
+            },
+          });
+  
+          const consumoPosterior = posteriores.filter(h => h.medicineId === med.medicineId && h.storeId === med.storageId)
+            .reduce((acc, h) => acc + (h.type === 'Salida' ? h.amount : -h.amount), 0);
+  
+          const disponible = (inventarioActual?.stock || 0) - consumoPosterior;
+          if (updatedDonationType === 'Entrada' && med.amount < consumoPosterior) {
+            throw new Error(`No se puede reducir la cantidad de medicina ${med.medicineId} a ${med.amount} porque se usaron ${consumoPosterior} unidades en salidas posteriores.`);
           }
         }
   
-        // 4. Actualizar datos principales
+        // 3. Actualizamos datos principales
         const updateData: any = {
           institutionId: donation.institutionId,
           providerId: donation.providerId,
           date: donation.date,
           updateAt: new Date(),
         };
-
-        // Actualizar lote solo si se cambian detalles
+        if (donation.changeDonDetails) updateData.lote = donation.lote;
+        const updatedDonation = await tx.donation.update({ where: { id }, data: updateData });
+  
         if (donation.changeDonDetails) {
-          updateData.lote = donation.lote;
-        }
-
-        const updatedDonation = await tx.donation.update({
-          where: { id },
-          data: updateData
-        });
+          await tx.detDonation.deleteMany({ where: { donationId: id } });
   
-        // 5. Actualizar detalles e inventario solo si changeDonDetails es true
-        if (donation.changeDonDetails === true) {
-          try {
-            // Borrar detalles antiguos
-            await tx.detDonation.deleteMany({ where: { donationId: id } });
+          const newDetails = donation.medicines.map(m => ({
+            donationId: id,
+            medicineId: m.medicineId,
+            amount: m.amount
+          }));
+          await tx.detDonation.createMany({ data: newDetails });
   
-            // Crear nuevos detalles (sin storeId ya que no está en el modelo)
-            const newDetails = donation.medicines.map((med) => ({
-              donationId: id,
-              medicineId: med.medicineId,
-              amount: med.amount
-              // Nota: No incluimos storeId porque no está en el modelo DetDonation
-            }));
-  
-            await tx.detDonation.createMany({
-              data: newDetails
-            });
-  
-            // Aplicar cambios en inventario según tipo
+          for (const med of donation.medicines) {
             if (updatedDonation.type === 'Entrada') {
-              for (const med of donation.medicines) {
-                // Buscar inventario por lote y medicina (no usamos storeId en búsqueda)
-                const inventoryRecord = await tx.inventory.findFirst({
-                  where: {
-                    medicineId: med.medicineId,
-                    donation: { lote: updatedDonation.lote }
-                  }
-                });
+              const existente = await tx.inventory.findFirst({
+                where: {
+                  medicineId: med.medicineId,
+                  storeId: med.storageId,
+                  donationId: updatedDonation.id
+                },
+              });
   
-                if (inventoryRecord) {
-                  await tx.inventory.update({
-                    where: { id: inventoryRecord.id },
-                    data: {
-                      stock: { increment: med.amount },
-                      admissionDate: med.admissionDate,
-                      expirationDate: med.expirationDate,
-                      updateAt: new Date(),
-                    },
-                  });
-                } else {
-                  // Usar storeId del DTO para creación
-                  await tx.inventory.create({
-                    data: {
-                      donationId: updatedDonation.id,
-                      medicineId: med.medicineId,
-                      storeId: med.storageId, // Usar storageId del DTO
-                      stock: med.amount,
-                      admissionDate: med.admissionDate,
-                      expirationDate: med.expirationDate,
-                    },
-                  });
-                }
-  
-                // Registrar en historial (usando storageId del DTO)
-                await tx.historyInventory.create({
+              if (existente) {
+                await tx.inventory.update({
+                  where: { id: existente.id },
                   data: {
-                    medicineId: med.medicineId,
-                    storeId: med.storageId, // Usar storageId del DTO
-                    donationId: updatedDonation.id,
-                    amount: med.amount,
-                    type: 'Entrada',
-                    date: updatedDonation.date,
-                    observations: 'Actualización de donación',
+                    stock: { increment: med.amount },
                     admissionDate: med.admissionDate,
                     expirationDate: med.expirationDate,
-                  },
+                    updateAt: new Date(),
+                  }
+                });
+              } else {
+                await tx.inventory.create({
+                  data: {
+                    donationId: updatedDonation.id,
+                    medicineId: med.medicineId,
+                    storeId: med.storageId,
+                    stock: med.amount,
+                    admissionDate: med.admissionDate,
+                    expirationDate: med.expirationDate
+                  }
                 });
               }
             } else if (updatedDonation.type === 'Salida') {
-              for (const med of donation.medicines) {
-                // Buscar por almacén usando storeId del DTO
-                const inventoryRecord = await tx.inventory.findFirst({
-                  where: {
-                    medicineId: med.medicineId,
-                    storeId: med.storageId // Usar storageId del DTO
-                  },
-                });
-  
-                if (!inventoryRecord) {
-                  throw new Error(`No se encontró inventario para medicina ${med.medicineId} en almacén ${med.storageId}.`);
+              const inv = await tx.inventory.findFirst({
+                where: {
+                  medicineId: med.medicineId,
+                  storeId: med.storageId
                 }
+              });
   
-                if (inventoryRecord.stock < med.amount) {
-                  throw new Error(`Stock insuficiente para medicina ${med.medicineId}: disponible ${inventoryRecord.stock}, solicitado ${med.amount}.`);
-                }
+              if (!inv || inv.stock < med.amount) {
+                throw new Error(`Stock insuficiente para salida de medicina ${med.medicineId} en almacén ${med.storageId}`);
+              }
   
-                if (inventoryRecord.stock === med.amount) {
-                  await tx.inventory.delete({ where: { id: inventoryRecord.id } });
-                } else {
-                  await tx.inventory.update({
-                    where: { id: inventoryRecord.id },
-                    data: {
-                      stock: { decrement: med.amount },
-                      updateAt: new Date(),
-                    },
-                  });
-                }
-  
-                // Registrar en historial (usando storageId del DTO)
-                await tx.historyInventory.create({
+              if (inv.stock === med.amount) {
+                await tx.inventory.delete({ where: { id: inv.id } });
+              } else {
+                await tx.inventory.update({
+                  where: { id: inv.id },
                   data: {
-                    medicineId: med.medicineId,
-                    storeId: med.storageId, // Usar storageId del DTO
-                    donationId: updatedDonation.id,
-                    amount: med.amount,
-                    type: 'Salida',
-                    date: updatedDonation.date,
-                    observations: 'Actualización de donación',
-                    admissionDate: inventoryRecord.admissionDate,
-                    expirationDate: inventoryRecord.expirationDate,
-                  },
+                    stock: { decrement: med.amount },
+                    updateAt: new Date()
+                  }
                 });
               }
             }
-          } catch (detailError) {
-            if (detailError instanceof Error) {
-              throw new Error(`Error actualizando detalles de donación: ${detailError.message}`);
-            }
-            throw detailError;
+  
+            await tx.historyInventory.create({
+              data: {
+                medicineId: med.medicineId,
+                storeId: med.storageId,
+                donationId: updatedDonation.id,
+                amount: med.amount,
+                type: updatedDonation.type,
+                date: updatedDonation.date,
+                observations: 'Actualización con dependencias posteriores',
+                admissionDate: med.admissionDate,
+                expirationDate: med.expirationDate
+              }
+            });
           }
         }
   
         return {
           success: true,
-          message: 'Donación actualizada correctamente.',
+          message: 'Donación actualizada con verificación de dependencias.',
           data: updatedDonation,
         };
       });
     } catch (error) {
-      const message = error instanceof Error 
-        ? error.message 
-        : 'Error desconocido al actualizar la donación';
       return {
         success: false,
-        message,
+        message: error instanceof Error ? error.message : 'Error desconocido en actualización con dependencias.',
       };
     }
   }
+  
+  
 
   async deleteDonation(id: number) {
     try {

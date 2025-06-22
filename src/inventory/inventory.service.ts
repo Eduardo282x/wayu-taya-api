@@ -215,7 +215,7 @@ export class InventoryService {
           badResponse.message = 'Error guardar en el inventario: ' + error;
           return badResponse;
         }
-      }
+    }
 
     async removeInventory(inventoryOut: InventoryDto) {
         try {
@@ -294,134 +294,126 @@ export class InventoryService {
         badResponse.message = 'Error al registrar la salida del inventario: ' + error;
         return badResponse;
       }
+    }
+    
+    async revertInventoryWithHistory(tx: any, originalDonation: any) {
+      interface HistoryRecord {
+        id: number;
+        medicineId: number;
+        storeId: number;
+        donationId: number;
+        amount: number;
+        type: string;
+        date: Date;
+        observations: string | null;
+        admissionDate: Date;
+        expirationDate: Date;
+        createAt: Date;
+        updateAt: Date;
       }
     
-      async revertInventoryWithHistory(tx: any, originalDonation: any) {
-        // Definir estructura de registro histórico
-        interface HistoryRecord {
-          id: number;
-          medicineId: number;
-          storeId: number;
-          donationId: number;
-          amount: number;
-          type: string;
-          date: Date;
-          observations: string | null;
-          admissionDate: Date;
-          expirationDate: Date;
-          createAt: Date;
-          updateAt: Date;
-        }
-      
-        try {
-          // Obtener registros históricos con tipo explícito
-          const historyRecords = await tx.historyInventory.findMany({
-            where: {
-              donationId: originalDonation.id,
-              type: { in: ['Entrada', 'Salida'] }
-            },
-            orderBy: { id: 'asc' }
-          }) as HistoryRecord[];
-      
-          // Agrupar por medicina-almacén
-          const groupedRecords: Record<string, HistoryRecord[]> = {};
-          for (const record of historyRecords) {
-            const key = `${record.medicineId}-${record.storeId}`;
-            if (!groupedRecords[key]) groupedRecords[key] = [];
-            groupedRecords[key].push(record);
-          }
-      
-          // Procesar cada grupo
-          for (const [key, records] of Object.entries(groupedRecords)) {
-            const typedRecords = records as HistoryRecord[];
-            const [medicineId, storeId] = key.split('-').map(Number);
-            
-            // Calcular impacto neto ORIGINAL
-            let netChange = 0;
-            for (const record of typedRecords) {
-              netChange += record.type === 'Entrada' ? record.amount : -record.amount;
-            }
-      
-            // Buscar inventario actual
-            const currentInventory = await tx.inventory.findFirst({
-              where: { medicineId, storeId }
-            });
-      
-            // Determinar el tipo de operación original
-            const isEntry = originalDonation.type === 'Entrada';
-            
-            // Calcular nuevo stock 
-            let newStock = currentInventory?.stock || 0;
-            let adjustment = 0;
-            
-            if (isEntry) {
-              // Para entradas: quitar el impacto original
-              newStock -= netChange;
-            } else {
-              // Para salidas: agregar el impacto original
-              newStock += Math.abs(netChange);
-            }
-      
-            // Manejar posibles stocks negativos
-            if (newStock < 0) {
-              adjustment = newStock; // Guardar el ajuste negativo
-              newStock = 0; // Forzar a cero
-            }
-      
-            // Registrar observación especial si hubo ajuste
-            const observations = adjustment < 0
-              ? `Reversión ajustada (${adjustment}) por stock negativo | ${originalDonation.id}`
-              : `Reversión de donación ${originalDonation.id}`;
-      
-            // Actualizar inventario
-            if (currentInventory) {
-              if (newStock === 0) {
-                await tx.inventory.delete({ 
-                  where: { id: currentInventory.id } 
-                });
-              } else {
-                await tx.inventory.update({
-                  where: { id: currentInventory.id },
-                  data: { 
-                    stock: newStock,
-                    updateAt: new Date() 
-                  }
-                });
+      try {
+        // Solo se considera historial original (evita acumular actualizaciones anteriores)
+        const historyRecords = await tx.historyInventory.findMany({
+          where: {
+            donationId: originalDonation.id,
+            type: { in: ['Entrada', 'Salida'] },
+            observations: {
+              not: {
+                contains: 'Actualización con dependencias posteriores'
               }
-            } else if (newStock > 0) {
-              await tx.inventory.create({
-                data: {
-                  medicineId,
-                  storeId,
+            }
+          },
+          orderBy: { id: 'asc' }
+        }) as HistoryRecord[];
+    
+        const groupedRecords: Record<string, HistoryRecord[]> = {};
+        for (const record of historyRecords) {
+          const key = `${record.medicineId}-${record.storeId}`;
+          if (!groupedRecords[key]) groupedRecords[key] = [];
+          groupedRecords[key].push(record);
+        }
+    
+        for (const [key, records] of Object.entries(groupedRecords)) {
+          const [medicineId, storeId] = key.split('-').map(Number);
+          const typedRecords = records as HistoryRecord[];
+    
+          let netChange = 0;
+          for (const record of typedRecords) {
+            netChange += record.type === 'Entrada' ? record.amount : -record.amount;
+          }
+    
+          const currentInventory = await tx.inventory.findFirst({
+            where: { medicineId, storeId }
+          });
+    
+          const isEntry = originalDonation.type === 'Entrada';
+          let newStock = currentInventory?.stock || 0;
+          let adjustment = 0;
+    
+          if (isEntry) {
+            newStock -= netChange;
+          } else {
+            newStock += Math.abs(netChange);
+          }
+    
+          if (newStock < 0) {
+            adjustment = newStock;
+            newStock = 0;
+          }
+    
+          const observations = adjustment < 0
+            ? `Reversión ajustada (${adjustment}) por stock negativo | ${originalDonation.id}`
+            : `Reversión de donación ${originalDonation.id}`;
+    
+          if (currentInventory) {
+            if (newStock === 0) {
+              await tx.inventory.delete({ 
+                where: { id: currentInventory.id } 
+              });
+            } else {
+              await tx.inventory.update({
+                where: { id: currentInventory.id },
+                data: { 
                   stock: newStock,
-                  admissionDate: typedRecords[0].admissionDate,
-                  expirationDate: typedRecords[0].expirationDate
+                  updateAt: new Date() 
                 }
               });
             }
-      
-            // Registrar en historial
-            const reversionType = isEntry ? 'Reversión Entrada' : 'Reversión Salida';
-            await tx.historyInventory.create({
+          } else if (newStock > 0) {
+            await tx.inventory.create({
               data: {
+                donationId: originalDonation.id,
                 medicineId,
                 storeId,
-                donationId: originalDonation.id,
-                amount: Math.abs(netChange),
-                type: reversionType,
-                date: new Date(),
-                observations: observations,
+                stock: newStock,
                 admissionDate: typedRecords[0].admissionDate,
                 expirationDate: typedRecords[0].expirationDate
               }
             });
           }
-      
-          return { success: true, message: 'Reversión completada exitosamente' };
-          
-        } catch (error) {
-          const message = error instanceof Error ? error.message : 'Error desconocido';
-          throw new Error(`Fallo en reversión por historial: ${message}`);
+    
+          const reversionType = isEntry ? 'Reversión Entrada' : 'Reversión Salida';
+          await tx.historyInventory.create({
+            data: {
+              medicineId,
+              storeId,
+              donationId: originalDonation.id,
+              amount: Math.abs(netChange),
+              type: reversionType,
+              date: new Date(),
+              observations,
+              admissionDate: typedRecords[0].admissionDate,
+              expirationDate: typedRecords[0].expirationDate
+            }
+          });
         }
+    
+        return { success: true, message: 'Reversión completada exitosamente' };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Error desconocido';
+        throw new Error(`Fallo en reversión por historial: ${message}`);
       }
+    }
+      
 }
