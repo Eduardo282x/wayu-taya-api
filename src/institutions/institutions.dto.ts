@@ -1,4 +1,5 @@
-import { IsString } from "class-validator";
+import { Type } from "class-transformer";
+import { IsString, ValidateNested, IsArray } from "class-validator";
 
 export class InstitutionsDTO {
     @IsString()
@@ -13,4 +14,10 @@ export class InstitutionsDTO {
     email: string;
     @IsString()
     type: string;
+}
+export class InstitutionsManyDTO {
+    @IsArray()
+    @ValidateNested({ each: true })
+    @Type(() => InstitutionsDTO)
+    institutions: InstitutionsDTO[];
 }

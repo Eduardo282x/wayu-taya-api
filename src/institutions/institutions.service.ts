@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { InstitutionsDTO } from './institutions.dto';
+import { InstitutionsDTO, InstitutionsManyDTO } from './institutions.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
@@ -34,6 +34,19 @@ export class InstitutionsService {
                     email: institutions.email,
                     type: institutions.type,
                 }
+            })
+            baseResponse.message = 'Institución creada exitosamente.'
+            return baseResponse;
+        } catch (error) {
+            badResponse.message = 'Error al crear la Institucion.' + error
+            return badResponse;
+        }
+    }
+
+    async createManyInstitutions(institutions: InstitutionsManyDTO) {
+        try {
+            await this.prismaService.institutions.createMany({
+                data: institutions.institutions
             })
             baseResponse.message = 'Institucion creada exitosamente.'
             return baseResponse;
