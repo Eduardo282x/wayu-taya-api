@@ -1,6 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
 import { InstitutionsService } from './institutions.service';
-import { InstitutionsDTO } from './institutions.dto';
+import { InstitutionsDTO, InstitutionsManyDTO } from './institutions.dto';
 
 @Controller('institutions')
 export class InstitutionsController {
@@ -15,6 +15,11 @@ export class InstitutionsController {
     @Post()
     async createInstitutions(@Body() datos: InstitutionsDTO) {
         return await this.institutionsService.createInstitutions(datos);
+    }
+
+    @Post('/many')
+    async createManyInstitutions(@Body() datos: InstitutionsManyDTO) {
+        return await this.institutionsService.createManyInstitutions(datos);
     }
 
     @Put('/:id')
