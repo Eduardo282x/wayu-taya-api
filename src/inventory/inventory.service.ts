@@ -65,7 +65,7 @@ export class InventoryService {
 
         return Object.values(groupedByMedicine);
     }
-
+/*
     async createInventoryOld(inventory: InventoryDto) {
         try {
             // register for Inventory
@@ -106,7 +106,7 @@ export class InventoryService {
             return badResponse;
         }
     }
-
+*/
     async getHistory(query: HistoryQueryDto) {
         try {
             const where: any = {};
@@ -134,147 +134,290 @@ export class InventoryService {
 
     async createInventory(inventory: InventoryDto) {
         try {
+          return await this.prisma.$transaction(async (tx) => {
             for (const item of inventory.medicines) {
-                const donation = await this.prisma.donation.findUnique({
-                    where: { id: inventory.donationId },
-                    select: { lote: true }
+              const donation = await tx.donation.findUnique({
+                where: { id: inventory.donationId },
+                select: { lote: true }
+              });
+      
+              if (!donation) {
+                throw new Error('Donación no encontrada.');
+              }
+      
+              const findInventory = await tx.inventory.findFirst({
+                where: {
+                  medicineId: item.medicineId,
+                  storeId: item.storeId,
+                  donation: { lote: donation.lote }
+                },
+                include: { donation: true }
+              });
+      
+              if (findInventory) {
+                // Actualizar inventario existente
+                const updatedInventory = await tx.inventory.update({
+                  where: { id: findInventory.id },
+                  data: {
+                    stock: { increment: item.stock },
+                    updateAt: new Date(),
+                  }
                 });
-
-                if (!donation) {
-                    badResponse.message = 'Donación no encontrada.';
-                    return badResponse;
-                }
-
-                const findInventory = await this.prisma.inventory.findFirst({
-                    where: {
-                        medicineId: item.medicineId,
-                        storeId: item.storeId,
-                        donation: { lote: donation.lote }
-                    },
-                    include: { donation: true }
+      
+                // Registrar en historial
+                await tx.historyInventory.create({
+                  data: {
+                    medicineId: updatedInventory.medicineId,
+                    storeId: updatedInventory.storeId,
+                    donationId: updatedInventory.donationId,
+                    amount: item.stock,
+                    type: inventory.type,
+                    date: inventory.date,
+                    observations: inventory.observations,
+                    admissionDate: updatedInventory.admissionDate,
+                    expirationDate: updatedInventory.expirationDate,
+                  },
                 });
-
-                if (findInventory) {
-                    // if the inventory exists, update the stock
-                    const updatedInventory = await this.prisma.inventory.update({
-                        where: { id: findInventory.id },
-                        data: {
-                            stock: { increment: item.stock },
-                            updateAt: new Date(),
-                        }
-                    });
-
-                    // register for HistoryInventory
-                    const dataHistorialInventory = {
-                        medicineId: updatedInventory.medicineId,
-                        storeId: updatedInventory.storeId,
-                        donationId: updatedInventory.donationId,
-                        amount: item.stock,
-                        type: inventory.type,
-                        date: inventory.date,
-                        observations: inventory.observations,
-                        admissionDate: updatedInventory.admissionDate,
-                        expirationDate: updatedInventory.expirationDate,
-                    };
-
-                    await this.prisma.historyInventory.create({
-                        data: dataHistorialInventory,
-                    });
-
-                } else {
-                    // new register if it doesn't exist
-                    const inventoryRecord = await this.prisma.inventory.create({
-                        data: {
-                            donationId: inventory.donationId,
-                            medicineId: item.medicineId,
-                            stock: item.stock,
-                            storeId: item.storeId,
-                            admissionDate: item.admissionDate,
-                            expirationDate: item.expirationDate,
-                        },
-                    });
-                    // register for HistoryInventory
-                    await this.prisma.historyInventory.createMany({
-                        data: {
-                            donationId: inventoryRecord.donationId,
-                            medicineId: inventoryRecord.medicineId,
-                            storeId: inventoryRecord.storeId,
-                            type: 'Entrada',
-                            amount: item.stock,
-                            date: inventory.date,
-                            observations: inventory.observations,
-                            admissionDate: inventoryRecord.admissionDate,
-                            expirationDate: inventoryRecord.expirationDate,
-                        }
-                    });
-                }
+      
+              } else {
+                // Crear nuevo registro
+                const inventoryRecord = await tx.inventory.create({
+                  data: {
+                    donationId: inventory.donationId,
+                    medicineId: item.medicineId,
+                    stock: item.stock,
+                    storeId: item.storeId,
+                    admissionDate: item.admissionDate,
+                    expirationDate: item.expirationDate,
+                  },
+                });
+      
+                // Registrar en historial
+                await tx.historyInventory.create({
+                  data: {
+                    donationId: inventoryRecord.donationId,
+                    medicineId: inventoryRecord.medicineId,
+                    storeId: inventoryRecord.storeId,
+                    type: 'Entrada',
+                    amount: item.stock,
+                    date: inventory.date,
+                    observations: inventory.observations,
+                    admissionDate: inventoryRecord.admissionDate,
+                    expirationDate: inventoryRecord.expirationDate,
+                  }
+                });
+              }
             }
-
-            baseResponse.message = 'Guardado en el inventario exitosamente.';
-            return baseResponse;
+      
+            return {
+              success: true,
+              message: 'Guardado en el inventario exitosamente.'
+            };
+          });
+      
         } catch (error) {
-            badResponse.message = 'Error guardar en el inventario: ' + error
-            return badResponse;
+          badResponse.message = 'Error guardar en el inventario: ' + error;
+          return badResponse;
         }
     }
 
     async removeInventory(inventoryOut: InventoryDto) {
-        const errores = [];
-        for (const item of inventoryOut.medicines) {
-            try {
-                const inventoryRecord = await this.prisma.inventory.findFirst({
-                    where: {
-                        medicineId: item.medicineId,
-                        storeId: item.storeId,
-                    },
+        try {
+            return await this.prisma.$transaction(async (tx) => {
+            const errores = [];
+            const procesadas = [];
+      
+            for (const item of inventoryOut.medicines) {
+              try {
+                const inventoryRecord = await tx.inventory.findFirst({
+                  where: {
+                    medicineId: item.medicineId,
+                    storeId: item.storeId,
+                  },
                 });
-
+      
                 if (!inventoryRecord) {
-                    errores.push(`No se encontró inventario para medicina ${item.medicineId} en almacén ${item.storeId}.`);
-                    continue;
+                  errores.push(`No se encontró inventario para medicina ${item.medicineId} en almacén ${item.storeId}.`);
+                  continue;
                 }
-
+      
                 if (inventoryRecord.stock < item.stock) {
-                    errores.push(`Stock insuficiente para medicina ${item.medicineId}: disponible ${inventoryRecord.stock}, solicitado ${item.stock}.`);
-                    continue;
+                  errores.push(`Stock insuficiente para medicina ${item.medicineId}: disponible ${inventoryRecord.stock}, solicitado ${item.stock}.`);
+                  continue;
                 }
-
+      
                 if (inventoryRecord.stock === item.stock) {
-                    await this.prisma.inventory.delete({ where: { id: inventoryRecord.id } });
+                  await tx.inventory.delete({ where: { id: inventoryRecord.id } });
                 } else {
-                    await this.prisma.inventory.update({
-                        where: { id: inventoryRecord.id },
-                        data: {
-                            stock: { decrement: item.stock },
-                            updateAt: new Date(),
-                        },
-                    });
-                }
-
-                await this.prisma.historyInventory.create({
+                  await tx.inventory.update({
+                    where: { id: inventoryRecord.id },
                     data: {
-                        medicineId: item.medicineId,
-                        storeId: item.storeId,
-                        donationId: inventoryOut.donationId,
-                        amount: item.stock,
-                        type: 'Salida',
-                        date: inventoryOut.date,
-                        observations: inventoryOut.observations,
-                        admissionDate: inventoryRecord.admissionDate,
-                        expirationDate: inventoryRecord.expirationDate,
+                      stock: { decrement: item.stock },
+                      updateAt: new Date(),
                     },
+                  });
+                }
+      
+                await tx.historyInventory.create({
+                  data: {
+                    medicineId: item.medicineId,
+                    storeId: item.storeId,
+                    donationId: inventoryOut.donationId,
+                    amount: item.stock,
+                    type: 'Salida',
+                    date: inventoryOut.date,
+                    observations: inventoryOut.observations,
+                    admissionDate: inventoryRecord.admissionDate,
+                    expirationDate: inventoryRecord.expirationDate,
+                  },
                 });
-            } catch (error) {
-                errores.push(`Error procesando medicina ${item.medicineId}: ${error}`);
+      
+                procesadas.push(`Medicina ${item.medicineId}: ${item.stock} unidades`);
+      
+              } catch (itemError) {
+                if (itemError instanceof Error) {
+                errores.push(`Error procesando medicina ${item.medicineId}: ${itemError.message}`);
+              } else {
+                errores.push(`Error procesando medicina ${item.medicineId}: ${String(itemError)}`);
+              }
             }
-        }
-
-        if (errores.length > 0) {
-            badResponse.message = 'Algunos errores ocurrieron: ' + errores.join('; ');
-            return badResponse;
-        }
-
-        baseResponse.message = 'Salida registrada correctamente para todas las medicinas.';
-        return baseResponse;
+          }
+    
+          if (errores.length > 0 && procesadas.length === 0) {
+            throw new Error('Ninguna medicina pudo ser procesada: ' + errores.join('; '));
+          }
+    
+          return {
+            success: true,
+            message: `Salida registrada. Procesadas: ${procesadas.length}, Errores: ${errores.length}`,
+            details: { procesadas, errores }
+          };
+        });
+    
+      } catch (error) {
+        badResponse.message = 'Error al registrar la salida del inventario: ' + error;
+        return badResponse;
+      }
     }
+    
+    async revertInventoryWithHistory(tx: any, originalDonation: any) {
+      interface HistoryRecord {
+        id: number;
+        medicineId: number;
+        storeId: number;
+        donationId: number;
+        amount: number;
+        type: string;
+        date: Date;
+        observations: string | null;
+        admissionDate: Date;
+        expirationDate: Date;
+        createAt: Date;
+        updateAt: Date;
+      }
+    
+      try {
+        // Solo se considera historial original (evita acumular actualizaciones anteriores)
+        const historyRecords = await tx.historyInventory.findMany({
+          where: {
+            donationId: originalDonation.id,
+            type: { in: ['Entrada', 'Salida'] },
+            observations: {
+              not: {
+                contains: 'Actualización con dependencias posteriores'
+              }
+            }
+          },
+          orderBy: { id: 'asc' }
+        }) as HistoryRecord[];
+    
+        const groupedRecords: Record<string, HistoryRecord[]> = {};
+        for (const record of historyRecords) {
+          const key = `${record.medicineId}-${record.storeId}`;
+          if (!groupedRecords[key]) groupedRecords[key] = [];
+          groupedRecords[key].push(record);
+        }
+    
+        for (const [key, records] of Object.entries(groupedRecords)) {
+          const [medicineId, storeId] = key.split('-').map(Number);
+          const typedRecords = records as HistoryRecord[];
+    
+          let netChange = 0;
+          for (const record of typedRecords) {
+            netChange += record.type === 'Entrada' ? record.amount : -record.amount;
+          }
+    
+          const currentInventory = await tx.inventory.findFirst({
+            where: { medicineId, storeId }
+          });
+    
+          const isEntry = originalDonation.type === 'Entrada';
+          let newStock = currentInventory?.stock || 0;
+          let adjustment = 0;
+    
+          if (isEntry) {
+            newStock -= netChange;
+          } else {
+            newStock += Math.abs(netChange);
+          }
+    
+          if (newStock < 0) {
+            adjustment = newStock;
+            newStock = 0;
+          }
+    
+          const observations = adjustment < 0
+            ? `Reversión ajustada (${adjustment}) por stock negativo | ${originalDonation.id}`
+            : `Reversión de donación ${originalDonation.id}`;
+    
+          if (currentInventory) {
+            if (newStock === 0) {
+              await tx.inventory.delete({ 
+                where: { id: currentInventory.id } 
+              });
+            } else {
+              await tx.inventory.update({
+                where: { id: currentInventory.id },
+                data: { 
+                  stock: newStock,
+                  updateAt: new Date() 
+                }
+              });
+            }
+          } else if (newStock > 0) {
+            await tx.inventory.create({
+              data: {
+                donationId: originalDonation.id,
+                medicineId,
+                storeId,
+                stock: newStock,
+                admissionDate: typedRecords[0].admissionDate,
+                expirationDate: typedRecords[0].expirationDate
+              }
+            });
+          }
+    
+          const reversionType = isEntry ? 'Reversión Entrada' : 'Reversión Salida';
+          await tx.historyInventory.create({
+            data: {
+              medicineId,
+              storeId,
+              donationId: originalDonation.id,
+              amount: Math.abs(netChange),
+              type: reversionType,
+              date: new Date(),
+              observations,
+              admissionDate: typedRecords[0].admissionDate,
+              expirationDate: typedRecords[0].expirationDate
+            }
+          });
+        }
+    
+        return { success: true, message: 'Reversión completada exitosamente' };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Error desconocido';
+        throw new Error(`Fallo en reversión por historial: ${message}`);
+      }
+    }
+      
 }

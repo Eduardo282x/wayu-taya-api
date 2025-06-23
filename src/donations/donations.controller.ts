@@ -50,15 +50,15 @@ export class DonationsController {
     return await this.donationsService.createDonation(data);
   }
 
-  @Put('/:id')
-  async updateDonations(@Param('id') id: string, @Body() data: DonationsDTO) {
-    return await this.donationsService.updateDonation(Number(id), data);
-  }
+    @Put('/:id')
+    async updateDonations(@Param('id') id: string, @Body() data: DonationsDTO) {
+        return await this.donationsService.updateDonation(Number(id), data);
+    }
 
-  // @Delete(':id')
-  // async deleteDonation(@Param('id') id: string) {
-  //   return await this.donationsService.deleteDonation(Number(id));
-  // }
+    @Delete(':id')
+    async deleteDonation(@Param('id') id: string) {
+    return await this.donationsService.deleteDonation(Number(id));
+    }
 
 
 }
