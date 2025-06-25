@@ -102,7 +102,7 @@ export class DonationsService {
               expirationDate: item.expirationDate,
             })),
           };
-          
+
           // Procesar cada medicina para entrada en inventario
           await this.inventoryService.createInventory(inventoryData, tx)
 
@@ -347,7 +347,7 @@ export class DonationsService {
     }
   }
 
-  async generateDonationPDF(donationId: number, filePath: string) {
+  async generateDonationPDF(donationId: number) {
     try {
       const donation = await this.prismaService.donation.findUnique({
         where: { id: donationId },
@@ -362,11 +362,14 @@ export class DonationsService {
         where: { donationId }
       });
 
-      const filePDF = await new Promise(resolve => {
+      const filePDF = await new Promise((resolve, reject) => {
         // 5. Crear el documento PDF
         const doc = new PDFDocument({ margin: 30, size: 'A4' });
-        doc.pipe(fs.createWriteStream(filePath));
-        // doc.pipe(new stream.PassThrough());
+
+        const buffers: Uint8Array[] = [];
+        doc.on('data', (chunk) => buffers.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(buffers)));
+        doc.on('error', (err) => reject(err))
         // --- PAGINA 1: CERTIFICADO DE DONACIÓN ---
         // Logo
         try {
@@ -562,12 +565,12 @@ export class DonationsService {
           startY += rowHeight;
         });
 
-        const buffer = [];
-        doc.on('data', buffer.push.bind(buffer))
-        doc.on('end', () => {
-          const data = Buffer.concat(buffer)
-          resolve(data)
-        })
+        // const buffer = [];
+        // doc.on('data', buffer.push.bind(buffer))
+        // doc.on('end', () => {
+        //   const data = Buffer.concat(buffer)
+        //   resolve(data)
+        // })
 
         doc.end()
       })

@@ -241,7 +241,7 @@ export class InventoryService {
               where: {
                 medicineId: item.medicineId,
                 storeId: item.storeId,
-                // donation: { lote: inventoryOut.lote }
+                donation: { lote: inventoryOut.lote }
               },
             });
 
