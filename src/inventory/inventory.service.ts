@@ -107,13 +107,18 @@ export class InventoryService {
           }
       }
   */
-  async getHistory(query: HistoryQueryDto) {
+  async getHistory(query?: HistoryQueryDto) {
     try {
       const where: any = {};
-      if (query.from || query.to) {
-        where.date = {};
-        if (query.from) where.date.gte = new Date(query.from);
-        if (query.to) where.date.lte = new Date(query.to);
+      if (query) {
+        const fromDate = query.from && !isNaN(Date.parse(query.from.toString())) ? new Date(query.from) : null;
+        const toDate = query.to && !isNaN(Date.parse(query.to.toString())) ? new Date(query.to) : null;
+
+        if (fromDate || toDate) {
+          where.date = {};
+          if (fromDate) where.date.gte = fromDate;
+          if (toDate) where.date.lte = toDate;
+        }
       }
 
       return this.prisma.historyInventory.findMany({

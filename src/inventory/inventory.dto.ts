@@ -49,10 +49,12 @@ export class MedicinesDto {
 }
 
 export class HistoryQueryDto {
+  @IsOptional()
   @IsDate()
   @Transform(({ value }) => new Date(value))
   from: Date;
 
+  @IsOptional()
   @IsDate()
   @Transform(({ value }) => new Date(value))
   to: Date;
