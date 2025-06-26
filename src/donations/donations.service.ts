@@ -64,7 +64,6 @@ export class DonationsService {
   async createDonation(donation: DonationsDTO) {
     try {
       return await this.prismaService.$transaction(async (tx) => {
-        // Crear la donación principal
         const donationCreated = await tx.donation.create({
           data: {
             institutionId: donation.institutionId,
@@ -75,114 +74,34 @@ export class DonationsService {
           },
         });
   
-        // Crear los detalles de la donación
         const dataDetDonation = donation.medicines.map((pro) => ({
           donationId: donationCreated.id,
           medicineId: pro.medicineId,
           amount: pro.amount,
         }));
   
-        await tx.detDonation.createMany({
-          data: dataDetDonation
-        });
+        await tx.detDonation.createMany({ data: dataDetDonation });
   
-        // Lógica condicional basada en el tipo de donación
+        const inventoryDto = {
+          donationId: donationCreated.id,
+          medicines: donation.medicines.map((med) => ({
+            medicineId: med.medicineId,
+            storeId: med.storageId,
+            stock: med.amount,
+            admissionDate: med.admissionDate,
+            expirationDate: med.expirationDate,
+          })),
+          type: donation.type,
+          date: donation.date,
+          observations: ''
+        };
+  
         if (donation.type === 'Entrada') {
-          // Procesar cada medicina para entrada en inventario
-          for (const item of donation.medicines) {
-            const findInventory = await tx.inventory.findFirst({
-              where: {
-                medicineId: item.medicineId,
-                storeId: item.storageId,
-                donation: { lote: donation.lote }
-              },
-              include: { donation: true }
-            });
-  
-            if (findInventory) {
-              // Actualizar inventario existente
-              await tx.inventory.update({
-                where: { id: findInventory.id },
-                data: {
-                  stock: { increment: item.amount },
-                  updateAt: new Date(),
-                }
-              });
-            } else {
-              // Crear nuevo registro de inventario
-              await tx.inventory.create({
-                data: {
-                  donationId: donationCreated.id,
-                  medicineId: item.medicineId,
-                  stock: item.amount,
-                  storeId: item.storageId,
-                  admissionDate: item.admissionDate,
-                  expirationDate: item.expirationDate,
-                },
-              });
-            }
-  
-            // Registrar en historial
-            await tx.historyInventory.create({
-              data: {
-                medicineId: item.medicineId,
-                storeId: item.storageId,
-                donationId: donationCreated.id,
-                amount: item.amount,
-                type: 'Entrada',
-                date: donation.date,
-                observations: '',
-                admissionDate: item.admissionDate,
-                expirationDate: item.expirationDate,
-              },
-            });
-          }
-  
+          const result = await this.inventoryService.createInventory(tx, inventoryDto);
+          if (!result.success) throw new Error(result.message);
         } else if (donation.type === 'Salida') {
-          // Procesar cada medicina para salida de inventario
-          for (const item of donation.medicines) {
-            const inventory = await tx.inventory.findFirst({
-              where: {
-                medicineId: item.medicineId,
-                storeId: item.storageId,
-              },
-            });
-  
-            if (!inventory) {
-              throw new Error(`No se encontró inventario para medicina ${item.medicineId} en almacén ${item.storageId}.`);
-            }
-  
-            if (inventory.stock < item.amount) {
-              throw new Error(`Stock insuficiente para medicina ${item.medicineId}: disponible ${inventory.stock}, solicitado ${item.amount}.`);
-            }
-  
-            if (inventory.stock === item.amount) {
-              await tx.inventory.delete({ where: { id: inventory.id } });
-            } else {
-              await tx.inventory.update({
-                where: { id: inventory.id },
-                data: {
-                  stock: { decrement: item.amount },
-                  updateAt: new Date(),
-                },
-              });
-            }
-  
-            // Registrar en historial
-            await tx.historyInventory.create({
-              data: {
-                medicineId: item.medicineId,
-                storeId: item.storageId,
-                donationId: donationCreated.id,
-                amount: item.amount,
-                type: 'Salida',
-                date: donation.date,
-                observations: '',
-                admissionDate: inventory.admissionDate,
-                expirationDate: inventory.expirationDate,
-              },
-            });
-          }
+          const result = await this.inventoryService.removeInventory(tx, inventoryDto);
+          if (!result.success) throw new Error(result.message);
         }
   
         return {
@@ -191,10 +110,11 @@ export class DonationsService {
           data: donationCreated
         };
       });
-  
     } catch (error) {
-      badResponse.message = 'Error al crear la donación o procesar el inventario: ' + error;
-      return badResponse;
+      return {
+        success: false,
+        message: 'Error al crear la donación o procesar el inventario: ' + (error instanceof Error ? error.message : String(error))
+      };
     }
   }
 
