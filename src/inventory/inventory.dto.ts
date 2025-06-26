@@ -6,6 +6,10 @@ export class InventoryDto {
   @IsInt()
   donationId: number;
 
+  @IsString()
+  @IsOptional()
+  lote?: string;
+
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => MedicinesDto)
@@ -45,10 +49,12 @@ export class MedicinesDto {
 }
 
 export class HistoryQueryDto {
+  @IsOptional()
   @IsDate()
   @Transform(({ value }) => new Date(value))
   from: Date;
 
+  @IsOptional()
   @IsDate()
   @Transform(({ value }) => new Date(value))
   to: Date;

@@ -19,14 +19,18 @@ export class InventoryController {
     }
     
     @Post()
+    async processInventory(@Body() inventory: InventoryDto) {
+        return await this.inventoryService.processInventory(inventory);
+    }
+/*
+    @Post()
     async createInventory(@Body() inventory: InventoryDto) {
         return await this.inventoryService.createInventory(inventory);
     }
-
     @Post('/salida')
     async removeInventory(@Body() inventory: InventoryDto) {
         return await this.inventoryService.removeInventory(inventory);
-    }
+    }*/
 
 
 }

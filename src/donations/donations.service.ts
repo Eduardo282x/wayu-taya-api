@@ -79,11 +79,11 @@ export class DonationsService {
           medicineId: pro.medicineId,
           amount: pro.amount,
         }));
-  
         await tx.detDonation.createMany({ data: dataDetDonation });
   
         const inventoryDto = {
           donationId: donationCreated.id,
+          lote: donation.lote,
           medicines: donation.medicines.map((med) => ({
             medicineId: med.medicineId,
             storeId: med.storageId,
@@ -96,13 +96,8 @@ export class DonationsService {
           observations: ''
         };
   
-        if (donation.type === 'Entrada') {
-          const result = await this.inventoryService.createInventory(tx, inventoryDto);
-          if (!result.success) throw new Error(result.message);
-        } else if (donation.type === 'Salida') {
-          const result = await this.inventoryService.removeInventory(tx, inventoryDto);
-          if (!result.success) throw new Error(result.message);
-        }
+        const result = await this.inventoryService.processInventory(inventoryDto, tx);
+        if (!result.success) throw new Error(result.message);
   
         return {
           success: true,
@@ -113,11 +108,11 @@ export class DonationsService {
     } catch (error) {
       return {
         success: false,
-        message: 'Error al crear la donación o procesar el inventario: ' + (error instanceof Error ? error.message : String(error))
+        message: 'Error al crear la donación: ' + (error instanceof Error ? error.message : String(error))
       };
     }
   }
-
+  
   async updateDonation(id: number, donation: DonationsDTO) {
     try {
       return await this.prismaService.$transaction(async (tx) => {
@@ -132,11 +127,9 @@ export class DonationsService {
         if (!originalDonation) throw new Error('Donación no encontrada');
   
         if (donation.changeDonDetails === true) {
-          // 1. Revertimos inventario original
           await this.inventoryService.revertInventoryWithHistory(tx, originalDonation);
         }
   
-        // 2. Validamos impacto de cambios posteriores
         const posteriores = await tx.historyInventory.findMany({
           where: {
             medicineId: { in: donation.medicines.map(m => m.medicineId) },
@@ -165,7 +158,6 @@ export class DonationsService {
           }
         }
   
-        // 3. Actualizamos datos principales
         const updateData: any = {
           institutionId: donation.institutionId,
           providerId: donation.providerId,
@@ -173,6 +165,7 @@ export class DonationsService {
           updateAt: new Date(),
         };
         if (donation.changeDonDetails) updateData.lote = donation.lote;
+  
         const updatedDonation = await tx.donation.update({ where: { id }, data: updateData });
   
         if (donation.changeDonDetails) {
@@ -185,94 +178,38 @@ export class DonationsService {
           }));
           await tx.detDonation.createMany({ data: newDetails });
   
-          for (const med of donation.medicines) {
-            if (updatedDonation.type === 'Entrada') {
-              const existente = await tx.inventory.findFirst({
-                where: {
-                  medicineId: med.medicineId,
-                  storeId: med.storageId,
-                  donationId: updatedDonation.id
-                },
-              });
+          const inventoryDto = {
+            donationId: updatedDonation.id,
+            lote: updatedDonation.lote,
+            medicines: donation.medicines.map((med) => ({
+              medicineId: med.medicineId,
+              storeId: med.storageId,
+              stock: med.amount,
+              admissionDate: med.admissionDate,
+              expirationDate: med.expirationDate,
+            })),
+            type: updatedDonation.type,
+            date: updatedDonation.date,
+            observations: 'Actualización con dependencias posteriores'
+          };
   
-              if (existente) {
-                await tx.inventory.update({
-                  where: { id: existente.id },
-                  data: {
-                    stock: { increment: med.amount },
-                    admissionDate: med.admissionDate,
-                    expirationDate: med.expirationDate,
-                    updateAt: new Date(),
-                  }
-                });
-              } else {
-                await tx.inventory.create({
-                  data: {
-                    donationId: updatedDonation.id,
-                    medicineId: med.medicineId,
-                    storeId: med.storageId,
-                    stock: med.amount,
-                    admissionDate: med.admissionDate,
-                    expirationDate: med.expirationDate
-                  }
-                });
-              }
-            } else if (updatedDonation.type === 'Salida') {
-              const inv = await tx.inventory.findFirst({
-                where: {
-                  medicineId: med.medicineId,
-                  storeId: med.storageId
-                }
-              });
-  
-              if (!inv || inv.stock < med.amount) {
-                throw new Error(`Stock insuficiente para salida de medicina ${med.medicineId} en almacén ${med.storageId}`);
-              }
-  
-              if (inv.stock === med.amount) {
-                await tx.inventory.delete({ where: { id: inv.id } });
-              } else {
-                await tx.inventory.update({
-                  where: { id: inv.id },
-                  data: {
-                    stock: { decrement: med.amount },
-                    updateAt: new Date()
-                  }
-                });
-              }
-            }
-  
-            await tx.historyInventory.create({
-              data: {
-                medicineId: med.medicineId,
-                storeId: med.storageId,
-                donationId: updatedDonation.id,
-                amount: med.amount,
-                type: updatedDonation.type,
-                date: updatedDonation.date,
-                observations: 'Actualización con dependencias posteriores',
-                admissionDate: med.admissionDate,
-                expirationDate: med.expirationDate
-              }
-            });
-          }
+          const result = await this.inventoryService.processInventory(inventoryDto, tx);
+          if (!result.success) throw new Error(result.message);
         }
   
         return {
           success: true,
-          message: 'Donación actualizada con verificación de dependencias.',
+          message: 'Donación actualizada correctamente.',
           data: updatedDonation,
         };
       });
     } catch (error) {
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Error desconocido en actualización con dependencias.',
+        message: error instanceof Error ? error.message : 'Error desconocido en actualización de donación',
       };
     }
   }
-  
-  
 
   async deleteDonation(id: number) {
     try {
@@ -280,37 +217,37 @@ export class DonationsService {
         // Obtener la donación con todos sus datos relacionados
         const donation = await tx.donation.findUnique({
           where: { id },
-          include: { 
+          include: {
             detDonation: true,
             historyInventory: true  // Asegurarnos de tener datos históricos
           },
         });
-  
+
         if (!donation) {
           throw new Error('Donación no encontrada');
         }
-  
+
         // Revertir inventario usando datos históricos
         await this.inventoryService.revertInventoryWithHistory(tx, donation);
-  
+
         // Eliminar registros relacionados en orden seguro
-        await tx.historyInventory.deleteMany({ 
-          where: { donationId: id } 
+        await tx.historyInventory.deleteMany({
+          where: { donationId: id }
         });
-        
-        await tx.detDonation.deleteMany({ 
-          where: { donationId: id } 
+
+        await tx.detDonation.deleteMany({
+          where: { donationId: id }
         });
-        
+
         await tx.inventory.deleteMany({
           where: { donationId: id }
         });
-  
+
         // Finalmente borrar la donación principal
-        const deletedDonation = await tx.donation.delete({ 
-          where: { id } 
+        const deletedDonation = await tx.donation.delete({
+          where: { id }
         });
-  
+
         return {
           success: true,
           message: 'Donación eliminada y cambios en inventario revertidos correctamente',
@@ -320,13 +257,13 @@ export class DonationsService {
     } catch (error) {
       return {
         success: false,
-        message: 'Error al eliminar la donación: ' + 
-                 (error instanceof Error ? error.message : String(error)),
+        message: 'Error al eliminar la donación: ' +
+          (error instanceof Error ? error.message : String(error)),
       };
     }
   }
 
-  async generateDonationPDF(donationId: number, filePath: string) {
+  async generateDonationPDF(donationId: number) {
     try {
       const donation = await this.prismaService.donation.findUnique({
         where: { id: donationId },
@@ -341,11 +278,14 @@ export class DonationsService {
         where: { donationId }
       });
 
-      const filePDF = await new Promise(resolve => {
+      const filePDF = await new Promise((resolve, reject) => {
         // 5. Crear el documento PDF
         const doc = new PDFDocument({ margin: 30, size: 'A4' });
-        doc.pipe(fs.createWriteStream(filePath));
-        // doc.pipe(new stream.PassThrough());
+
+        const buffers: Uint8Array[] = [];
+        doc.on('data', (chunk) => buffers.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(buffers)));
+        doc.on('error', (err) => reject(err))
         // --- PAGINA 1: CERTIFICADO DE DONACIÓN ---
         // Logo
         try {
@@ -541,12 +481,12 @@ export class DonationsService {
           startY += rowHeight;
         });
 
-        const buffer = [];
-        doc.on('data', buffer.push.bind(buffer))
-        doc.on('end', () => {
-          const data = Buffer.concat(buffer)
-          resolve(data)
-        })
+        // const buffer = [];
+        // doc.on('data', buffer.push.bind(buffer))
+        // doc.on('end', () => {
+        //   const data = Buffer.concat(buffer)
+        //   resolve(data)
+        // })
 
         doc.end()
       })
