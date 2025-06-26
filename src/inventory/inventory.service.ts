@@ -18,43 +18,47 @@ export class InventoryService {
             },
         });
 
-        const groupedByMedicine = inventory.reduce((accu, item) => {
+        const groupedByMedicine = inventory.reduce((acc, item) => {
             const medicineId = item.medicine.id;
-            if (!accu[medicineId]) {
-                accu[medicineId] = {
+            if (!acc[medicineId]) {
+                acc[medicineId] = {
                     id: item.id,
                     medicine: item.medicine,
                     totalStock: 0,
-                    stores: [] as Store[],
+                    stores: [] as { id: number, name: string, address: string, amount: number }[],
                     datesMedicine: [],
                     lotes: [] as string[],
                 };
             }
-            accu[medicineId].totalStock += item.stock;
+            acc[medicineId].totalStock += item.stock;
 
-            if (!accu[medicineId].stores.some(s => s.id === item.store.id)) {
-                accu[medicineId].stores.push({
+            if (!acc[medicineId].stores.some(s => s.id === item.store.id)) {
+                const totalAmountStore = inventory
+                    .filter(inv => inv.medicine.id === medicineId && inv.store.id === item.store.id)
+                    .reduce((sum, inv) => sum + inv.stock, 0);
+                acc[medicineId].stores.push({
                     id: item.store.id,
                     name: item.store.name,
                     address: item.store.address,
+                    amount: totalAmountStore,
                 });
             }
 
-            accu[medicineId].datesMedicine.push({
+            acc[medicineId].datesMedicine.push({
                 admissionDate: item.admissionDate,
                 expirationDate: item.expirationDate,
             })
 
-            if (!accu[medicineId].lotes.includes(item.donation.lote)) {
-                accu[medicineId].lotes.push(item.donation.lote);
+            if (!acc[medicineId].lotes.includes(item.donation.lote)) {
+                acc[medicineId].lotes.push(item.donation.lote);
             }
 
-            return accu;
+            return acc;
         }, {} as Record<number, {
             id: number,
             medicine: typeof inventory[number]['medicine'],
             totalStock: number,
-            stores: Store[],
+            stores: { id: number, name: string, address: string, amount: number }[],
             datesMedicine: any[],
             lotes: string[],
         }>);

@@ -23,17 +23,22 @@ export class DonationsController {
     try {
       // Llama al servicio que genera el PDF y guarda en archivo temporal o buffer
       const filePath = `./donacion_${donationId}.pdf`;
-      const buffer = await this.donationsService.generateDonationPDF(donationId, filePath) as Buffer;
+      await this.donationsService.generateDonationPDF(donationId, filePath);
 
       // Envía el archivo generado como descarga
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename=donacion_${donationId}.pdf`,
-        'Content-Length': buffer.length,
       });
 
-      // res.sendFile(filePath);
-      res.end(buffer);
+      res.sendFile(filePath, { root: '.' }, (err) => {
+        if (err) {
+          console.error('Error enviando archivo PDF:', err);
+          res.status(500).send('Error enviando PDF');
+        }
+        // Opcional: eliminar archivo si es temporal
+        // fs.unlinkSync(filePath);
+      });
     } catch (error) {
       console.error('Error generando PDF:', error);
       res.status(500).send('Error generando PDF');
@@ -54,6 +59,13 @@ export class DonationsController {
     async deleteDonation(@Param('id') id: string) {
     return await this.donationsService.deleteDonation(Number(id));
     }
+
+
+
+  // @Delete(':id')
+  // async deleteDonation(@Param('id') id: string) {
+  //   return await this.donationsService.deleteDonation(Number(id));
+  // }
 
 
 }
