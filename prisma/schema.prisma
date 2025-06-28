@@ -184,6 +184,7 @@ model Medicine {
   countryOfOrigin  String             @default("VE")
   formId           Int
   form             Forms              @relation(fields: [formId], references: [id])
+  benefited        Int                @default(1)
   detDonation      DetDonation[]
   inventory        Inventory[]
   historyInventory HistoryInventory[]

@@ -19,6 +19,7 @@ import { MedicineModule } from './medicine/medicine.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { DonationsModule } from './donations/donations.module';
 import { InstitutionsModule } from './institutions/institutions.module';
+import { ReportsModule } from './reports/reports.module';
 
 @Module({
   imports: [
@@ -38,7 +39,8 @@ import { InstitutionsModule } from './institutions/institutions.module';
     MedicineModule,
     InventoryModule,
     DonationsModule,
-    InstitutionsModule
+    InstitutionsModule,
+    ReportsModule
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
