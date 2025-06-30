@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { PrismaClient } from '@prisma/client';
 import {   Document,
     Packer,
     Paragraph,
@@ -12,6 +13,8 @@ import {   Document,
     Header,
     Media,ImageRun} from 'docx';
     import { readFileSync } from 'fs';
+
+const prisma = new PrismaClient();
 
 @Injectable()
 export class ReportsService {
@@ -39,7 +42,6 @@ export class ReportsService {
     return await Packer.toBuffer(doc);
   }
 
-  // report.service.ts
     async generatePersonReport(): Promise<Buffer> {
     const people = [
       { name: 'Carlos', email: 'carlos@example.com' },
@@ -250,5 +252,217 @@ export class ReportsService {
     });
 
     return await Packer.toBuffer(doc);
+  }
+
+
+  /*async generateReportByProviderAndLots(providerName: string, lotes: string[]): Promise<Buffer> {
+    try {
+      const logoImage = readFileSync('src/assets/logo.png');
+      const headerImage = new ImageRun({
+        data: logoImage,
+        transformation: { width: 100, height: 50 },
+        type: 'png',
+      });
+
+      const header = new Header({
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.LEFT,
+            children: [headerImage],
+          }),
+        ],
+      });
+
+      const title = new Paragraph({
+        alignment: AlignmentType.CENTER,
+        heading: HeadingLevel.HEADING_1,
+        spacing: { after: 300 },
+        children: [
+          new TextRun({
+            text: 'REPORTE DE DONACIÓN POR PROVEEDOR Y LOTE',
+            bold: true,
+          }),
+        ],
+      });
+
+      const donations = await prisma.donation.findMany({
+        where: {
+          provider: { name: providerName },
+          lote: { in: lotes },
+        },
+        include: {
+          provider: true,
+          institution: true,
+          detDonation: { include: { medicine: true } },
+        },
+      });
+
+      const groupedByLote: Record<string, typeof donations> = {};
+      donations.forEach((donation) => {
+        if (!groupedByLote[donation.lote]) {
+          groupedByLote[donation.lote] = [];
+        }
+        groupedByLote[donation.lote].push(donation);
+      });
+
+      const tables = Object.entries(groupedByLote).map(([lote, lotDonations]) => {
+        const rows = lotDonations.map((donation) => {
+          const institution = donation.institution?.name || 'Sin institución';
+          const totalItems = donation.detDonation.reduce((acc, det) => acc + det.amount, 0);
+          const totalBeneficiaries = donation.detDonation.reduce((acc, det) => acc + (det.medicine.benefited * det.amount), 0);
+
+          return new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph(lote)] }),
+              new TableCell({ children: [new Paragraph(institution)] }),
+              new TableCell({ children: [new Paragraph(totalItems.toString())] }),
+              new TableCell({ children: [new Paragraph(totalBeneficiaries.toString())] }),
+            ],
+          });
+        });
+
+        return new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({
+              children: [
+                new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Lote')] }),
+                new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Institución')] }),
+                new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Items')] }),
+                new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Beneficiarios')] }),
+              ],
+            }),
+            ...rows,
+          ],
+        });
+      });
+
+      const doc = new Document({
+        sections: [
+          {
+            headers: { default: header },
+            children: [
+              title,
+              new Paragraph({
+                spacing: { after: 300 },
+                children: [
+                  new TextRun(`Este reporte contiene las donaciones realizadas por ${providerName} en los lotes seleccionados.`),
+                ],
+              }),
+              ...tables,
+            ],
+          },
+        ],
+      });
+
+      return await Packer.toBuffer(doc);
+    } catch (error) {
+      console.error('Error en generateReportByProviderAndLots:', error);
+      throw new Error('No se pudo generar el documento Word.');
+    }
+  }*/
+  async generateReportByProviderAndLots(providerName: string, lotes: string[]): Promise<Buffer> {
+    try {
+      const logoImage = readFileSync('src/assets/logo.png');
+      const headerImage = new ImageRun({
+        data: logoImage,
+        transformation: { width: 100, height: 50 },
+        type: 'png',
+      });
+
+      const header = new Header({
+        children: [
+          new Paragraph({
+            alignment: AlignmentType.LEFT,
+            children: [headerImage],
+          }),
+        ],
+      });
+
+      const title = new Paragraph({
+        alignment: AlignmentType.CENTER,
+        heading: HeadingLevel.HEADING_1,
+        spacing: { after: 300 },
+        children: [
+          new TextRun({
+            text: 'REPORTE DE DONACIÓN POR PROVEEDOR Y LOTE',
+            bold: true,
+          }),
+        ],
+      });
+
+      const donations = await prisma.donation.findMany({
+        where: {
+          provider: { name: providerName },
+          lote: { in: lotes },
+        },
+        include: {
+          provider: true,
+          institution: true,
+          detDonation: { include: { medicine: true } },
+        },
+      });
+
+      if (!donations.length) {
+        throw new Error('No se encontraron donaciones para ese proveedor y lotes.');
+      }
+
+      const rows = donations.map((donation) => {
+        const institutionName = donation.institution?.name || 'Sin institución';
+        const lote = donation.lote;
+        const totalItems = donation.detDonation.reduce((sum, d) => sum + d.amount, 0);
+        const totalBeneficiaries = donation.detDonation.reduce(
+          (sum, d) => sum + d.medicine.benefited * d.amount,
+          0
+        );
+
+        return new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph(lote)] }),
+            new TableCell({ children: [new Paragraph(institutionName)] }),
+            new TableCell({ children: [new Paragraph(totalItems.toString())] }),
+            new TableCell({ children: [new Paragraph(totalBeneficiaries.toString())] }),
+          ],
+        });
+      });
+
+      const table = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Lote')] }),
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Institución')] }),
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Items')] }),
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Beneficiarios')] }),
+            ],
+          }),
+          ...rows,
+        ],
+      });
+
+      const doc = new Document({
+        sections: [
+          {
+            headers: { default: header },
+            children: [
+              title,
+              new Paragraph({
+                spacing: { after: 300 },
+                children: [
+                  new TextRun(`Este reporte contiene las donaciones realizadas por ${providerName} en los lotes seleccionados.`),
+                ],
+              }),
+              table,
+            ],
+          },
+        ],
+      });
+
+      return await Packer.toBuffer(doc);
+    } catch (error) {
+      console.error('Error en generateReportByProviderAndLots:', error);
+      throw new Error('No se pudo generar el documento Word.');
+    }
   }
 }
