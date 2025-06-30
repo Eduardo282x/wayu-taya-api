@@ -361,24 +361,26 @@ export class ReportsService {
       throw new Error('No se pudo generar el documento Word.');
     }
   }*/
+
+
   async generateReportByProviderAndLots(providerName: string, lotes: string[]): Promise<Buffer> {
     try {
       const logoImage = readFileSync('src/assets/logo.png');
-      const headerImage = new ImageRun({
+      const image = new ImageRun({
         data: logoImage,
         transformation: { width: 100, height: 50 },
         type: 'png',
       });
-
+  
       const header = new Header({
         children: [
           new Paragraph({
             alignment: AlignmentType.LEFT,
-            children: [headerImage],
+            children: [image],
           }),
         ],
       });
-
+  
       const title = new Paragraph({
         alignment: AlignmentType.CENTER,
         heading: HeadingLevel.HEADING_1,
@@ -390,57 +392,121 @@ export class ReportsService {
           }),
         ],
       });
-
-      const donations = await prisma.donation.findMany({
+  
+      // Buscar donaciones ENTRADA con type exacto 'Entrada'
+      const entradas = await prisma.donation.findMany({
         where: {
+          type: 'Entrada',
           provider: { name: providerName },
           lote: { in: lotes },
         },
         include: {
-          provider: true,
+          detDonation: { include: { medicine: true } },
+        },
+      });
+  
+      if (entradas.length === 0) {
+        throw new Error('No se encontraron donaciones de entrada para ese proveedor y lotes.');
+      }
+  
+      const lotesConfirmados = entradas.map(e => e.lote);
+  
+      // Buscar donaciones SALIDA con type exacto 'Salida'
+      const salidas = await prisma.donation.findMany({
+        where: {
+          type: 'Salida',
+          lote: { in: lotesConfirmados },
+        },
+        include: {
           institution: true,
           detDonation: { include: { medicine: true } },
         },
       });
-
-      if (!donations.length) {
-        throw new Error('No se encontraron donaciones para ese proveedor y lotes.');
+  
+      type SalidaGrouped = Record<
+        string,
+        {
+          [institutionName: string]: number;
+        }
+      >;
+  
+      const salidasAgrupadas: SalidaGrouped = {};
+  
+      for (const salida of salidas) {
+        const lote = salida.lote;
+        const institutionName = salida.institution?.name || 'Sin institución';
+  
+        if (!salidasAgrupadas[lote]) salidasAgrupadas[lote] = {};
+        if (!salidasAgrupadas[lote][institutionName]) salidasAgrupadas[lote][institutionName] = 0;
+  
+        const totalItemsSalida = salida.detDonation.reduce((acc, det) => acc + det.amount, 0);
+        salidasAgrupadas[lote][institutionName] += totalItemsSalida;
       }
-
-      const rows = donations.map((donation) => {
-        const institutionName = donation.institution?.name || 'Sin institución';
-        const lote = donation.lote;
-        const totalItems = donation.detDonation.reduce((sum, d) => sum + d.amount, 0);
-        const totalBeneficiaries = donation.detDonation.reduce(
-          (sum, d) => sum + d.medicine.benefited * d.amount,
-          0
+  
+      const rows: TableRow[] = [];
+  
+      for (const entrada of entradas) {
+        const lote = entrada.lote;
+        const totalItemsEntrada = entrada.detDonation.reduce((acc, det) => acc + det.amount, 0);
+  
+        rows.push(
+          new TableRow({
+            children: [
+              new TableCell({
+                children: [
+                  new Paragraph({
+                    children: [new TextRun({ text: lote, bold: true })],
+                  }),
+                ],
+              }),
+              new TableCell({
+                children: [
+                  new Paragraph({
+                    children: [new TextRun({ text: `Proveedor: ${providerName}`, bold: true })],
+                  }),
+                ],
+              }),
+              new TableCell({
+                children: [new Paragraph(totalItemsEntrada.toString())],
+              }),
+              new TableCell({
+                children: [new Paragraph('')],
+              }),
+            ],
+          }),
         );
-
-        return new TableRow({
-          children: [
-            new TableCell({ children: [new Paragraph(lote)] }),
-            new TableCell({ children: [new Paragraph(institutionName)] }),
-            new TableCell({ children: [new Paragraph(totalItems.toString())] }),
-            new TableCell({ children: [new Paragraph(totalBeneficiaries.toString())] }),
-          ],
-        });
-      });
-
+  
+        const salidaPorInstitucion = salidasAgrupadas[lote] || {};
+  
+        for (const [institutionName, cantidad] of Object.entries(salidaPorInstitucion)) {
+          rows.push(
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph('')] }),
+                new TableCell({ children: [new Paragraph(institutionName)] }),
+                new TableCell({ children: [new Paragraph(cantidad.toString())] }),
+                new TableCell({ children: [new Paragraph('')] }),
+              ],
+            }),
+          );
+        }
+      }
+  
       const table = new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
           new TableRow({
             children: [
               new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Lote')] }),
-              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Institución')] }),
-              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Items')] }),
-              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Beneficiarios')] }),
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Institución / Proveedor')] }),
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Cantidad Items')] }),
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Observaciones')] }),
             ],
           }),
           ...rows,
         ],
       });
-
+  
       const doc = new Document({
         sections: [
           {
@@ -450,7 +516,9 @@ export class ReportsService {
               new Paragraph({
                 spacing: { after: 300 },
                 children: [
-                  new TextRun(`Este reporte contiene las donaciones realizadas por ${providerName} en los lotes seleccionados.`),
+                  new TextRun({
+                    text: `Reporte de donaciones del proveedor ${providerName} para lotes: ${lotesConfirmados.join(', ')}`,
+                  }),
                 ],
               }),
               table,
@@ -458,11 +526,140 @@ export class ReportsService {
           },
         ],
       });
-
+  
       return await Packer.toBuffer(doc);
     } catch (error) {
       console.error('Error en generateReportByProviderAndLots:', error);
-      throw new Error('No se pudo generar el documento Word.');
+      throw new Error('Error generando el documento Word.');
     }
   }
+  
+  
+ async generateSampleDoc(providerName: string, lotes: string[]): Promise<Buffer> {
+    const logoImage = readFileSync('src/assets/logo.png');
+  
+    const image = new ImageRun({
+      data: logoImage,
+      transformation: {
+        width: 150,
+        height: 100,
+      },
+      type: 'png',
+    });
+  
+    const header = new Header({
+      children: [
+        new Paragraph({ alignment: AlignmentType.LEFT, children: [image] }),
+      ],
+    });
+  
+    const title = new Paragraph({
+      text: 'INFORME DE DONACIONES',
+      heading: HeadingLevel.HEADING_1,
+      alignment: AlignmentType.CENTER,
+      spacing: { after: 300 },
+    });
+  
+    const description = new Paragraph({
+      children: [
+        new TextRun({
+          text: `Este informe resume las donaciones por proveedor (${providerName}) e institución para los lotes: ${lotes.join(', ')}.`,
+        }),
+      ],
+      spacing: { after: 300 },
+    });
+  
+    const entradas = await prisma.donation.findMany({
+      where: {
+        type: 'Entrada',
+        provider: { name: providerName },
+        lote: { in: lotes },
+      },
+      include: {
+        detDonation: { include: { medicine: true } },
+      },
+    });
+  
+    const lotesConfirmados = entradas.map(e => e.lote);
+  
+    const salidas = await prisma.donation.findMany({
+      where: {
+        type: 'Salida',
+        lote: { in: lotesConfirmados },
+      },
+      include: {
+        institution: true,
+        detDonation: { include: { medicine: true } },
+      },
+    });
+  
+    const salidasAgrupadas: Record<string, Record<string, number>> = {};
+  
+    for (const salida of salidas) {
+      const lote = salida.lote;
+      const institution = salida.institution?.name || 'Sin institución';
+      if (!salidasAgrupadas[lote]) salidasAgrupadas[lote] = {};
+      if (!salidasAgrupadas[lote][institution]) salidasAgrupadas[lote][institution] = 0;
+      salidasAgrupadas[lote][institution] += salida.detDonation.reduce((acc, d) => acc + d.amount, 0);
+    }
+  
+    const rows: TableRow[] = [];
+  
+    for (const entrada of entradas) {
+      const lote = entrada.lote;
+      const totalEntrada = entrada.detDonation.reduce((acc, d) => acc + d.amount, 0);
+  
+      rows.push(
+        new TableRow({
+          children: [
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: lote, bold: true })] })] }),
+            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `Proveedor: ${providerName}`, bold: true })] })] }),
+            new TableCell({ children: [new Paragraph(`${totalEntrada}`)] }),
+            new TableCell({ children: [new Paragraph('')] }),
+          ],
+        })
+      );
+  
+      const institSalidas = salidasAgrupadas[lote] || {};
+      for (const [institution, cantidad] of Object.entries(institSalidas)) {
+        rows.push(
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph('')] }),
+              new TableCell({ children: [new Paragraph(institution)] }),
+              new TableCell({ children: [new Paragraph(`${cantidad}`)] }),
+              new TableCell({ children: [new Paragraph('')] }),
+            ],
+          })
+        );
+      }
+    }
+  
+    const table = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [
+        new TableRow({
+          children: [
+            new TableCell({ shading: { fill: 'A7BFDE' }, children: [new Paragraph('Lote')] }),
+            new TableCell({ shading: { fill: 'A7BFDE' }, children: [new Paragraph('Proveedor / Institución')] }),
+            new TableCell({ shading: { fill: 'A7BFDE' }, children: [new Paragraph('Cantidad')] }),
+            new TableCell({ shading: { fill: 'A7BFDE' }, children: [new Paragraph('Observaciones')] }),
+          ],
+        }),
+        ...rows,
+      ],
+    });
+  
+    const doc = new Document({
+      sections: [
+        {
+          headers: { default: header },
+          children: [title, description, table],
+        },
+      ],
+    });
+  
+    return await Packer.toBuffer(doc);
+  }
+
 }
