@@ -18,7 +18,7 @@ const prisma = new PrismaClient();
 
 @Injectable()
 export class ReportsService {
-
+/*
   async generateCenteredTextDoc(): Promise<Buffer> {
     const doc = new Document({
       sections: [
@@ -255,7 +255,8 @@ export class ReportsService {
   }
 
 
-  /*async generateReportByProviderAndLots(providerName: string, lotes: string[]): Promise<Buffer> {
+  /*
+  async generateReportByProviderAndLots(providerName: string, lotes: string[]): Promise<Buffer> {
     try {
       const logoImage = readFileSync('src/assets/logo.png');
       const headerImage = new ImageRun({
@@ -360,9 +361,9 @@ export class ReportsService {
       console.error('Error en generateReportByProviderAndLots:', error);
       throw new Error('No se pudo generar el documento Word.');
     }
-  }*/
+  }
 
-
+/*
   async generateReportByProviderAndLots(providerName: string, lotes: string[]): Promise<Buffer> {
     try {
       const logoImage = readFileSync('src/assets/logo.png');
@@ -533,133 +534,392 @@ export class ReportsService {
       throw new Error('Error generando el documento Word.');
     }
   }
+  */
+  //commented lines are only trys and/or tests//
+  async generateSampleDoc(providerName: string, lotes: string[]): Promise<Buffer> {
+    try {
+      if (!providerName || lotes.length === 0) {
+        throw new Error('Se requiere el nombre del proveedor y al menos un lote.');
+      }
   
+      const logoImage = readFileSync('src/assets/logo.png');
   
- async generateSampleDoc(providerName: string, lotes: string[]): Promise<Buffer> {
-    const logoImage = readFileSync('src/assets/logo.png');
+      const image = new ImageRun({
+        data: logoImage,
+        transformation: {
+          width: 150,
+          height: 100,
+        },
+        type: 'png',
+      });
   
-    const image = new ImageRun({
-      data: logoImage,
-      transformation: {
-        width: 150,
-        height: 100,
-      },
-      type: 'png',
-    });
+      const header = new Header({
+        children: [
+          new Paragraph({ alignment: AlignmentType.LEFT, children: [image] }),
+        ],
+      });
   
-    const header = new Header({
-      children: [
-        new Paragraph({ alignment: AlignmentType.LEFT, children: [image] }),
-      ],
-    });
+      const title = new Paragraph({
+        alignment: AlignmentType.CENTER,
+        heading: HeadingLevel.HEADING_1,
+        spacing: { after: 300 },
+        children: [
+          new TextRun({ text: 'REPORTE DE MOVIMIENTOS DE DONACIÓN', bold: true }),
+        ],
+      });
   
-    const title = new Paragraph({
-      text: 'INFORME DE DONACIONES',
-      heading: HeadingLevel.HEADING_1,
-      alignment: AlignmentType.CENTER,
-      spacing: { after: 300 },
-    });
+      const description = new Paragraph({
+        spacing: { after: 300 },
+        children: [
+          new TextRun({
+            text: `Este informe detalla las entradas y salidas de donaciones del proveedor "${providerName}" para los lotes: ${lotes.join(', ')}.`,
+          }),
+        ],
+      });
   
-    const description = new Paragraph({
-      children: [
-        new TextRun({
-          text: `Este informe resume las donaciones por proveedor (${providerName}) e institución para los lotes: ${lotes.join(', ')}.`,
-        }),
-      ],
-      spacing: { after: 300 },
-    });
+      const entradas = await prisma.donation.findMany({
+        where: {
+          type: 'Entrada',
+          provider: { name: providerName },
+          lote: { in: lotes },
+        },
+        include: {
+          detDonation: { include: { medicine: true } },
+        },
+      });
   
-    const entradas = await prisma.donation.findMany({
-      where: {
-        type: 'Entrada',
-        provider: { name: providerName },
-        lote: { in: lotes },
-      },
-      include: {
-        detDonation: { include: { medicine: true } },
-      },
-    });
+      if (entradas.length === 0) {
+        throw new Error('No se encontraron entradas para el proveedor y lotes indicados.');
+      }
   
-    const lotesConfirmados = entradas.map(e => e.lote);
+      const lotesConfirmados = entradas.map(e => e.lote);
   
-    const salidas = await prisma.donation.findMany({
-      where: {
-        type: 'Salida',
-        lote: { in: lotesConfirmados },
-      },
-      include: {
-        institution: true,
-        detDonation: { include: { medicine: true } },
-      },
-    });
+      const salidas = await prisma.donation.findMany({
+        where: {
+          type: 'Salida',
+          lote: { in: lotesConfirmados },
+        },
+        include: {
+          institution: true,
+          detDonation: { include: { medicine: true } },
+        },
+      });
   
-    const salidasAgrupadas: Record<string, Record<string, number>> = {};
+      const rows: TableRow[] = [];
   
-    for (const salida of salidas) {
-      const lote = salida.lote;
-      const institution = salida.institution?.name || 'Sin institución';
-      if (!salidasAgrupadas[lote]) salidasAgrupadas[lote] = {};
-      if (!salidasAgrupadas[lote][institution]) salidasAgrupadas[lote][institution] = 0;
-      salidasAgrupadas[lote][institution] += salida.detDonation.reduce((acc, d) => acc + d.amount, 0);
-    }
+      for (const entrada of entradas) {
+        const lote = entrada.lote;
+        const totalEntrada = entrada.detDonation.reduce((acc, d) => acc + d.amount, 0);
   
-    const rows: TableRow[] = [];
-  
-    for (const entrada of entradas) {
-      const lote = entrada.lote;
-      const totalEntrada = entrada.detDonation.reduce((acc, d) => acc + d.amount, 0);
-  
-      rows.push(
-        new TableRow({
-          children: [
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: lote, bold: true })] })] }),
-            new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `Proveedor: ${providerName}`, bold: true })] })] }),
-            new TableCell({ children: [new Paragraph(`${totalEntrada}`)] }),
-            new TableCell({ children: [new Paragraph('')] }),
-          ],
-        })
-      );
-  
-      const institSalidas = salidasAgrupadas[lote] || {};
-      for (const [institution, cantidad] of Object.entries(institSalidas)) {
         rows.push(
           new TableRow({
             children: [
-              new TableCell({ children: [new Paragraph('')] }),
-              new TableCell({ children: [new Paragraph(institution)] }),
-              new TableCell({ children: [new Paragraph(`${cantidad}`)] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: lote, bold: true })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `Entrada de proveedor: ${providerName}`, bold: true })] })] }),
+              new TableCell({ children: [new Paragraph(`${totalEntrada}`)] }),
               new TableCell({ children: [new Paragraph('')] }),
             ],
           })
         );
+  
+        const instituciones = salidas.filter(s => s.lote === lote);
+  
+        for (const salida of instituciones) {
+          const nombre = salida.institution?.name || 'Sin institución';
+          const cantidad = salida.detDonation.reduce((acc, d) => acc + d.amount, 0);
+          const beneficiarios = salida.detDonation.reduce((acc, d) => acc + (d.medicine.benefited * d.amount), 0);
+  
+          rows.push(
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph('')] }),
+                new TableCell({ children: [new Paragraph(nombre)] }),
+                new TableCell({ children: [new Paragraph(`${cantidad}`)] }),
+                new TableCell({ children: [new Paragraph(`${beneficiarios}`)] }),
+              ],
+            })
+          );
+        }
       }
+  
+      const table = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Lote')] }),
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Proveedor / Institución')] }),
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Cantidad')] }),
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Beneficiarios')] }),
+            ],
+          }),
+          ...rows,
+        ],
+      });
+  
+      const doc = new Document({
+        sections: [
+          {
+            headers: { default: header },
+            children: [title, description, table],
+          },
+        ],
+      });
+  
+      return await Packer.toBuffer(doc);
+    } catch (error) {
+      throw new Error(`Error al generar el documento de ejemplo: ${error}`);
     }
-  
-    const table = new Table({
-      width: { size: 100, type: WidthType.PERCENTAGE },
-      rows: [
-        new TableRow({
-          children: [
-            new TableCell({ shading: { fill: 'A7BFDE' }, children: [new Paragraph('Lote')] }),
-            new TableCell({ shading: { fill: 'A7BFDE' }, children: [new Paragraph('Proveedor / Institución')] }),
-            new TableCell({ shading: { fill: 'A7BFDE' }, children: [new Paragraph('Cantidad')] }),
-            new TableCell({ shading: { fill: 'A7BFDE' }, children: [new Paragraph('Observaciones')] }),
-          ],
-        }),
-        ...rows,
-      ],
-    });
-  
-    const doc = new Document({
-      sections: [
-        {
-          headers: { default: header },
-          children: [title, description, table],
-        },
-      ],
-    });
-  
-    return await Packer.toBuffer(doc);
   }
+  
+
+  async generateFormattedReport(providerName: string, lotes: string[]): Promise<Buffer> {
+    try {
+      if (!providerName || !lotes.length) throw new Error('Proveedor y lotes son requeridos');
+  
+      const logoImage = readFileSync('src/assets/logo.png');
+      const image = new ImageRun({ data: logoImage, transformation: { width: 100, height: 50 }, type: 'png' });
+      const header = new Header({ children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [image] })] });
+  
+      const title = new Paragraph({
+        alignment: AlignmentType.CENTER,
+        heading: HeadingLevel.HEADING_1,
+        spacing: { after: 300 },
+        children: [new TextRun({ text: 'FUNDACIÓN WAYUU TAYA – DIRECT RELIEF', bold: true })],
+      });
+  
+      const subtitle = new Paragraph({
+        alignment: AlignmentType.CENTER,
+        heading: HeadingLevel.HEADING_2,
+        spacing: { after: 200 },
+        children: [new TextRun({ text: 'REPORTE DE DONACIÓN DE INSUMOS RECIBIDOS', bold: true })],
+      });
+  
+      const intro = new Paragraph({
+        spacing: { after: 300 },
+        children: [new TextRun({
+          text: `En los meses ${lotes.join(' y ')}, recibimos por parte de ${providerName.toUpperCase()} una donación importante de medicamentos los cuales fueron distribuidos a centros de salud e instituciones del País.`,
+        })],
+      });
+  
+      const content: (Paragraph | Table)[] = [title, subtitle, intro];
+  
+      for (const lote of lotes) {
+        const salidas = await prisma.donation.findMany({
+          where: { type: 'Salida', lote, provider: { name: providerName } },
+          include: {
+            institution: true,
+            detDonation: true,
+          },
+        });
+  
+        const instituciones = new Set<string>();
+        const centrosSalud = new Set<string>();
+        let totalItems = 0;
+  
+        for (const don of salidas) {
+          if (don.institution?.name) instituciones.add(don.institution.name);
+          // suponiendo que el campo "institution" representa centros también
+          totalItems += don.detDonation.reduce((sum, d) => sum + d.amount, 0);
+        }
+  
+        const beneficiarios = totalItems; // provisional
+  
+        const table = new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: [
+            new TableRow({
+              children: ['Meses', 'Centros de Salud', 'Instituciones y Organizaciones', 'Beneficiarios', 'Items Entregados'].map(
+                text => new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text, bold: true })] })] })
+              )
+            }),
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph(lote)] }),
+                new TableCell({ children: [new Paragraph(centrosSalud.size.toString())] }),
+                new TableCell({ children: [new Paragraph(instituciones.size.toString())] }),
+                new TableCell({ children: [new Paragraph(beneficiarios.toString())] }),
+                new TableCell({ children: [new Paragraph(totalItems.toString())] }),
+              ],
+            }),
+          ],
+        });
+  
+        content.push(new Paragraph({ text: `LOTE ${lote.toUpperCase()}`, spacing: { after: 200 }, children: [new TextRun({ bold: true })] }));
+        content.push(table);
+      }
+  
+      const doc = new Document({ sections: [{ headers: { default: header }, children: content }] });
+      return await Packer.toBuffer(doc);
+    } catch (error) {
+      throw new Error(`Error al generar el documento formateado: ${error}`);
+    }
+  };
+
+
+  async generateUnifiedDonationReport(providerName: string, lotes: string[]): Promise<Buffer> {
+    try {
+      if (!providerName || lotes.length === 0) {
+        throw new Error('Se requiere el nombre del proveedor y al menos un lote.');
+      }
+  
+      const logoImage = readFileSync('src/assets/logo.png');
+      const image = new ImageRun({
+        data: logoImage,
+        transformation: {
+          width: 150,
+          height: 100,
+        },
+        type: 'png',
+      });
+  
+      const header = new Header({
+        children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [image] })],
+      });
+  
+      const title = new Paragraph({
+        alignment: AlignmentType.CENTER,
+        heading: HeadingLevel.HEADING_1,
+        spacing: { after: 300 },
+        children: [new TextRun({ text: 'REPORTE DE MOVIMIENTOS DE DONACIÓN', bold: true })],
+      });
+  
+      const description = new Paragraph({
+        spacing: { after: 300 },
+        children: [
+          new TextRun({
+            text: `Este informe detalla las entradas y salidas de donaciones del proveedor "${providerName}" para los lotes: ${lotes.join(', ')}.`,
+            size: 24,
+          }),
+        ],
+      });
+  
+      const entradas = await prisma.donation.findMany({
+        where: {
+          type: 'Entrada',
+          provider: { name: providerName },
+          lote: { in: lotes },
+        },
+        include: {
+          detDonation: { include: { medicine: true } },
+        },
+      });
+  
+      if (entradas.length === 0) {
+        throw new Error('No se encontraron entradas para el proveedor y lotes indicados.');
+      }
+  
+      const lotesConfirmados = entradas.map(e => e.lote);
+  
+      const salidas = await prisma.donation.findMany({
+        where: {
+          type: 'Salida',
+          lote: { in: lotesConfirmados },
+        },
+        include: {
+          institution: true,
+          detDonation: { include: { medicine: true } },
+        },
+      });
+  
+      const rows: TableRow[] = [];
+      const medicineSummary = new Map<string, { total: number; beneficiaries: number }>();
+  
+      for (const entrada of entradas) {
+        const lote = entrada.lote;
+        const totalEntrada = entrada.detDonation.reduce((acc, d) => acc + d.amount, 0);
+  
+        rows.push(
+          new TableRow({
+            children: [
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: lote, bold: true, size: 24 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `Entrada de proveedor: ${providerName}`, bold: true, size: 24 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${totalEntrada}`, size: 24 })] })] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: '', size: 24 })] })] }),
+            ],
+          })
+        );
+  
+        const instituciones = salidas.filter(s => s.lote === lote);
+  
+        for (const salida of instituciones) {
+          const nombre = salida.institution?.name || 'Sin institución';
+          const cantidad = salida.detDonation.reduce((acc, d) => acc + d.amount, 0);
+          const beneficiarios = salida.detDonation.reduce((acc, d) => acc + (d.medicine.benefited * d.amount), 0);
+  
+          rows.push(
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: '', size: 24 })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: nombre, size: 24 })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${cantidad}`, size: 24 })] })] }),
+                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${beneficiarios}`, size: 24 })] })] }),
+              ],
+            })
+          );
+  
+          for (const det of salida.detDonation) {
+            const prev = medicineSummary.get(det.medicine.name) || { total: 0, beneficiaries: 0 };
+            medicineSummary.set(det.medicine.name, {
+              total: prev.total + det.amount,
+              beneficiaries: prev.beneficiaries + det.amount * det.medicine.benefited,
+            });
+          }
+        }
+      }
+  
+      const mainTable = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: [
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Lote', bold: true, size: 24 })] })] }),
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Proveedor / Institución', bold: true, size: 24 })] })] }),
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Cantidad', bold: true, size: 24 })] })] }),
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Beneficiarios', bold: true, size: 24 })] })] }),
+            ],
+          }),
+          ...rows,
+        ],
+      });
+  
+      const medicineTables = Array.from(medicineSummary.entries()).map(([med, data]) => {
+        return [
+          new Paragraph({ spacing: { before: 300 }, children: [new TextRun({ text: med, bold: true, size: 24 })] }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: [
+              new TableRow({
+                children: [
+                  new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Items Entregados', bold: true, size: 24 })] })] }),
+                  new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Total Beneficiarios', bold: true, size: 24 })] })] }),
+                ],
+              }),
+              new TableRow({
+                children: [
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${data.total}`, size: 24 })] })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${data.beneficiaries}`, size: 24 })] })] }),
+                ],
+              }),
+            ],
+          }),
+        ];
+      }).flat();
+  
+      const doc = new Document({
+        sections: [
+          {
+            headers: { default: header },
+            children: [title, description, mainTable, ...medicineTables],
+          },
+        ],
+      });
+  
+      return await Packer.toBuffer(doc);
+    } catch (error) {
+      throw new Error(`Error al generar el documento: ${error}`);
+    }
+}
 
 }
+// 🤡🤡🤡🤡🤡🤡🤡

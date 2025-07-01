@@ -11,6 +11,7 @@ export class ReportsController {
   async getFreedom() {
     return 'Well done';
   }
+  /*
   @Get('/test')
   async getDocument(@Res() res: Response) {
     const buffer = await this.reportsService.generateCenteredTextDoc();
@@ -76,7 +77,7 @@ async getTemplate(@Res() res: Response) {
     @Res() res: Response,
   ) {
     try {
-      const buffer = await this.reportsService.generateSampleDoc(body.provider, body.lotes);
+      const buffer = await this.reportsService.generateFormattedReport(body.provider, body.lotes);
 
       res.set({
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -89,4 +90,54 @@ async getTemplate(@Res() res: Response) {
       throw new HttpException('No se pudo generar el documento Word.', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
+
+  @Post('sample-doc')
+  async downloadSampleDoc(
+    @Body() body: { provider: string; lotes: string[] },
+    @Res() res: Response,
+  ) {
+    const { provider, lotes } = body;
+
+    if (!provider || !Array.isArray(lotes) || lotes.length === 0) {
+      throw new HttpException('Parámetros inválidos: se requiere un proveedor y al menos un lote', HttpStatus.BAD_REQUEST);
+    }
+
+    try {
+      const buffer = await this.reportsService.generateSampleDoc(provider, lotes);
+
+      res.set({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'Content-Disposition': 'attachment; filename=sample-report.docx',
+      });
+
+      res.send(buffer);
+    } catch (error) {
+      throw new HttpException(
+        `Error al generar el documento: ${error}`,
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+
+  @Post('unified-by-provider-and-lots')
+  async generateUnifiedReport(
+    @Body() body: { provider: string; lotes: string[] },
+    @Res() res: Response,
+  ) {
+    try {
+      const buffer = await this.reportsService.generateUnifiedDonationReport(body.provider, body.lotes);
+
+      res.set({
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        'Content-Disposition': 'attachment; filename=donation-unified-report.docx',
+      });
+
+      res.send(buffer);
+    } catch (error) {
+      console.error('Error generando el reporte:', error);
+      res.status(500).json({ message: 'No se pudo generar el documento' });
+    }
+  }
+
+  
 }
