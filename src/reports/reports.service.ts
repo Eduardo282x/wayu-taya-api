@@ -11,8 +11,10 @@ import {   Document,
     WidthType,
     HeadingLevel,
     Header,
-    Media,ImageRun} from 'docx';
+    ImageRun,
+    VerticalAlign} from 'docx';
     import { readFileSync } from 'fs';
+import { format } from 'date-fns';
 
 const prisma = new PrismaClient();
 
@@ -764,12 +766,10 @@ export class ReportsService {
       }
   
       const logoImage = readFileSync('src/assets/logo.png');
+  
       const image = new ImageRun({
         data: logoImage,
-        transformation: {
-          width: 150,
-          height: 100,
-        },
+        transformation: { width: 150, height: 100 },
         type: 'png',
       });
   
@@ -781,7 +781,7 @@ export class ReportsService {
         alignment: AlignmentType.CENTER,
         heading: HeadingLevel.HEADING_1,
         spacing: { after: 300 },
-        children: [new TextRun({ text: 'REPORTE DE MOVIMIENTOS DE DONACIÓN', bold: true })],
+        children: [new TextRun({ text: 'REPORTE DE MOVIMIENTOS DE DONACIÓN', bold: true, font: 'Calibri' })],
       });
   
       const description = new Paragraph({
@@ -789,11 +789,13 @@ export class ReportsService {
         children: [
           new TextRun({
             text: `Este informe detalla las entradas y salidas de donaciones del proveedor "${providerName}" para los lotes: ${lotes.join(', ')}.`,
+            font: 'Calibri',
             size: 24,
           }),
         ],
       });
   
+      // Consulta de entradas
       const entradas = await prisma.donation.findMany({
         where: {
           type: 'Entrada',
@@ -811,6 +813,7 @@ export class ReportsService {
   
       const lotesConfirmados = entradas.map(e => e.lote);
   
+      // Consulta de salidas
       const salidas = await prisma.donation.findMany({
         where: {
           type: 'Salida',
@@ -822,95 +825,149 @@ export class ReportsService {
         },
       });
   
-      const rows: TableRow[] = [];
-      const medicineSummary = new Map<string, { total: number; beneficiaries: number }>();
+      const sections: (Paragraph | Table)[] = [];
+      const medicineSummaries: (Paragraph | Table)[] = [];
+      const medicinesMap: Record<string, { items: number; beneficiarios: number }> = {};
   
-      for (const entrada of entradas) {
-        const lote = entrada.lote;
-        const totalEntrada = entrada.detDonation.reduce((acc, d) => acc + d.amount, 0);
+      for (const lote of lotesConfirmados) {
+        // Filtra todas las salidas de este lote
+        const donacionesLote = salidas.filter(s => s.lote === lote);
   
-        rows.push(
-          new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: lote, bold: true, size: 24 })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `Entrada de proveedor: ${providerName}`, bold: true, size: 24 })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${totalEntrada}`, size: 24 })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: '', size: 24 })] })] }),
-            ],
-          })
-        );
+        // Agrupa salidas por mes/año
+        const salidasPorMes: Record<string, typeof donacionesLote> = {};
+        for (const salida of donacionesLote) {
+          const mesAnio = salida.date ? format(new Date(salida.date), 'MMMM yyyy') : 'Fecha desconocida';
+          if (!salidasPorMes[mesAnio]) salidasPorMes[mesAnio] = [];
+          salidasPorMes[mesAnio].push(salida);
+        }
+        const meses = Object.keys(salidasPorMes);
   
-        const instituciones = salidas.filter(s => s.lote === lote);
+        // Calcula totales para las columnas fusionadas
+        const instituciones = new Set<string>();
+        const centros = new Set<string>();
+        let totalItems = 0;
+        let totalBeneficiarios = 0;
   
-        for (const salida of instituciones) {
+        for (const salida of donacionesLote) {
           const nombre = salida.institution?.name || 'Sin institución';
-          const cantidad = salida.detDonation.reduce((acc, d) => acc + d.amount, 0);
-          const beneficiarios = salida.detDonation.reduce((acc, d) => acc + (d.medicine.benefited * d.amount), 0);
+          const tipo = salida.institution?.type || 'Desconocido';
+          if (tipo === 'Centro de Salud') {
+            centros.add(nombre);
+          } else {
+            instituciones.add(nombre);
+          }
+          for (const d of salida.detDonation) {
+            totalItems += d.amount;
+            totalBeneficiarios += d.amount * d.medicine.benefited;
   
-          rows.push(
-            new TableRow({
-              children: [
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: '', size: 24 })] })] }),
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: nombre, size: 24 })] })] }),
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${cantidad}`, size: 24 })] })] }),
-                new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${beneficiarios}`, size: 24 })] })] }),
-              ],
-            })
-          );
-  
-          for (const det of salida.detDonation) {
-            const prev = medicineSummary.get(det.medicine.name) || { total: 0, beneficiaries: 0 };
-            medicineSummary.set(det.medicine.name, {
-              total: prev.total + det.amount,
-              beneficiaries: prev.beneficiaries + det.amount * det.medicine.benefited,
-            });
+            const medName = d.medicine.name;
+            if (!medicinesMap[medName]) {
+              medicinesMap[medName] = { items: 0, beneficiarios: 0 };
+            }
+            medicinesMap[medName].items += d.amount;
+            medicinesMap[medName].beneficiarios += d.amount * d.medicine.benefited;
           }
         }
+  
+        // --- El nombre del lote va justo antes de la tabla ---
+        sections.push(new Paragraph({
+          text: `LOTE ${lote}`,
+          heading: HeadingLevel.HEADING_2,
+          spacing: { after: 10 },
+          children: [new TextRun({ font: 'Calibri', size: 28, bold: true })],
+        }));
+  
+        // Construye la tabla con rowSpan para las columnas fusionadas
+        const tableRows: TableRow[] = [];
+  
+        // Fila de encabezados
+        tableRows.push(new TableRow({
+          children: [
+            new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Mes', bold: true, font: 'Calibri', size: 24 })] })] }),
+            new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Centros de Salud', bold: true, font: 'Calibri', size: 24 })] })] }),
+            new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Instituciones y Organizaciones', bold: true, font: 'Calibri', size: 24 })] })] }),
+            new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Beneficiarios', bold: true, font: 'Calibri', size: 24 })] })] }),
+            new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Items entregados', bold: true, font: 'Calibri', size: 24 })] })] }),
+          ],
+        }));
+  
+        meses.forEach((mes, i) => {
+          const isFirst = i === 0;
+          tableRows.push(new TableRow({
+            children: [
+              // Celda de mes
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: mes, font: 'Calibri', size: 24 })] })] }),
+              // Las demás celdas solo en la primera fila, luego se fusionan verticalmente (rowSpan)
+              ...(isFirst ? [
+                new TableCell({
+                  rowSpan: meses.length,
+                  children: [new Paragraph({ children: [new TextRun({ text: `${centros.size}`, font: 'Calibri', size: 24 })] })],
+                  verticalAlign: VerticalAlign.CENTER,
+                }),
+                new TableCell({
+                  rowSpan: meses.length,
+                  children: [new Paragraph({ children: [new TextRun({ text: `${instituciones.size}`, font: 'Calibri', size: 24 })] })],
+                  verticalAlign: VerticalAlign.CENTER,
+                }),
+                new TableCell({
+                  rowSpan: meses.length,
+                  children: [new Paragraph({ children: [new TextRun({ text: `${totalBeneficiarios}`, font: 'Calibri', size: 24 })] })],
+                  verticalAlign: VerticalAlign.CENTER,
+                }),
+                new TableCell({
+                  rowSpan: meses.length,
+                  children: [new Paragraph({ children: [new TextRun({ text: `${totalItems}`, font: 'Calibri', size: 24 })] })],
+                  verticalAlign: VerticalAlign.CENTER,
+                }),
+              ] : []),
+            ],
+          }));
+        });
+  
+        sections.push(new Table({
+          width: { size: 100, type: WidthType.PERCENTAGE },
+          rows: tableRows,
+        }));
       }
   
-      const mainTable = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          new TableRow({
-            children: [
-              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Lote', bold: true, size: 24 })] })] }),
-              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Proveedor / Institución', bold: true, size: 24 })] })] }),
-              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Cantidad', bold: true, size: 24 })] })] }),
-              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Beneficiarios', bold: true, size: 24 })] })] }),
-            ],
-          }),
-          ...rows,
-        ],
-      });
-  
-      const medicineTables = Array.from(medicineSummary.entries()).map(([med, data]) => {
-        return [
-          new Paragraph({ spacing: { before: 300 }, children: [new TextRun({ text: med, bold: true, size: 24 })] }),
+      // Resumen por medicina
+      for (const [medicine, data] of Object.entries(medicinesMap)) {
+        medicineSummaries.push(new Paragraph({ text: '', spacing: { after: 300 } }));
+        medicineSummaries.push(
           new Table({
             width: { size: 100, type: WidthType.PERCENTAGE },
             rows: [
               new TableRow({
                 children: [
-                  new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Items Entregados', bold: true, size: 24 })] })] }),
-                  new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Total Beneficiarios', bold: true, size: 24 })] })] }),
+                  new TableCell({
+                    columnSpan: 2,
+                    shading: { fill: 'E6F0FA' },
+                    children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: medicine, bold: true, font: 'Calibri', size: 24 })] })],
+                  }),
                 ],
               }),
               new TableRow({
                 children: [
-                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${data.total}`, size: 24 })] })] }),
-                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${data.beneficiaries}`, size: 24 })] })] }),
+                  new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Items Entregados', bold: true, font: 'Calibri', size: 24 })] })] }),
+                  new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Total Beneficiarios', bold: true, font: 'Calibri', size: 24 })] })] }),
+                ],
+              }),
+              new TableRow({
+                children: [
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${data.items}`, font: 'Calibri', size: 24 })] })] }),
+                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${data.beneficiarios}`, font: 'Calibri', size: 24 })] })] }),
                 ],
               }),
             ],
-          }),
-        ];
-      }).flat();
+          })
+        );
+      }
   
       const doc = new Document({
         sections: [
           {
             headers: { default: header },
-            children: [title, description, mainTable, ...medicineTables],
+            children: [title, description, ...sections, ...medicineSummaries],
           },
         ],
       });
