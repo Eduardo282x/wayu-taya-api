@@ -15,6 +15,7 @@ import {   Document,
     VerticalAlign} from 'docx';
     import { readFileSync } from 'fs';
 import { format } from 'date-fns';
+import { ReportsDTO } from './reports.dto';
 
 const prisma = new PrismaClient();
 
@@ -759,9 +760,11 @@ export class ReportsService {
   };
 
 
-  async generateUnifiedDonationReport(providerName: string, lotes: string[]): Promise<Buffer> {
+  async generateUnifiedDonationReport(dto: ReportsDTO): Promise<Buffer> {
     try {
-      if (!providerName || lotes.length === 0) {
+      const { provider, lotes } = dto;
+  
+      if (!provider || !lotes || lotes.length === 0) {
         throw new Error('Se requiere el nombre del proveedor y al menos un lote.');
       }
   
@@ -788,7 +791,7 @@ export class ReportsService {
         spacing: { after: 300 },
         children: [
           new TextRun({
-            text: `Este informe detalla las entradas y salidas de donaciones del proveedor "${providerName}" para los lotes: ${lotes.join(', ')}.`,
+            text: `Este informe detalla las entradas y salidas de donaciones del proveedor "${provider}" para los lotes: ${lotes.join(', ')}.`,
             font: 'Calibri',
             size: 24,
           }),
@@ -799,7 +802,7 @@ export class ReportsService {
       const entradas = await prisma.donation.findMany({
         where: {
           type: 'Entrada',
-          provider: { name: providerName },
+          provider: { name: provider },
           lote: { in: lotes },
         },
         include: {
@@ -869,7 +872,7 @@ export class ReportsService {
           }
         }
   
-        // --- El nombre del lote va justo antes de la tabla ---
+        // Nombre del lote justo antes de la tabla
         sections.push(new Paragraph({
           text: `LOTE ${lote}`,
           heading: HeadingLevel.HEADING_2,
