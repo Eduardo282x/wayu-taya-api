@@ -19,8 +19,13 @@ export class InstitutionsService {
     async getInstitutions() {
         return await this.prismaService.institutions.findMany({
             orderBy: { id: 'asc' },
-            where: { deleted: false }
-        });
+            where: { deleted: false },
+            include: { 
+                parish: {
+                  select: { name: true }
+                }
+              }
+            });
     }
 
     async createInstitutions(institutions: InstitutionsDTO) {
@@ -33,6 +38,7 @@ export class InstitutionsService {
                     country: institutions.country,
                     email: institutions.email,
                     type: institutions.type,
+                    parishId: institutions.parishId,
                 }
             })
             baseResponse.message = 'Institución creada exitosamente.'
@@ -65,6 +71,7 @@ export class InstitutionsService {
                     address: institutions.address,
                     country: institutions.country,
                     email: institutions.email,
+                    parishId: institutions.parishId,
                 },
                 where: { id: id_institution }
             })

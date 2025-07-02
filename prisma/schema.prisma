@@ -37,6 +37,7 @@ model Parish {
   town   Town     @relation(fields: [townId], references: [id])
   people People[]
   events Events[]
+  institutions Institutions[]
 }
 
 model People {
@@ -69,6 +70,9 @@ model Institutions {
   type     String
   deleted  Boolean    @default(false)
   Donation Donation[]
+
+  parishId  Int
+  parish    Parish    @relation(fields: [parishId], references: [id])
 }
 
 // -------------------------------------------
