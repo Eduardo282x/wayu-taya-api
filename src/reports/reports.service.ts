@@ -184,6 +184,14 @@ export class ReportsService {
       'Items Entregados',
     ]);
 
+    const loteDiciembreTable = createTable([
+      'Meses',
+      'Centros de Salud',
+      'Instituciones y Organizaciones',
+      'Beneficiarios',
+      'Items Entregados',
+    ]);
+
     const vitaminasTable = createTable(
       ['Vitaminas', 'BT Entregados', 'Beneficiarios'],
       2
@@ -230,6 +238,10 @@ export class ReportsService {
               children: [new TextRun({ text: 'LOTE NOVIEMBRE 2024', bold: true })],
             }),
             loteNoviembreTable,
+            new Paragraph({
+              children: [new TextRun({ text: 'LOTE NOVIEMBRE 2024', bold: true })],
+            }),
+            loteDiciembreTable,
             new Paragraph({
               children: [new TextRun({ text: 'VITAMINAS CENTRUM Y KIRKHUMANITARIAN', bold: true })],
             }),

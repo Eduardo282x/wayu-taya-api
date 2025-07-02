@@ -363,7 +363,7 @@ export class InventoryService {
                 where: { id: currentInventory.id } 
               });
             } else {
-              await tx.inventory.update({
+              await tx.inventory.update({ 
                 where: { id: currentInventory.id },
                 data: { 
                   stock: newStock,
