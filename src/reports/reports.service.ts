@@ -763,67 +763,32 @@ export class ReportsService {
   async generateUnifiedDonationReport(dto: ReportsDTO): Promise<Buffer> {
     try {
       const { provider, lotes } = dto;
-  
       if (!provider || !lotes || lotes.length === 0) {
         throw new Error('Se requiere el nombre del proveedor y al menos un lote.');
       }
   
       const logoImage = readFileSync('src/assets/logo.png');
+      const image = new ImageRun({ data: logoImage, transformation: { width: 150, height: 100 }, type: 'png' });
+      const header = new Header({ children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [image] })] });
   
-      const image = new ImageRun({
-        data: logoImage,
-        transformation: { width: 150, height: 100 },
-        type: 'png',
-      });
+      const title = new Paragraph({ alignment: AlignmentType.CENTER, heading: HeadingLevel.HEADING_1, spacing: { after: 300 }, children: [new TextRun({ text: 'REPORTE DE MOVIMIENTOS DE DONACIÓN', bold: true, font: 'Calibri' })] });
+      const description = new Paragraph({ spacing: { after: 300 }, children: [new TextRun({ text: `Este informe detalla las entradas y salidas de donaciones del proveedor "${provider}" para los lotes: ${lotes.join(', ')}.`, font: 'Calibri', size: 24 })] });
   
-      const header = new Header({
-        children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [image] })],
-      });
-  
-      const title = new Paragraph({
-        alignment: AlignmentType.CENTER,
-        heading: HeadingLevel.HEADING_1,
-        spacing: { after: 300 },
-        children: [new TextRun({ text: 'REPORTE DE MOVIMIENTOS DE DONACIÓN', bold: true, font: 'Calibri' })],
-      });
-  
-      const description = new Paragraph({
-        spacing: { after: 300 },
-        children: [
-          new TextRun({
-            text: `Este informe detalla las entradas y salidas de donaciones del proveedor "${provider}" para los lotes: ${lotes.join(', ')}.`,
-            font: 'Calibri',
-            size: 24,
-          }),
-        ],
-      });
-  
-      // Consulta de entradas
       const entradas = await prisma.donation.findMany({
-        where: {
-          type: 'Entrada',
-          provider: { name: provider },
-          lote: { in: lotes },
-        },
-        include: {
-          detDonation: { include: { medicine: true } },
-        },
+        where: { type: 'Entrada', provider: { name: provider }, lote: { in: lotes } },
+        include: { detDonation: { include: { medicine: true } } },
       });
-  
-      if (entradas.length === 0) {
-        throw new Error('No se encontraron entradas para el proveedor y lotes indicados.');
-      }
-  
+      if (entradas.length === 0) throw new Error('No se encontraron entradas para el proveedor y lotes indicados.');
       const lotesConfirmados = entradas.map(e => e.lote);
   
-      // Consulta de salidas
       const salidas = await prisma.donation.findMany({
-        where: {
-          type: 'Salida',
-          lote: { in: lotesConfirmados },
-        },
+        where: { type: 'Salida', lote: { in: lotesConfirmados } },
         include: {
-          institution: true,
+          institution: {
+            include: {
+              parish: { include: { town: { include: { city: { include: { state: true } } } } } },
+            },
+          },
           detDonation: { include: { medicine: true } },
         },
       });
@@ -831,12 +796,13 @@ export class ReportsService {
       const sections: (Paragraph | Table)[] = [];
       const medicineSummaries: (Paragraph | Table)[] = [];
       const medicinesMap: Record<string, { items: number; beneficiarios: number }> = {};
+      const locations: { state: string; city: string; town: string; parish: string; institution: string }[] = [];
+      const uniqueStates = new Set<string>();
+      const uniqueCities = new Set<string>();
+      const uniqueParishes = new Set<string>();
   
       for (const lote of lotesConfirmados) {
-        // Filtra todas las salidas de este lote
         const donacionesLote = salidas.filter(s => s.lote === lote);
-  
-        // Agrupa salidas por mes/año
         const salidasPorMes: Record<string, typeof donacionesLote> = {};
         for (const salida of donacionesLote) {
           const mesAnio = salida.date ? format(new Date(salida.date), 'MMMM yyyy') : 'Fecha desconocida';
@@ -845,7 +811,6 @@ export class ReportsService {
         }
         const meses = Object.keys(salidasPorMes);
   
-        // Calcula totales para las columnas fusionadas
         const instituciones = new Set<string>();
         const centros = new Set<string>();
         let totalItems = 0;
@@ -854,36 +819,36 @@ export class ReportsService {
         for (const salida of donacionesLote) {
           const nombre = salida.institution?.name || 'Sin institución';
           const tipo = salida.institution?.type || 'Desconocido';
-          if (tipo === 'Centro de Salud') {
-            centros.add(nombre);
-          } else {
-            instituciones.add(nombre);
+          if (tipo === 'Centro de Salud') centros.add(nombre);
+          else instituciones.add(nombre);
+  
+          const parish = salida.institution?.parish;
+          if (parish) {
+            uniqueParishes.add(parish.name);
+            uniqueStates.add(parish.town.city.state.name);
+            uniqueCities.add(parish.town.city.name);
+            locations.push({
+              state: parish.town.city.state.name,
+              city: parish.town.city.name,
+              town: parish.town.name,
+              parish: parish.name,
+              institution: salida.institution.name,
+            });
           }
+  
           for (const d of salida.detDonation) {
             totalItems += d.amount;
             totalBeneficiarios += d.amount * d.medicine.benefited;
-  
             const medName = d.medicine.name;
-            if (!medicinesMap[medName]) {
-              medicinesMap[medName] = { items: 0, beneficiarios: 0 };
-            }
+            if (!medicinesMap[medName]) medicinesMap[medName] = { items: 0, beneficiarios: 0 };
             medicinesMap[medName].items += d.amount;
             medicinesMap[medName].beneficiarios += d.amount * d.medicine.benefited;
           }
         }
   
-        // Nombre del lote justo antes de la tabla
-        sections.push(new Paragraph({
-          text: `LOTE ${lote}`,
-          heading: HeadingLevel.HEADING_2,
-          spacing: { after: 10 },
-          children: [new TextRun({ font: 'Calibri', size: 28, bold: true })],
-        }));
+        sections.push(new Paragraph({ text: `LOTE ${lote}`, heading: HeadingLevel.HEADING_2, spacing: { after: 10 }, children: [new TextRun({ font: 'Calibri', size: 28, bold: true })] }));
   
-        // Construye la tabla con rowSpan para las columnas fusionadas
         const tableRows: TableRow[] = [];
-  
-        // Fila de encabezados
         tableRows.push(new TableRow({
           children: [
             new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Mes', bold: true, font: 'Calibri', size: 24 })] })] }),
@@ -898,42 +863,20 @@ export class ReportsService {
           const isFirst = i === 0;
           tableRows.push(new TableRow({
             children: [
-              // Celda de mes
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: mes, font: 'Calibri', size: 24 })] })] }),
-              // Las demás celdas solo en la primera fila, luego se fusionan verticalmente (rowSpan)
               ...(isFirst ? [
-                new TableCell({
-                  rowSpan: meses.length,
-                  children: [new Paragraph({ children: [new TextRun({ text: `${centros.size}`, font: 'Calibri', size: 24 })] })],
-                  verticalAlign: VerticalAlign.CENTER,
-                }),
-                new TableCell({
-                  rowSpan: meses.length,
-                  children: [new Paragraph({ children: [new TextRun({ text: `${instituciones.size}`, font: 'Calibri', size: 24 })] })],
-                  verticalAlign: VerticalAlign.CENTER,
-                }),
-                new TableCell({
-                  rowSpan: meses.length,
-                  children: [new Paragraph({ children: [new TextRun({ text: `${totalBeneficiarios}`, font: 'Calibri', size: 24 })] })],
-                  verticalAlign: VerticalAlign.CENTER,
-                }),
-                new TableCell({
-                  rowSpan: meses.length,
-                  children: [new Paragraph({ children: [new TextRun({ text: `${totalItems}`, font: 'Calibri', size: 24 })] })],
-                  verticalAlign: VerticalAlign.CENTER,
-                }),
+                new TableCell({ rowSpan: meses.length, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${centros.size}`, font: 'Calibri', size: 24 })] })] }),
+                new TableCell({ rowSpan: meses.length, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${instituciones.size}`, font: 'Calibri', size: 24 })] })] }),
+                new TableCell({ rowSpan: meses.length, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${totalBeneficiarios}`, font: 'Calibri', size: 24 })] })] }),
+                new TableCell({ rowSpan: meses.length, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${totalItems}`, font: 'Calibri', size: 24 })] })] }),
               ] : []),
             ],
           }));
         });
   
-        sections.push(new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: tableRows,
-        }));
+        sections.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: tableRows }));
       }
   
-      // Resumen por medicina
       for (const [medicine, data] of Object.entries(medicinesMap)) {
         medicineSummaries.push(new Paragraph({ text: '', spacing: { after: 300 } }));
         medicineSummaries.push(
@@ -942,11 +885,7 @@ export class ReportsService {
             rows: [
               new TableRow({
                 children: [
-                  new TableCell({
-                    columnSpan: 2,
-                    shading: { fill: 'E6F0FA' },
-                    children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: medicine, bold: true, font: 'Calibri', size: 24 })] })],
-                  }),
+                  new TableCell({ columnSpan: 2, shading: { fill: 'E6F0FA' }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: medicine, bold: true, font: 'Calibri', size: 24 })] })] }),
                 ],
               }),
               new TableRow({
@@ -966,11 +905,47 @@ export class ReportsService {
         );
       }
   
+      const resumenGeo = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: ['ESTADOS', 'MUNICIPIOS', 'PARROQUIAS'].map(
+              txt => new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: txt, bold: true, font: 'Calibri', size: 24 })] })] })
+            ),
+          }),
+          new TableRow({
+            children: [uniqueStates.size, uniqueCities.size, uniqueParishes.size].map(
+              val => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${val}`, font: 'Calibri', size: 24 })] })] })
+            ),
+          }),
+        ],
+      });
+  
+      const ubicacionesTabla = new Table({
+        width: { size: 100, type: WidthType.PERCENTAGE },
+        rows: [
+          new TableRow({
+            children: ['ESTADO/MUNICIPIO', 'PARROQUIA', 'INSTITUCIÓN'].map(txt =>
+              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: txt, bold: true, font: 'Calibri', size: 24 })] })] })
+            ),
+          }),
+          ...locations.map(loc =>
+            new TableRow({
+              children: [
+                new TableCell({ children: [new Paragraph(`${loc.state}/${loc.city}`)] }),
+                new TableCell({ children: [new Paragraph(loc.parish)] }),
+                new TableCell({ children: [new Paragraph(loc.institution)] }),
+              ],
+            })
+          ),
+        ],
+      });
+  
       const doc = new Document({
         sections: [
           {
             headers: { default: header },
-            children: [title, description, ...sections, ...medicineSummaries],
+            children: [title, description, ...sections, ...medicineSummaries, new Paragraph({ pageBreakBefore: true }), resumenGeo, new Paragraph(''), ubicacionesTabla],
           },
         ],
       });
@@ -979,7 +954,8 @@ export class ReportsService {
     } catch (error) {
       throw new Error(`Error al generar el documento: ${error}`);
     }
+  }
 }
 
-}
+
 // 🤡🤡🤡🤡🤡🤡🤡
