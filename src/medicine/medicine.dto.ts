@@ -1,6 +1,6 @@
 import { IsBoolean, IsNumber, IsOptional, isString, IsString } from "class-validator";
 
-export class MedicineDTO{
+export class MedicineDTO {
     @IsString()
     name: string;
     @IsString()
@@ -9,7 +9,7 @@ export class MedicineDTO{
     categoryId: number;
     @IsBoolean()
     medicine: boolean;
-    
+
     @IsOptional()
     @IsString()
     @IsOptional()
@@ -40,28 +40,26 @@ export class MedicineDTO{
     formId: number;
 }
 
-
-
 export interface MedicineFormatExcel {
-    name:             string;
-    description:      string;
-    categoryId:       string;
-    medicine:         boolean;
-    unit:             string;
-    amount:           number;
-    temperate:        string;
-    manufacturer:     string;
+    name: string;
+    description: string;
+    categoryId: string;
+    medicine: boolean;
+    unit: string;
+    amount: number;
+    temperate: string;
+    manufacturer: string;
     activeIngredient: string;
-    countryOfOrigin:  string;
-    forms:           string;
+    countryOfOrigin: string;
+    forms: string;
 }
 
-export class CategoryDTO{
+export class CategoryDTO {
     @IsString()
     category: string
 
 }
-export class FormsDTO{
+export class FormsDTO {
     @IsString()
-    forms:    string
+    forms: string
 }

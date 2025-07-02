@@ -38,7 +38,7 @@ export class InstitutionsService {
             baseResponse.message = 'Institución creada exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al crear la Institucion.' + error
+            badResponse.message = 'Error al crear la Institución.' + error
             return badResponse;
         }
     }
@@ -56,7 +56,7 @@ export class InstitutionsService {
         }
     }
 
-    async updateInstitutions(id_institution: number, institutions: InstitutionsDTO) {
+    async updateInstitutions(id: number, institutions: InstitutionsDTO) {
         try {
             await this.prismaService.institutions.update({
                 data: {
@@ -65,14 +65,15 @@ export class InstitutionsService {
                     address: institutions.address,
                     country: institutions.country,
                     email: institutions.email,
+                    type: institutions.type,
                 },
-                where: { id: id_institution }
+                where: { id }
             })
-            baseResponse.message = 'Institucion actualizada exitosamente.'
+            baseResponse.message = 'Institución actualizada exitosamente.'
             return baseResponse;
         }
         catch (error) {
-            badResponse.message = 'Error al actualizar la Institucion. ' + error
+            badResponse.message = 'Error al actualizar la Institución. ' + error
             return badResponse;
         }
     }

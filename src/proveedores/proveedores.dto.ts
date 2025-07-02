@@ -10,5 +10,5 @@ export class ProveedoresDTO {
     @IsString()
     country: string;
     @IsString()
-    correo: string;
+    email: string;
 }

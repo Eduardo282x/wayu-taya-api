@@ -57,10 +57,10 @@ export class MedicineService {
                     category: category.category
                 }
             });
-            baseResponse.message = 'Medicina creado exitosamente.'
+            baseResponse.message = 'Categoría creado exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'error al crear el Medicina.' + error
+            badResponse.message = 'error al crear la Categoría.' + error
             return badResponse;
         }
     }
@@ -72,10 +72,10 @@ export class MedicineService {
                     forms: forms.forms
                 }
             });
-            baseResponse.message = 'Medicina creado exitosamente.'
+            baseResponse.message = 'Forma creado exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'error al crear el Medicina.' + error
+            badResponse.message = 'error al crear el Forma.' + error
             return badResponse;
         }
     }
