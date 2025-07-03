@@ -40,6 +40,7 @@ export class MedicineService {
                     activeIngredient: medicine.activeIngredient ? medicine.activeIngredient : '',
                     countryOfOrigin: medicine.countryOfOrigin ? medicine.countryOfOrigin : '',
                     formId: medicine.formId ? medicine.formId : 14,
+                    benefited: medicine.benefited ? medicine.benefited : 1,
                 }
             });
             baseResponse.message = 'Medicina creado exitosamente.'
@@ -94,6 +95,7 @@ export class MedicineService {
                     activeIngredient: medicine.activeIngredient,
                     countryOfOrigin: medicine.countryOfOrigin,
                     formId: medicine.formId,
+                    benefited: medicine.benefited
                 },
                 where: { id: id }
             });
@@ -185,7 +187,7 @@ export class MedicineService {
         const headers = [
             "Nombre", "Descripcion", "Categoria", "Medicina", "Unidad",
             "Cantidad", "Temperatura", "Manofacturador", "Principio_Activo",
-            "Pais_Origen", "Forma"
+            "Pais_Origen", "Forma", "Beneficiado"
         ];
         const exampleRows = [
     [
@@ -199,7 +201,8 @@ export class MedicineService {
       "Farmacéutica Ágil", 
       "Paracetamol", 
       "VE", 
-      "Tableta"
+      "Tableta",
+      "beneficiado"
     ],
     [
       "Ibuprofeno", 
@@ -212,7 +215,8 @@ export class MedicineService {
       "Farmaceutica Agile",  // sin acento en "Farmaceutica"
       "Ibuprofeno", 
       "VE", 
-      "Tableta"
+      "Tableta",
+      "Beneficiado"
     ]
   ];
         const wb = XLSX.utils.book_new();
@@ -278,6 +282,7 @@ async uploadExcel(file: Express.Multer.File) {
         activeIngredient: data['Principio Activo'] || '',
         countryOfOrigin: data['Pais de Origen'] || 'VE',
         formId: form.id || 14,
+        benefited: data.benefited || 1,
       };
 
       // Crear medicina usando la función que ya tienes
