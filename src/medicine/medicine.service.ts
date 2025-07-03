@@ -40,6 +40,7 @@ export class MedicineService {
                     activeIngredient: medicine.activeIngredient ? medicine.activeIngredient : '',
                     countryOfOrigin: medicine.countryOfOrigin ? medicine.countryOfOrigin : '',
                     formId: medicine.formId ? medicine.formId : 14,
+                    benefited: medicine.benefited ? medicine.benefited : 1,
                 }
             });
             baseResponse.message = 'Medicina creado exitosamente.'
@@ -94,6 +95,7 @@ export class MedicineService {
                     activeIngredient: medicine.activeIngredient,
                     countryOfOrigin: medicine.countryOfOrigin,
                     formId: medicine.formId,
+                    benefited: medicine.benefited
                 },
                 where: { id: id }
             });
@@ -183,38 +185,40 @@ export class MedicineService {
 
     async downloadExcelTemplate(res: Response) {
         const headers = [
-            "Nombre", "Descripcion", "Categoria", "Medicina", "Cantidad",
-            "Unidad", "Temperatura", "Manofacturador", "Principio_Activo",
-            "Pais_Origen", "Forma"
+            "Nombre", "Descripcion", "Categoria", "Medicina", "Unidad",
+            "Cantidad", "Temperatura", "Manofacturador", "Principio_Activo",
+            "Pais_Origen", "Forma", "Beneficiado"
         ];
         const exampleRows = [
-            [
-                "Paracetamol",
-                "Analgésico",
-                "Categoría General",
-                "Si",
-                100,
-                "mg",
-                "Ambiente",
-                "Farmacéutica Ágil",
-                "Paracetamol",
-                "VE",
-                "Tableta"
-            ],
-            [
-                "Pasta Dental Infantil",
-                "Pasta dental con flúor para niños.",
-                "Higiene Personal",  // sin acento en "Categoria"
-                "No",
-                0,
-                "",
-                "",
-                "", 
-                "",
-                "",
-                ""
-            ]
-        ];
+    [
+      "Paracetamol", 
+      "Analgésico", 
+      "Categoría General", 
+      "Si", 
+      "mg", 
+      100, 
+      "Ambiente", 
+      "Farmacéutica Ágil", 
+      "Paracetamol", 
+      "VE", 
+      "Tableta",
+      "beneficiado"
+    ],
+    [
+      "Ibuprofeno", 
+      "Esto es para el dolor muscular", 
+      "Antiinflamatorio",  // sin acento en "Categoria"
+      "Si", 
+      "mg", 
+      200, 
+      "Ambiente", 
+      "Farmaceutica Agile",  // sin acento en "Farmaceutica"
+      "Ibuprofeno", 
+      "VE", 
+      "Tableta",
+      "Beneficiado"
+    ]
+  ];
         const wb = XLSX.utils.book_new();
         const ws = XLSX.utils.aoa_to_sheet([headers, ...exampleRows]);
         XLSX.utils.book_append_sheet(wb, ws, 'Medicinas');
@@ -265,20 +269,21 @@ export class MedicineService {
                     formsDB.push(form);
                 }
 
-                // Preparar objeto MedicineDTO para crear
-                const medicineDTO: MedicineDTO = {
-                    name: data.name,
-                    description: data.description,
-                    categoryId: category.id,
-                    medicine: data.medicine,
-                    unit: data.unit || '',
-                    amount: data.amount || 0,
-                    temperate: data.temperate || '',
-                    manufacturer: data.manufacturer || '',
-                    activeIngredient: data['Principio Activo'] || '',
-                    countryOfOrigin: data['Pais de Origen'] || 'VE',
-                    formId: form.id || 14,
-                };
+      // Preparar objeto MedicineDTO para crear
+      const medicineDTO: MedicineDTO = {
+        name: data.name,
+        description: data.description,
+        categoryId: category.id,
+        medicine: data.medicine,
+        unit: data.unit || '',
+        amount: data.amount || 0,
+        temperate: data.temperate || '',
+        manufacturer: data.manufacturer || '',
+        activeIngredient: data['Principio Activo'] || '',
+        countryOfOrigin: data['Pais de Origen'] || 'VE',
+        formId: form.id || 14,
+        benefited: data.benefited || 1,
+      };
 
                 // Crear medicina usando la función que ya tienes
                 const response = await this.createMedicine(medicineDTO);

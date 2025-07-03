@@ -38,6 +38,10 @@ export class MedicineDTO{
     @IsOptional()
     @IsNumber()
     formId: number;
+
+    @IsOptional()
+    @IsNumber()
+    benefited: number;
 }
 
 
@@ -53,7 +57,8 @@ export interface MedicineFormatExcel {
     manufacturer:     string;
     activeIngredient: string;
     countryOfOrigin:  string;
-    forms:           string;
+    forms:            string;
+    benefited:        number;
 }
 
 export class CategoryDTO{
