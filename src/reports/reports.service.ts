@@ -12,7 +12,8 @@ import {   Document,
     HeadingLevel,
     Header,
     ImageRun,
-    VerticalAlign} from 'docx';
+    VerticalAlign,
+    HeightRule} from 'docx';
     import { readFileSync } from 'fs';
 import { format } from 'date-fns';
 import { ReportsDTO } from './reports.dto';
@@ -761,281 +762,375 @@ export class ReportsService {
 
 
   async generateUnifiedDonationReport(dto: ReportsDTO): Promise<Buffer> {
-    try {
-      const { provider, lotes } = dto;
-      if (!provider || !lotes || lotes.length === 0) {
-        throw new Error('Se requiere el nombre del proveedor y al menos un lote.');
-      }
-    
-      const logoImage = readFileSync('src/assets/logo.png');
-      const image = new ImageRun({ data: logoImage, transformation: { width: 150, height: 100 }, type: 'png' });
-      const header = new Header({ children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [image] })] });
-    
-      const title = new Paragraph({
-        alignment: AlignmentType.CENTER,
-        heading: HeadingLevel.HEADING_1,
-        spacing: { after: 300 },
-        children: [new TextRun({ text: 'REPORTE DE MOVIMIENTOS DE DONACIÓN', bold: true, font: 'Calibri' })],
-      });
-      const description = new Paragraph({
-        spacing: { after: 300 },
-        children: [new TextRun({
-          text: `Este informe detalla las entradas y salidas de donaciones del proveedor "${provider}" para los lotes: ${lotes.join(', ')}.`,
-          font: 'Calibri',
-          size: 24,
-        })],
-      });
-    
-      const entradas = await prisma.donation.findMany({
-        where: { type: 'Entrada', provider: { name: provider }, lote: { in: lotes } },
-        include: { detDonation: { include: { medicine: true } } },
-      });
-      if (entradas.length === 0) throw new Error('No se encontraron entradas para el proveedor y lotes indicados.');
-      const lotesConfirmados = entradas.map(e => e.lote);
-    
-      const salidas = await prisma.donation.findMany({
-        where: { type: 'Salida', lote: { in: lotesConfirmados } },
+try {
+  const { provider, lotes } = dto;
+  if (!provider || !lotes || lotes.length === 0) {
+    throw new Error('Se requiere el nombre del proveedor y al menos un lote.');
+  }
+
+  const logoImage = readFileSync('src/assets/logo.png');
+  const image = new ImageRun({ data: logoImage, transformation: { width: 150, height: 100 }, type: 'png' });
+  const header = new Header({ children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [image] })] });
+
+  const title = new Paragraph({
+    alignment: AlignmentType.CENTER,
+    heading: HeadingLevel.HEADING_1,
+    spacing: { after: 300 },
+    children: [new TextRun({ text: 'REPORTE DE MOVIMIENTOS DE DONACIÓN', bold: true, font: 'Calibri' })],
+  });
+  const description = new Paragraph({
+    spacing: { after: 300 },
+    children: [new TextRun({
+      text: `Este informe detalla las entradas y salidas de donaciones del proveedor "${provider}" para los lotes: ${lotes.join(', ')}.`,
+      font: 'Calibri',
+      size: 24,
+    })],
+  });
+
+  const entradas = await prisma.donation.findMany({
+    where: { type: 'Entrada', provider: { name: provider }, lote: { in: lotes } },
+    include: { detDonation: { include: { medicine: true } } },
+  });
+  if (entradas.length === 0) throw new Error('No se encontraron entradas para el proveedor y lotes indicados.');
+  const lotesConfirmados = entradas.map(e => e.lote);
+
+  const salidas = await prisma.donation.findMany({
+    where: { type: 'Salida', lote: { in: lotesConfirmados } },
+    include: {
+      institution: {
         include: {
-          institution: {
-            include: {
-              parish: { include: { town: { include: { city: { include: { state: true } } } } } },
-            },
-          },
-          detDonation: { include: { medicine: true } },
+          parish: { include: { town: { include: { city: { include: { state: true } } } } } },
         },
-      });
-    
-      const sections: (Paragraph | Table)[] = [];
-      const medicineSummaries: (Paragraph | Table)[] = [];
-      const medicinesMap: Record<string, { items: number; beneficiarios: number }> = {};
-      const locations: { state: string; city: string; town: string; parish: string; institution: string }[] = [];
-      const uniqueStates = new Set<string>();
-      const uniqueCities = new Set<string>();
-      const uniqueParishes = new Set<string>();
-    
-      for (const lote of lotesConfirmados) {
-        const donacionesLote = salidas.filter(s => s.lote === lote);
-        const salidasPorMes: Record<string, typeof donacionesLote> = {};
-        for (const salida of donacionesLote) {
-          const mesAnio = salida.date ? format(new Date(salida.date), 'MMMM yyyy') : 'Fecha desconocida';
-          if (!salidasPorMes[mesAnio]) salidasPorMes[mesAnio] = [];
-          salidasPorMes[mesAnio].push(salida);
-        }
-        const meses = Object.keys(salidasPorMes);
-    
-        const instituciones = new Set<string>();
-        const centros = new Set<string>();
-        let totalItems = 0;
-        let totalBeneficiarios = 0;
-    
-        for (const salida of donacionesLote) {
-          const nombre = salida.institution?.name || 'Sin institución';
-          const tipo = salida.institution?.type || 'Desconocido';
-          if (tipo === 'Centro de Salud') centros.add(nombre);
-          else instituciones.add(nombre);
-    
-          const parish = salida.institution?.parish;
-          if (parish) {
-            uniqueParishes.add(parish.name);
-            uniqueStates.add(parish.town.city.state.name);
-            uniqueCities.add(parish.town.city.name);
-            locations.push({
-              state: parish.town.city.state.name,
-              city: parish.town.city.name,
-              town: parish.town.name,
-              parish: parish.name,
-              institution: salida.institution.name,
-            });
-          }
-    
-          for (const d of salida.detDonation) {
-            totalItems += d.amount;
-            totalBeneficiarios += d.amount * d.medicine.benefited;
-            const medName = d.medicine.name;
-            if (!medicinesMap[medName]) medicinesMap[medName] = { items: 0, beneficiarios: 0 };
-            medicinesMap[medName].items += d.amount;
-            medicinesMap[medName].beneficiarios += d.amount * d.medicine.benefited;
-          }
-        }
-    
-        sections.push(new Paragraph({
-          text: `LOTE ${lote}`,
-          heading: HeadingLevel.HEADING_2,
-          spacing: { after: 10 },
-          children: [new TextRun({ font: 'Calibri', size: 28, bold: true })],
-        }));
-    
-        const tableRows: TableRow[] = [];
-        tableRows.push(new TableRow({
-          children: [
-            new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Meses', bold: true, font: 'Calibri', size: 24 })] })] }),
-            new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Centros de Salud', bold: true, font: 'Calibri', size: 24 })] })] }),
-            new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Instituciones y Organizaciones', bold: true, font: 'Calibri', size: 24 })] })] }),
-            new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Beneficiarios', bold: true, font: 'Calibri', size: 24 })] })] }),
-            new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Items entregados', bold: true, font: 'Calibri', size: 24 })] })] }),
-          ],
-        }));
-    
-        meses.forEach((mes, i) => {
-          const isFirst = i === 0;
-          tableRows.push(new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: mes, font: 'Calibri', size: 24 })] })] }),
-              ...(isFirst ? [
-                new TableCell({ rowSpan: meses.length, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${centros.size}`, font: 'Calibri', size: 24 })] })] }),
-                new TableCell({ rowSpan: meses.length, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${instituciones.size}`, font: 'Calibri', size: 24 })] })] }),
-                new TableCell({ rowSpan: meses.length, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${totalBeneficiarios}`, font: 'Calibri', size: 24 })] })] }),
-                new TableCell({ rowSpan: meses.length, verticalAlign: VerticalAlign.CENTER, children: [new Paragraph({ children: [new TextRun({ text: `${totalItems}`, font: 'Calibri', size: 24 })] })] }),
-              ] : []),
-            ],
-          }));
+      },
+      detDonation: { include: { medicine: true } },
+    },
+  });
+
+  const sections: (Paragraph | Table)[] = [];
+  const medicineSummaries: (Paragraph | Table)[] = [];
+  const medicinesMap: Record<string, { items: number; beneficiarios: number }> = {};
+  const locations: { state: string; city: string; town: string; parish: string; institution: string }[] = [];
+  const uniqueStates = new Set<string>();
+  const uniqueCities = new Set<string>();
+  const uniqueParishes = new Set<string>();
+
+  for (const lote of lotesConfirmados) {
+    const donacionesLote = salidas.filter(s => s.lote === lote);
+    const salidasPorMes: Record<string, typeof donacionesLote> = {};
+    for (const salida of donacionesLote) {
+      const mesAnio = salida.date ? format(new Date(salida.date), 'MMMM yyyy') : 'Fecha desconocida';
+      if (!salidasPorMes[mesAnio]) salidasPorMes[mesAnio] = [];
+      salidasPorMes[mesAnio].push(salida);
+    }
+    const meses = Object.keys(salidasPorMes);
+
+    const instituciones = new Set<string>();
+    const centros = new Set<string>();
+    let totalItems = 0;
+    let totalBeneficiarios = 0;
+
+    for (const salida of donacionesLote) {
+      const nombre = salida.institution?.name || 'Sin institución';
+      const tipo = salida.institution?.type || 'Desconocido';
+      if (tipo === 'Centro de Salud') centros.add(nombre);
+      else instituciones.add(nombre);
+
+      const parish = salida.institution?.parish;
+      if (parish) {
+        uniqueParishes.add(parish.name);
+        uniqueStates.add(parish.town.city.state.name);
+        uniqueCities.add(parish.town.city.name);
+        locations.push({
+          state: parish.town.city.state.name,
+          city: parish.town.city.name,
+          town: parish.town.name,
+          parish: parish.name,
+          institution: salida.institution.name,
         });
-    
-        sections.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: tableRows }));
       }
-    
-      // --- CORRECCIÓN DE TIPADO EN ESTE BUCLE ---
-      for (const [medicine, data] of Object.entries(medicinesMap) as [string, { items: number; beneficiarios: number }][]) {
-        medicineSummaries.push(new Paragraph({ text: '', spacing: { after: 300 } }));
-        medicineSummaries.push(
-          new Table({
-            width: { size: 100, type: WidthType.PERCENTAGE },
-            rows: [
-              new TableRow({
-                children: [
-                  new TableCell({ columnSpan: 2, shading: { fill: 'E6F0FA' }, children: [new Paragraph({ alignment: AlignmentType.LEFT, children: [new TextRun({ text: medicine, bold: true, font: 'Calibri', size: 24 })] })] }),
-                ],
-              }),
-              new TableRow({
-                children: [
-                  new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Items Entregados', bold: true, font: 'Calibri', size: 24 })] })] }),
-                  new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: 'Total Beneficiarios', bold: true, font: 'Calibri', size: 24 })] })] }),
-                ],
-              }),
-              new TableRow({
-                children: [
-                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${data.items}`, font: 'Calibri', size: 24 })] })] }),
-                  new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${data.beneficiarios}`, font: 'Calibri', size: 24 })] })] }),
-                ],
-              }),
-            ],
-          })
-        );
+
+      for (const d of salida.detDonation) {
+        totalItems += d.amount;
+        totalBeneficiarios += d.amount * d.medicine.benefited;
+        const medName = d.medicine.name;
+        if (!medicinesMap[medName]) medicinesMap[medName] = { items: 0, beneficiarios: 0 };
+        medicinesMap[medName].items += d.amount;
+        medicinesMap[medName].beneficiarios += d.amount * d.medicine.benefited;
       }
-    
-      const resumenGeo = new Table({
+    }
+
+    sections.push(new Paragraph({
+      text: `LOTE ${lote}`,
+      heading: HeadingLevel.HEADING_2,
+      spacing: { after: 10 },
+      children: [new TextRun({ font: 'Calibri', size: 28, bold: true })],
+    }));
+
+    const tableRows: TableRow[] = [];
+    tableRows.push(new TableRow({
+      height: { value: 800, rule: HeightRule.ATLEAST },
+      children: [
+        new TableCell({ 
+          shading: { fill: 'CCE5FF' }, 
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Meses', bold: true, font: 'Calibri', size: 24 })] })] 
+        }),
+        new TableCell({ 
+          shading: { fill: 'CCE5FF' }, 
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Centros de Salud', bold: true, font: 'Calibri', size: 24 })] })] 
+        }),
+        new TableCell({ 
+          shading: { fill: 'CCE5FF' }, 
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Instituciones y Organizaciones', bold: true, font: 'Calibri', size: 24 })] })] 
+        }),
+        new TableCell({ 
+          shading: { fill: 'CCE5FF' }, 
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Beneficiarios', bold: true, font: 'Calibri', size: 24 })] })] 
+        }),
+        new TableCell({ 
+          shading: { fill: 'CCE5FF' }, 
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Items entregados', bold: true, font: 'Calibri', size: 24 })] })] 
+        }),
+      ],
+    }));
+
+    meses.forEach((mes, i) => {
+      const isFirst = i === 0;
+      tableRows.push(new TableRow({
+        height: { value: 600, rule: HeightRule.ATLEAST },
+        children: [
+          new TableCell({ 
+            verticalAlign: VerticalAlign.CENTER,
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: mes, font: 'Calibri', size: 24 })] })] 
+          }),
+          ...(isFirst ? [
+            new TableCell({ 
+              rowSpan: meses.length, 
+              verticalAlign: VerticalAlign.CENTER, 
+              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${centros.size}`, font: 'Calibri', size: 24 })] })] 
+            }),
+            new TableCell({ 
+              rowSpan: meses.length, 
+              verticalAlign: VerticalAlign.CENTER, 
+              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${instituciones.size}`, font: 'Calibri', size: 24 })] })] 
+            }),
+            new TableCell({ 
+              rowSpan: meses.length, 
+              verticalAlign: VerticalAlign.CENTER, 
+              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${totalBeneficiarios}`, font: 'Calibri', size: 24 })] })] 
+            }),
+            new TableCell({ 
+              rowSpan: meses.length, 
+              verticalAlign: VerticalAlign.CENTER, 
+              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${totalItems}`, font: 'Calibri', size: 24 })] })] 
+            }),
+          ] : []),
+        ],
+      }));
+    });
+
+    sections.push(new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: tableRows }));
+  }
+
+  // --- CORRECCIÓN DE TIPADO EN ESTE BUCLE ---
+  for (const [medicine, data] of Object.entries(medicinesMap) as [string, { items: number; beneficiarios: number }][]) {
+    medicineSummaries.push(new Paragraph({ text: '', spacing: { after: 300 } }));
+    medicineSummaries.push(
+      new Table({
         width: { size: 100, type: WidthType.PERCENTAGE },
         rows: [
           new TableRow({
-            children: ['ESTADOS', 'MUNICIPIOS', 'PARROQUIAS'].map(
-              txt => new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: txt, bold: true, font: 'Calibri', size: 24 })] })] })
-            ),
+            height: { value: 500, rule: HeightRule.ATLEAST },
+            children: [
+              new TableCell({ 
+                columnSpan: 2, 
+                shading: { fill: 'E6F0FA' }, 
+                verticalAlign: VerticalAlign.CENTER,
+                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: medicine, bold: true, font: 'Calibri', size: 24 })] })] 
+              }),
+            ],
           }),
           new TableRow({
-            children: [uniqueStates.size, uniqueCities.size, uniqueParishes.size].map(
-              val => new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `${val}`, font: 'Calibri', size: 24 })] })] })
-            ),
+            height: { value: 500, rule: HeightRule.ATLEAST },
+            children: [
+              new TableCell({ 
+                shading: { fill: 'CCE5FF' }, 
+                verticalAlign: VerticalAlign.CENTER,
+                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Items Entregados', bold: true, font: 'Calibri', size: 24 })] })] 
+              }),
+              new TableCell({ 
+                shading: { fill: 'CCE5FF' }, 
+                verticalAlign: VerticalAlign.CENTER,
+                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: 'Total Beneficiarios', bold: true, font: 'Calibri', size: 24 })] })] 
+              }),
+            ],
+          }),
+          new TableRow({
+            height: { value: 500, rule: HeightRule.ATLEAST },
+            children: [
+              new TableCell({ 
+                verticalAlign: VerticalAlign.CENTER,
+                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${data.items}`, font: 'Calibri', size: 24 })] })] 
+              }),
+              new TableCell({ 
+                verticalAlign: VerticalAlign.CENTER,
+                children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${data.beneficiarios}`, font: 'Calibri', size: 24 })] })] 
+              }),
+            ],
           }),
         ],
-      });
-    
-      // =================== TABLA DE UBICACIONES UNIFICADA Y SEPARADA ===================
-      const sortedLocations = [...locations].sort((a, b) => {
-        if (a.state !== b.state) return a.state.localeCompare(b.state);
-        if (a.city !== b.city) return a.city.localeCompare(b.city);
-        if (a.parish !== b.parish) return a.parish.localeCompare(b.parish);
-        return a.institution.localeCompare(b.institution);
-      });
-    
-      function getRowSpans(data: typeof sortedLocations, key: keyof typeof sortedLocations[0]) {
-        const spans: { index: number; span: number }[] = [];
-        let prev = null, count = 0, start = 0;
-        for (let i = 0; i < data.length; i++) {
-          if (data[i][key] !== prev) {
-            if (count > 0) spans.push({ index: start, span: count });
-            prev = data[i][key];
-            count = 1;
-            start = i;
-          } else {
-            count++;
-          }
-        }
-        if (count > 0) spans.push({ index: start, span: count });
-        return spans;
-      }
-    
-      const stateSpans = getRowSpans(sortedLocations, 'state');
-      const citySpans = getRowSpans(sortedLocations, 'city');
-      const parishSpans = getRowSpans(sortedLocations, 'parish');
-    
-      const ubicacionesTableRows: TableRow[] = [
-        new TableRow({
-          children: ['ESTADO', 'MUNICIPIO', 'PARROQUIA', 'INSTITUCIÓN'].map(txt =>
-            new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph({ children: [new TextRun({ text: txt, bold: true, font: 'Calibri', size: 24 })] })] })
-          ),
-        }),
-      ];
-    
-      for (let i = 0; i < sortedLocations.length; i++) {
-        const stateSpan = stateSpans.find(s => s.index === i);
-        const citySpan = citySpans.find(s => s.index === i);
-        const parishSpan = parishSpans.find(s => s.index === i);
-    
-        ubicacionesTableRows.push(new TableRow({
-          children: [
-            stateSpan
-              ? new TableCell({
-                  rowSpan: stateSpan.span,
-                  verticalAlign: VerticalAlign.CENTER,
-                  children: [new Paragraph(sortedLocations[i].state)],
-                })
-              : undefined,
-            citySpan
-              ? new TableCell({
-                  rowSpan: citySpan.span,
-                  verticalAlign: VerticalAlign.CENTER,
-                  children: [new Paragraph(sortedLocations[i].city)],
-                })
-              : undefined,
-            parishSpan
-              ? new TableCell({
-                  rowSpan: parishSpan.span,
-                  verticalAlign: VerticalAlign.CENTER,
-                  children: [new Paragraph(sortedLocations[i].parish)],
-                })
-              : undefined,
-            new TableCell({ children: [new Paragraph(sortedLocations[i].institution)] }),
-          ].filter(Boolean),
-        }));
-      }
-    
-      const ubicacionesTabla = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: ubicacionesTableRows,
-      });
-    
-      const doc = new Document({
-        sections: [
-          {
-            headers: { default: header },
-            children: [
-              title,
-              description,
-              ...sections,
-              ...medicineSummaries,
-              new Paragraph({ pageBreakBefore: true }),
-              resumenGeo,
-              new Paragraph(''),
-              ubicacionesTabla,
-            ],
-          },
-        ],
-      });
-    
-      return await Packer.toBuffer(doc);
-    } catch (error) {
-      throw new Error(`Error al generar el documento: ${error}`);
+      })
+    );
+  }
+
+  const resumenGeo = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: [
+      new TableRow({
+        height: { value: 500, rule: HeightRule.ATLEAST },
+        children: ['ESTADOS', 'MUNICIPIOS', 'PARROQUIAS'].map(
+          txt => new TableCell({ 
+            shading: { fill: 'CCE5FF' }, 
+            verticalAlign: VerticalAlign.CENTER,
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: txt, bold: true, font: 'Calibri', size: 24 })] })] 
+          })
+        ),
+      }),
+      new TableRow({
+        height: { value: 500, rule: HeightRule.ATLEAST },
+        children: [uniqueStates.size, uniqueCities.size, uniqueParishes.size].map(
+          val => new TableCell({ 
+            verticalAlign: VerticalAlign.CENTER,
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: `${val}`, font: 'Calibri', size: 28 })] })] 
+          })
+        ),
+      }),
+    ],
+  });
+
+  // =================== DEDUPLICACIÓN DE UBICACIONES ===================
+  // Crear un Set para eliminar duplicados basado en la combinación única de todos los campos
+  const uniqueLocationsSet = new Set<string>();
+  const uniqueLocations: { state: string; city: string; town: string; parish: string; institution: string }[] = [];
+
+  for (const location of locations) {
+    const locationKey = `${location.state}|${location.city}|${location.town}|${location.parish}|${location.institution}`;
+    if (!uniqueLocationsSet.has(locationKey)) {
+      uniqueLocationsSet.add(locationKey);
+      uniqueLocations.push(location);
     }
+  }
+
+  // =================== TABLA DE UBICACIONES UNIFICADA Y SEPARADA ===================
+  const sortedLocations = [...uniqueLocations].sort((a, b) => {
+    if (a.state !== b.state) return a.state.localeCompare(b.state);
+    if (a.city !== b.city) return a.city.localeCompare(b.city);
+    if (a.parish !== b.parish) return a.parish.localeCompare(b.parish);
+    return a.institution.localeCompare(b.institution);
+  });
+
+  function getRowSpans(data: typeof sortedLocations, key: keyof typeof sortedLocations[0]) {
+    const spans: { index: number; span: number }[] = [];
+    let prev = null, count = 0, start = 0;
+    for (let i = 0; i < data.length; i++) {
+      if (data[i][key] !== prev) {
+        if (count > 0) spans.push({ index: start, span: count });
+        prev = data[i][key];
+        count = 1;
+        start = i;
+      } else {
+        count++;
+      }
+    }
+    if (count > 0) spans.push({ index: start, span: count });
+    return spans;
+  }
+
+  const stateSpans = getRowSpans(sortedLocations, 'state');
+  const citySpans = getRowSpans(sortedLocations, 'city');
+  const parishSpans = getRowSpans(sortedLocations, 'parish');
+
+  const ubicacionesTableRows: TableRow[] = [
+    new TableRow({
+      height: { value: 500, rule: HeightRule.ATLEAST },
+      children: ['ESTADO', 'MUNICIPIO', 'PARROQUIA', 'INSTITUCIÓN'].map(txt =>
+        new TableCell({ 
+          shading: { fill: 'CCE5FF' }, 
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: txt, bold: true, font: 'Calibri', size: 28 })] })] 
+        })
+      ),
+    }),
+  ];
+
+  for (let i = 0; i < sortedLocations.length; i++) {
+    const stateSpan = stateSpans.find(s => s.index === i);
+    const citySpan = citySpans.find(s => s.index === i);
+    const parishSpan = parishSpans.find(s => s.index === i);
+
+    ubicacionesTableRows.push(new TableRow({
+      height: { value: 500, rule: HeightRule.ATLEAST },
+      children: [
+        stateSpan
+          ? new TableCell({
+              rowSpan: stateSpan.span,
+              verticalAlign: VerticalAlign.CENTER,
+              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sortedLocations[i].state, font: 'Calibri', size: 24 })] })],
+            })
+          : undefined,
+        citySpan
+          ? new TableCell({
+              rowSpan: citySpan.span,
+              verticalAlign: VerticalAlign.CENTER,
+              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sortedLocations[i].city, font: 'Calibri', size: 24 })] })],
+            })
+          : undefined,
+        parishSpan
+          ? new TableCell({
+              rowSpan: parishSpan.span,
+              verticalAlign: VerticalAlign.CENTER,
+              children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sortedLocations[i].parish, font: 'Calibri', size: 24 })] })],
+            })
+          : undefined,
+        new TableCell({ 
+          verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: sortedLocations[i].institution, font: 'Calibri', size: 24 })] })] 
+        }),
+      ].filter(Boolean),
+    }));
+  }
+
+  const ubicacionesTabla = new Table({
+    width: { size: 100, type: WidthType.PERCENTAGE },
+    rows: ubicacionesTableRows,
+  });
+
+  const doc = new Document({
+    sections: [
+      {
+        headers: { default: header },
+        children: [
+          title,
+          description,
+          ...sections,
+          ...medicineSummaries,
+          new Paragraph({ pageBreakBefore: true }),
+          resumenGeo,
+          new Paragraph(''),
+          ubicacionesTabla,
+        ],
+      },
+    ],
+  });
+
+  return await Packer.toBuffer(doc);
+} catch (error) {
+  throw new Error(`Error al generar el documento: ${error}`);
+}
     
     
   }
