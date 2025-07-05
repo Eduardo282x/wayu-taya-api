@@ -1,6 +1,7 @@
 import { Controller, Get, Res ,Post, HttpException, HttpStatus, Body} from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { Response } from 'express';
+import { ReportsDTO } from './reports.dto';
 
 @Controller('reports')
 export class ReportsController {
@@ -121,11 +122,11 @@ export class ReportsController {
 
   @Post('unified-by-provider-and-lots')
   async generateUnifiedReport(
-    @Body() body: { provider: string; lotes: string[] },
+    @Body() dto: ReportsDTO,
     @Res() res: Response,
   ) {
     try {
-      const buffer = await this.reportsService.generateUnifiedDonationReport(body.provider, body.lotes);
+      const buffer = await this.reportsService.generateUnifiedDonationReport(dto);
 
       res.set({
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
