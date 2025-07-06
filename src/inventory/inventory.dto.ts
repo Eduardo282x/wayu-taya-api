@@ -60,25 +60,17 @@ export class HistoryQueryDto {
   to: Date;
 }
 
-export class InventoryOutDto {
-  @IsInt()
-  donationId: number;
-
+export class InventoryMoveDto {
+  
   @IsInt()
   medicineId: number;
-
   @IsInt()
-  storeId: number;
-
+  sourceStoreId: number;
   @IsInt()
-  @Min(1, { message: 'El valor debe ser mayor o igual a 1.' })
+  destinationStoreId: number;
+  @IsInt()
   amount: number;
 
-  @IsDate()
-  @Transform(({ value }) => new Date(value))
-  date: Date;
-
-  @IsOptional()
   @IsString()
-  observations?: string;
+  lote: string;
 }

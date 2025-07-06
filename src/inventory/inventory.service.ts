@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { HistoryQueryDto, InventoryDto, InventoryOutDto } from './inventory.dto';
+import { HistoryQueryDto, InventoryDto, InventoryMoveDto } from './inventory.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 import { Store } from '@prisma/client';
 
@@ -406,5 +406,87 @@ export class InventoryService {
         throw new Error(`Fallo en reversión por historial: ${message}`);
       }
     }
-      
+
+    
+    async transferMedicineBetweenStores(params: InventoryMoveDto) {
+      const {
+        medicineId,
+        sourceStoreId,
+        destinationStoreId,
+        lote,
+        amount,
+      } = params;
+    
+      try {
+        return await this.prisma.$transaction(async (tx) => {
+          // Buscar la entrada en inventario desde el almacén fuente
+          const sourceInventory = await tx.inventory.findFirst({
+            where: {
+              medicineId,
+              storeId: sourceStoreId,
+              donation: {
+                lote: lote,
+              },
+            },
+            include: {
+              donation: true,
+            },
+          });
+    
+          if (!sourceInventory || sourceInventory.stock < amount) {
+            throw new Error('Stock insuficiente en el almacén fuente.');
+          }
+    
+          // Reducir stock del almacén fuente
+          await tx.inventory.update({
+            where: { id: sourceInventory.id },
+            data: {
+              stock: {
+                decrement: amount,
+              },
+            },
+          });
+    
+          // Verificar si ya existe entrada en el almacén destino con mismo lote
+          let destinationInventory = await tx.inventory.findFirst({
+            where: {
+              medicineId,
+              storeId: destinationStoreId,
+              donation: {
+                lote: lote,
+              },
+            },
+          });
+    
+          if (destinationInventory) {
+            // Si existe, incrementar stock
+            await tx.inventory.update({
+              where: { id: destinationInventory.id },
+              data: {
+                stock: {
+                  increment: amount,
+                },
+              },
+            });
+          } else {
+            // Si no existe, crear nueva entrada
+            await tx.inventory.create({
+              data: {
+                medicineId,
+                storeId: destinationStoreId,
+                donationId: sourceInventory.donationId,
+                admissionDate: sourceInventory.admissionDate,
+                expirationDate: sourceInventory.expirationDate,
+                stock: amount,
+              },
+            });
+          }
+    
+          return { success: true, message: 'Transferencia completada con éxito.' };
+        });
+      } catch (error) {
+        console.error('Error en la transferencia de inventario:', error);
+        throw new Error(`No se pudo completar la transferencia: ${error}`);
+      }
+    }
 }

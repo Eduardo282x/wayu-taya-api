@@ -1,6 +1,6 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Put } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
-import { HistoryQueryDto, InventoryDto, InventoryOutDto } from './inventory.dto';
+import { HistoryQueryDto, InventoryDto, InventoryMoveDto } from './inventory.dto';
 
 @Controller('inventory')
 export class InventoryController {
@@ -32,7 +32,10 @@ export class InventoryController {
         return await this.inventoryService.removeInventory(inventory);
     }*/
 
-
+    @Put('/menealo')
+    async transferMedicineBetweenStores(@Body() param: InventoryMoveDto) {
+        return await this.inventoryService.transferMedicineBetweenStores(param);
+    }
 }
 
 
