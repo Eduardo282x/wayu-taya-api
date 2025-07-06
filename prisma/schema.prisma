@@ -186,9 +186,9 @@ model Medicine {
   manufacturer     String
   activeIngredient String
   countryOfOrigin  String             @default("VE")
+  benefited        Int                @default(1)
   formId           Int
   form             Forms              @relation(fields: [formId], references: [id])
-  benefited        Int                @default(1)
   detDonation      DetDonation[]
   inventory        Inventory[]
   historyInventory HistoryInventory[]
