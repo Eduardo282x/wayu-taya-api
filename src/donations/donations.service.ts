@@ -1,12 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DonationsDTO } from './donations.dto';
-import { badResponse, baseResponse } from 'src/dto/base.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
-import { InventoryDto, MedicinesDto, InventoryOutDto } from 'src/inventory/inventory.dto';
 import * as PDFDocument from 'pdfkit';
-import * as fs from 'fs';
-import * as stream from 'stream';
 
 @Injectable()
 export class DonationsService {

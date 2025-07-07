@@ -1,5 +1,5 @@
 import { Transform, Type } from 'class-transformer';
-import { IsInt, Min, IsDate, IsOptional, IsString, ValidateNested, IsArray } from 'class-validator';
+import { IsInt, Min, IsDate, IsOptional, IsString, ValidateNested, IsArray, IsNumber } from 'class-validator';
 
 
 export class InventoryDto {
@@ -60,25 +60,20 @@ export class HistoryQueryDto {
   to: Date;
 }
 
-export class InventoryOutDto {
-  @IsInt()
-  donationId: number;
+export class InventoryMoveDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DetailInventoryMoveDto)
+  movements: DetailInventoryMoveDto[]
+}
 
-  @IsInt()
+export class DetailInventoryMoveDto {
+  @IsNumber()
   medicineId: number;
-
-  @IsInt()
-  storeId: number;
-
-  @IsInt()
-  @Min(1, { message: 'El valor debe ser mayor o igual a 1.' })
-  amount: number;
-
-  @IsDate()
-  @Transform(({ value }) => new Date(value))
-  date: Date;
-
-  @IsOptional()
-  @IsString()
-  observations?: string;
+  @IsNumber()
+  sourceStoreId: number;
+  @IsNumber()
+  quantity: number;
+  @IsNumber()
+  targetStoreId: number;
 }
