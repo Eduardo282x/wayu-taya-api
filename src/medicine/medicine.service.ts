@@ -40,6 +40,7 @@ export class MedicineService {
                     activeIngredient: medicine.activeIngredient ? medicine.activeIngredient : '',
                     countryOfOrigin: medicine.countryOfOrigin ? medicine.countryOfOrigin : '',
                     formId: medicine.formId ? medicine.formId : 14,
+                    benefited: medicine.benefited ? medicine.benefited : 1,
                 }
             });
             baseResponse.message = 'Medicina creado exitosamente.'
@@ -94,6 +95,7 @@ export class MedicineService {
                     activeIngredient: medicine.activeIngredient,
                     countryOfOrigin: medicine.countryOfOrigin,
                     formId: medicine.formId,
+                    benefited: medicine.benefited
                 },
                 where: { id: id }
             });
@@ -183,9 +185,9 @@ export class MedicineService {
 
     async downloadExcelTemplate(res: Response) {
         const headers = [
-            "Nombre", "Descripcion", "Categoria", "Medicina", "Cantidad",
-            "Unidad", "Temperatura", "Manofacturador", "Principio_Activo",
-            "Pais_Origen", "Forma"
+            "Nombre", "Descripcion", "Categoria", "Medicina", "Unidad",
+            "Cantidad", "Temperatura", "Manofacturador", "Principio_Activo",
+            "Pais_Origen", "Forma", "Beneficiado"
         ];
         const exampleRows = [
             [
@@ -193,26 +195,28 @@ export class MedicineService {
                 "Analgésico",
                 "Categoría General",
                 "Si",
-                100,
                 "mg",
+                100,
                 "Ambiente",
                 "Farmacéutica Ágil",
                 "Paracetamol",
                 "VE",
-                "Tableta"
+                "Tableta",
+                "1"
             ],
             [
-                "Pasta Dental Infantil",
-                "Pasta dental con flúor para niños.",
-                "Higiene Personal",  // sin acento en "Categoria"
-                "No",
-                0,
-                "",
-                "",
-                "", 
-                "",
-                "",
-                ""
+                "Ibuprofeno",
+                "Esto es para el dolor muscular",
+                "Antiinflamatorio",  // sin acento en "Categoria"
+                "Si",
+                "mg",
+                200,
+                "Ambiente",
+                "Farmaceutica Agile",  // sin acento en "Farmaceutica"
+                "Ibuprofeno",
+                "VE",
+                "Tableta",
+                "1"
             ]
         ];
         const wb = XLSX.utils.book_new();
@@ -228,6 +232,7 @@ export class MedicineService {
 
     async uploadExcel(file: Express.Multer.File) {
         try {
+            const medicineDB = await this.prismaService.medicine.findMany();
             const categoriesDB = await this.prismaService.category.findMany();
             const formsDB = await this.prismaService.forms.findMany();
 
@@ -236,65 +241,94 @@ export class MedicineService {
             const sheet = workbook.Sheets[sheetName];
             const rawData: MedicineFormatExcel[] = XLSX.utils.sheet_to_json(sheet, { defval: null });
 
-            function normalizeText(text: string): string {
-                return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
-            }
-
-            const createdMedicines = [];
+            const createdMedicines: MedicineDTO[] = [];
+            const skippedMedicines: string[] = [];
 
             for (const data of rawData) {
+                const normalizedName = this.normalizeText(data.Nombre);
+
+                // Verificar si la medicina ya existe por nombre (puedes agregar manufacturer, formId, etc.)
+                const alreadyExists = medicineDB.some(med =>
+                    this.normalizeText(med.name) === normalizedName
+                );
+
+                if (alreadyExists) {
+                    skippedMedicines.push(data.Nombre);
+                    continue;
+                }
                 // Normalizar y buscar categoría
-                const normalizedCategory = normalizeText(data.categoryId);
-                let category = categoriesDB.find(cat => normalizeText(cat.category) === normalizedCategory);
+                const normalizedCategory = this.normalizeText(data.Categoria);
+                let category = categoriesDB.find(cat => this.normalizeText(cat.category) === normalizedCategory);
 
                 if (!category) {
                     category = await this.prismaService.category.create({
-                        data: { category: data.categoryId }
+                        data: { category: data.Categoria }
                     });
                     categoriesDB.push(category);
                 }
 
                 // Normalizar y buscar forma
-                const normalizedForm = normalizeText(data.forms);
-                let form = formsDB.find(f => normalizeText(f.forms) === normalizedForm);
-
-                if (!form) {
-                    form = await this.prismaService.forms.create({
-                        data: { forms: data.forms }
-                    });
-                    formsDB.push(form);
+                let form;
+                if (data.Forma) {
+                    const normalizedForm = this.normalizeText(data.Forma);
+                    form = formsDB.find(f => this.normalizeText(f.forms) === normalizedForm);
+                    if (!form) {
+                        form = await this.prismaService.forms.create({
+                            data: { forms: data.Forma }
+                        });
+                        formsDB.push(form);
+                    }
                 }
+
+                const isMedicine = data.Medicina == 'Si'
 
                 // Preparar objeto MedicineDTO para crear
                 const medicineDTO: MedicineDTO = {
-                    name: data.name,
-                    description: data.description,
+                    name: data.Nombre,
+                    description: data.Descripcion,
                     categoryId: category.id,
-                    medicine: data.medicine,
-                    unit: data.unit || '',
-                    amount: data.amount || 0,
-                    temperate: data.temperate || '',
-                    manufacturer: data.manufacturer || '',
-                    activeIngredient: data['Principio Activo'] || '',
-                    countryOfOrigin: data['Pais de Origen'] || 'VE',
-                    formId: form.id || 14,
+                    medicine: isMedicine,
+                    unit: data.Unidad || '',
+                    amount: data.Cantidad || 0,
+                    temperate: data.Temperatura || '',
+                    manufacturer: data.Manofacturador || '',
+                    activeIngredient: data.Principio_Activo || '',
+                    countryOfOrigin: data.Pais_Origen || 'VE',
+                    formId: form && form.id ? form.id : 14,
+                    benefited: data.Beneficiado || 1,
                 };
 
-                // Crear medicina usando la función que ya tienes
-                const response = await this.createMedicine(medicineDTO);
-                if (response.data) {
-                    createdMedicines.push(response.data);
-                }
+                createdMedicines.push(medicineDTO);
             }
 
-            baseResponse.data = createdMedicines;
-            baseResponse.message = 'Medicinas cargadas y creadas exitosamente.';
+            // Guardar solo las nuevas medicinas
+            if (createdMedicines.length > 0) {
+                await this.prismaService.medicine.createMany({
+                    data: createdMedicines,
+                    skipDuplicates: true,
+                });
+            }
+
+            baseResponse.data = {
+                inserted: createdMedicines.length,
+                skipped: skippedMedicines.length,
+                skippedItems: skippedMedicines,
+            };
+
+            baseResponse.message =
+                `Carga completada: ${createdMedicines.length} medicina(s) agregada(s), ` +
+                `${skippedMedicines.length} ya existían y fueron omitidas.`;
+
             return baseResponse;
 
         } catch (error) {
             badResponse.message = 'Error al cargar las medicinas desde Excel: ' + error;
             return badResponse;
         }
+    }
+
+    normalizeText(text: string): string {
+        return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
     }
 
 }

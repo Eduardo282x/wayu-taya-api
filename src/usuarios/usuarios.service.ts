@@ -22,6 +22,7 @@ export class UsuariosService {
                     name: username.name,
                     lastName: username.lastName,
                     password: '1234',
+                    rolId: 2,
                     correo: username.correo
                 }
             })

@@ -38,20 +38,25 @@ export class MedicineDTO {
     @IsOptional()
     @IsNumber()
     formId: number;
+
+    @IsOptional()
+    @IsNumber()
+    benefited: number;
 }
 
 export interface MedicineFormatExcel {
-    name: string;
-    description: string;
-    categoryId: string;
-    medicine: boolean;
-    unit: string;
-    amount: number;
-    temperate: string;
-    manufacturer: string;
-    activeIngredient: string;
-    countryOfOrigin: string;
-    forms: string;
+    Nombre: string;
+    Descripcion: string;
+    Categoria: string;
+    Medicina: string;
+    Unidad: string;
+    Cantidad: number;
+    Temperatura: string;
+    Manofacturador: string;
+    Principio_Activo: string;
+    Pais_Origen:  string;
+    Forma:            string;
+    Beneficiado:        number;
 }
 
 export class CategoryDTO {

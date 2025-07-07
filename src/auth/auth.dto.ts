@@ -6,3 +6,9 @@ export class DTOLogin {
     @IsString()
     password: string;
 }
+export class DTORecoverPassword {
+    @IsString()
+    email: string;
+    @IsString()
+    password: string;
+}
