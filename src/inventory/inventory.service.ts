@@ -28,6 +28,7 @@ export class InventoryService {
           stores: [] as { id: number, name: string, address: string, amount: number }[],
           datesMedicine: [],
           lotes: [] as { name: string, storeId: number, medicineId: number, expirationDate: Date, admissionDate: Date }[],
+          expirationSet: new Set<string>(),
         };
       }
       acc[medicineId].totalStock += item.stock;
@@ -36,6 +37,7 @@ export class InventoryService {
         const totalAmountStore = inventory
           .filter(inv => inv.medicine.id === medicineId && inv.store.id === item.store.id)
           .reduce((sum, inv) => sum + inv.stock, 0);
+
         acc[medicineId].stores.push({
           id: item.store.id,
           name: item.store.name,
@@ -44,13 +46,21 @@ export class InventoryService {
         });
       }
 
-      acc[medicineId].datesMedicine.push({
-        admissionDate: item.admissionDate,
-        expirationDate: item.expirationDate,
-      })
+      // acc[medicineId].datesMedicine.push({
+      //   admissionDate: item.admissionDate,
+      //   expirationDate: item.expirationDate,
+      // })
+
+      const expDateStr = item.expirationDate.toISOString();
+      if (!acc[medicineId].expirationSet.has(expDateStr)) {
+        acc[medicineId].datesMedicine.push({
+          admissionDate: item.admissionDate,
+          expirationDate: item.expirationDate,
+        });
+        acc[medicineId].expirationSet.add(expDateStr);
+      }
 
       if (!acc[medicineId].lotes.some(lote => lote.name === item.donation.lote)) {
-        // acc[medicineId].lotes.push(item.donation.lote);
         acc[medicineId].lotes.push({
           name: item.donation.lote,
           storeId: item.store.id,
@@ -68,9 +78,13 @@ export class InventoryService {
       stores: { id: number, name: string, address: string, amount: number }[],
       datesMedicine: any[],
       lotes: { name: string, storeId: number, medicineId: number, expirationDate: Date, admissionDate: Date }[],
+      expirationSet: Set<string>,
     }>);
 
-    return Object.values(groupedByMedicine);
+    return Object.values(groupedByMedicine).map(item => {
+      const { expirationSet, ...rest } = item;
+      return rest;
+    });
   }
   /*
       async createInventoryOld(inventory: InventoryDto) {
@@ -432,9 +446,6 @@ export class InventoryService {
               medicineId,
               storeId: sourceStoreId,
             },
-            include: {
-              donation: true,
-            },
           });
 
           if (!sourceInventory || sourceInventory.stock < quantity) {
@@ -444,7 +455,7 @@ export class InventoryService {
           }
 
           // Reducir stock del almacén fuente
-          await tx.inventory.update({
+          const reduceAmount = await tx.inventory.update({
             where: { id: sourceInventory.id },
             data: {
               stock: {
@@ -452,6 +463,12 @@ export class InventoryService {
               },
             },
           });
+
+          if (reduceAmount.stock == 0) {
+            await tx.inventory.delete({
+              where: { id: sourceInventory.id }
+            })
+          }
 
           // Verificar si ya existe entrada en el almacén destino con mismo lote
           const destinationInventory = await tx.inventory.findFirst({

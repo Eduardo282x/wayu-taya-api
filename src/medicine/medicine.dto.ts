@@ -45,18 +45,18 @@ export class MedicineDTO {
 }
 
 export interface MedicineFormatExcel {
-    name: string;
-    description: string;
-    categoryId: string;
-    medicine: boolean;
-    unit: string;
-    amount: number;
-    temperate: string;
-    manufacturer: string;
-    activeIngredient: string;
-    countryOfOrigin:  string;
-    forms:            string;
-    benefited:        number;
+    Nombre: string;
+    Descripcion: string;
+    Categoria: string;
+    Medicina: string;
+    Unidad: string;
+    Cantidad: number;
+    Temperatura: string;
+    Manofacturador: string;
+    Principio_Activo: string;
+    Pais_Origen:  string;
+    Forma:            string;
+    Beneficiado:        number;
 }
 
 export class CategoryDTO {
