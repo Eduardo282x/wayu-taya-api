@@ -27,7 +27,7 @@ export class InventoryService {
           totalStock: 0,
           stores: [] as { id: number, name: string, address: string, amount: number }[],
           datesMedicine: [],
-          lotes: [] as string[],
+          lotes: [] as { name: string, storeId: number, medicineId: number, expirationDate: Date, admissionDate: Date }[],
         };
       }
       acc[medicineId].totalStock += item.stock;
@@ -49,8 +49,15 @@ export class InventoryService {
         expirationDate: item.expirationDate,
       })
 
-      if (!acc[medicineId].lotes.includes(item.donation.lote)) {
-        acc[medicineId].lotes.push(item.donation.lote);
+      if (!acc[medicineId].lotes.some(lote => lote.name === item.donation.lote)) {
+        // acc[medicineId].lotes.push(item.donation.lote);
+        acc[medicineId].lotes.push({
+          name: item.donation.lote,
+          storeId: item.store.id,
+          medicineId: item.medicine.id,
+          expirationDate: item.expirationDate,
+          admissionDate: item.admissionDate,
+        });
       }
 
       return acc;
@@ -60,7 +67,7 @@ export class InventoryService {
       totalStock: number,
       stores: { id: number, name: string, address: string, amount: number }[],
       datesMedicine: any[],
-      lotes: string[],
+      lotes: { name: string, storeId: number, medicineId: number, expirationDate: Date, admissionDate: Date }[],
     }>);
 
     return Object.values(groupedByMedicine);
@@ -142,7 +149,7 @@ export class InventoryService {
     const executor = tx
       ? async (cb: (trx: any) => Promise<any>) => cb(prismaService)
       : this.prisma.$transaction.bind(this.prisma);
-  
+
     return await executor(async (trx) => {
       // Validación de duplicado exacto: donación ya procesada con mismos datos
       const duplicado = await trx.historyInventory.findMany({
@@ -153,18 +160,18 @@ export class InventoryService {
           observations: inventory.observations,
         },
       });
-  
+
       if (duplicado.length === inventory.medicines.length) {
         const coincide = duplicado.every(hist => {
           const med = inventory.medicines.find(m => m.medicineId === hist.medicineId && m.storeId === hist.storeId);
           return med && med.stock === hist.amount;
         });
-  
+
         if (coincide) {
           throw new Error('Esta acción de inventario ya fue aplicada con los mismos detalles.');
         }
       }
-  
+
       // Eliminar historial anterior si es actualización
       if (inventory.observations?.includes('Actualización con dependencias posteriores')) {
         await trx.historyInventory.deleteMany({
@@ -174,23 +181,23 @@ export class InventoryService {
           }
         });
       }
-  
+
       const lote = inventory.lote || (await trx.donation.findUnique({
         where: { id: inventory.donationId },
         select: { lote: true }
       }))?.lote;
-  
+
       if (!lote) throw new Error('No se pudo determinar el lote de la donación.');
-  
+
       for (const item of inventory.medicines) {
         const baseWhere = {
           medicineId: item.medicineId,
           storeId: item.storeId,
           donation: { lote }
         };
-  
+
         const record = await trx.inventory.findFirst({ where: baseWhere });
-  
+
         if (inventory.type === 'Entrada') {
           if (record) {
             await trx.inventory.update({
@@ -200,7 +207,7 @@ export class InventoryService {
                 updateAt: new Date(),
               }
             });
-  
+
             await trx.historyInventory.create({
               data: {
                 medicineId: item.medicineId,
@@ -214,7 +221,7 @@ export class InventoryService {
                 expirationDate: record.expirationDate
               },
             });
-  
+
           } else {
             const nuevo = await trx.inventory.create({
               data: {
@@ -226,7 +233,7 @@ export class InventoryService {
                 expirationDate: item.expirationDate,
               },
             });
-  
+
             await trx.historyInventory.create({
               data: {
                 donationId: nuevo.donationId,
@@ -245,11 +252,11 @@ export class InventoryService {
           if (!record) {
             throw new Error(`No se encontró inventario para medicina ${item.medicineId} en almacén ${item.storeId}.`);
           }
-  
+
           if (record.stock < item.stock) {
             throw new Error(`Stock insuficiente para medicina ${item.medicineId}: disponible ${record.stock}, solicitado ${item.stock}.`);
           }
-  
+
           if (record.stock === item.stock) {
             await trx.inventory.delete({ where: { id: record.id } });
           } else {
@@ -261,7 +268,7 @@ export class InventoryService {
               }
             });
           }
-  
+
           await trx.historyInventory.create({
             data: {
               medicineId: item.medicineId,
@@ -277,134 +284,134 @@ export class InventoryService {
           });
         }
       }
-  
+
       return {
         success: true,
         message: `Inventario procesado correctamente como ${inventory.type}`
       };
     });
   }
-  
-  
-    
-    async revertInventoryWithHistory(tx: any, originalDonation: any) {
-      interface HistoryRecord {
-        id: number;
-        medicineId: number;
-        storeId: number;
-        donationId: number;
-        amount: number;
-        type: string;
-        date: Date;
-        observations: string | null;
-        admissionDate: Date;
-        expirationDate: Date;
-        createAt: Date;
-        updateAt: Date;
+
+
+
+  async revertInventoryWithHistory(tx: any, originalDonation: any) {
+    interface HistoryRecord {
+      id: number;
+      medicineId: number;
+      storeId: number;
+      donationId: number;
+      amount: number;
+      type: string;
+      date: Date;
+      observations: string | null;
+      admissionDate: Date;
+      expirationDate: Date;
+      createAt: Date;
+      updateAt: Date;
+    }
+
+    try {
+      // Solo se considera historial original (evita acumular actualizaciones anteriores)
+      const historyRecords = await tx.historyInventory.findMany({
+        where: {
+          donationId: originalDonation.id,
+          type: { in: ['Entrada', 'Salida'] },
+          observations: {
+            not: {
+              contains: 'Actualización con dependencias posteriores'
+            }
+          }
+        },
+        orderBy: { id: 'asc' }
+      }) as HistoryRecord[];
+
+      const groupedRecords: Record<string, HistoryRecord[]> = {};
+      for (const record of historyRecords) {
+        const key = `${record.medicineId}-${record.storeId}`;
+        if (!groupedRecords[key]) groupedRecords[key] = [];
+        groupedRecords[key].push(record);
       }
-    
-      try {
-        // Solo se considera historial original (evita acumular actualizaciones anteriores)
-        const historyRecords = await tx.historyInventory.findMany({
-          where: {
-            donationId: originalDonation.id,
-            type: { in: ['Entrada', 'Salida'] },
-            observations: {
-              not: {
-                contains: 'Actualización con dependencias posteriores'
-              }
-            }
-          },
-          orderBy: { id: 'asc' }
-        }) as HistoryRecord[];
-    
-        const groupedRecords: Record<string, HistoryRecord[]> = {};
-        for (const record of historyRecords) {
-          const key = `${record.medicineId}-${record.storeId}`;
-          if (!groupedRecords[key]) groupedRecords[key] = [];
-          groupedRecords[key].push(record);
+
+      for (const [key, records] of Object.entries(groupedRecords)) {
+        const [medicineId, storeId] = key.split('-').map(Number);
+        const typedRecords = records as HistoryRecord[];
+
+        let netChange = 0;
+        for (const record of typedRecords) {
+          netChange += record.type === 'Entrada' ? record.amount : -record.amount;
         }
-    
-        for (const [key, records] of Object.entries(groupedRecords)) {
-          const [medicineId, storeId] = key.split('-').map(Number);
-          const typedRecords = records as HistoryRecord[];
-    
-          let netChange = 0;
-          for (const record of typedRecords) {
-            netChange += record.type === 'Entrada' ? record.amount : -record.amount;
-          }
-    
-          const currentInventory = await tx.inventory.findFirst({
-            where: { medicineId, storeId }
-          });
-    
-          const isEntry = originalDonation.type === 'Entrada';
-          let newStock = currentInventory?.stock || 0;
-          let adjustment = 0;
-    
-          if (isEntry) {
-            newStock -= netChange;
+
+        const currentInventory = await tx.inventory.findFirst({
+          where: { medicineId, storeId }
+        });
+
+        const isEntry = originalDonation.type === 'Entrada';
+        let newStock = currentInventory?.stock || 0;
+        let adjustment = 0;
+
+        if (isEntry) {
+          newStock -= netChange;
+        } else {
+          newStock += Math.abs(netChange);
+        }
+
+        if (newStock < 0) {
+          adjustment = newStock;
+          newStock = 0;
+        }
+
+        const observations = adjustment < 0
+          ? `Reversión ajustada (${adjustment}) por stock negativo | ${originalDonation.id}`
+          : `Reversión de donación ${originalDonation.id}`;
+
+        if (currentInventory) {
+          if (newStock === 0) {
+            await tx.inventory.delete({
+              where: { id: currentInventory.id }
+            });
           } else {
-            newStock += Math.abs(netChange);
-          }
-    
-          if (newStock < 0) {
-            adjustment = newStock;
-            newStock = 0;
-          }
-    
-          const observations = adjustment < 0
-            ? `Reversión ajustada (${adjustment}) por stock negativo | ${originalDonation.id}`
-            : `Reversión de donación ${originalDonation.id}`;
-    
-          if (currentInventory) {
-            if (newStock === 0) {
-              await tx.inventory.delete({ 
-                where: { id: currentInventory.id } 
-              });
-            } else {
-              await tx.inventory.update({ 
-                where: { id: currentInventory.id },
-                data: { 
-                  stock: newStock,
-                  updateAt: new Date() 
-                }
-              });
-            }
-          } else if (newStock > 0) {
-            await tx.inventory.create({
+            await tx.inventory.update({
+              where: { id: currentInventory.id },
               data: {
-                donationId: originalDonation.id,
-                medicineId,
-                storeId,
                 stock: newStock,
-                admissionDate: typedRecords[0].admissionDate,
-                expirationDate: typedRecords[0].expirationDate
+                updateAt: new Date()
               }
             });
           }
-    
-          const reversionType = isEntry ? 'Reversión Entrada' : 'Reversión Salida';
-          await tx.historyInventory.create({
+        } else if (newStock > 0) {
+          await tx.inventory.create({
             data: {
+              donationId: originalDonation.id,
               medicineId,
               storeId,
-              donationId: originalDonation.id,
-              amount: Math.abs(netChange),
-              type: reversionType,
-              date: new Date(),
-              observations,
+              stock: newStock,
               admissionDate: typedRecords[0].admissionDate,
               expirationDate: typedRecords[0].expirationDate
             }
           });
         }
-    
-        return { success: true, message: 'Reversión completada exitosamente' };
-      } catch (error) {
-        const message = error instanceof Error ? error.message : 'Error desconocido';
-        throw new Error(`Fallo en reversión por historial: ${message}`);
+
+        const reversionType = isEntry ? 'Reversión Entrada' : 'Reversión Salida';
+        await tx.historyInventory.create({
+          data: {
+            medicineId,
+            storeId,
+            donationId: originalDonation.id,
+            amount: Math.abs(netChange),
+            type: reversionType,
+            date: new Date(),
+            observations,
+            admissionDate: typedRecords[0].admissionDate,
+            expirationDate: typedRecords[0].expirationDate
+          }
+        });
       }
+
+      return { success: true, message: 'Reversión completada exitosamente' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Error desconocido';
+      throw new Error(`Fallo en reversión por historial: ${message}`);
     }
-      
+  }
+
 }

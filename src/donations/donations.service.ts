@@ -73,14 +73,14 @@ export class DonationsService {
             lote: donation.lote,
           },
         });
-  
+
         const dataDetDonation = donation.medicines.map((pro) => ({
           donationId: donationCreated.id,
           medicineId: pro.medicineId,
           amount: pro.amount,
         }));
         await tx.detDonation.createMany({ data: dataDetDonation });
-  
+
         const inventoryDto = {
           donationId: donationCreated.id,
           lote: donation.lote,
@@ -95,10 +95,10 @@ export class DonationsService {
           date: donation.date,
           observations: ''
         };
-  
+
         const result = await this.inventoryService.processInventory(inventoryDto, tx);
         if (!result.success) throw new Error(result.message);
-  
+
         return {
           success: true,
           message: 'Donación creada exitosamente y acción de inventario procesada.',
@@ -112,7 +112,7 @@ export class DonationsService {
       };
     }
   }
-  
+
   async updateDonation(id: number, donation: DonationsDTO) {
     try {
       return await this.prismaService.$transaction(async (tx) => {
@@ -123,13 +123,13 @@ export class DonationsService {
             historyInventory: true
           },
         });
-  
+
         if (!originalDonation) throw new Error('Donación no encontrada');
-  
+
         if (donation.changeDonDetails === true) {
           await this.inventoryService.revertInventoryWithHistory(tx, originalDonation);
         }
-  
+
         const posteriores = await tx.historyInventory.findMany({
           where: {
             medicineId: { in: donation.medicines.map(m => m.medicineId) },
@@ -138,9 +138,9 @@ export class DonationsService {
             createAt: { gt: originalDonation.updateAt },
           },
         });
-  
+
         const updatedDonationType = donation.type || originalDonation.type;
-  
+
         for (const med of donation.medicines) {
           const inventarioActual = await tx.inventory.findFirst({
             where: {
@@ -148,16 +148,16 @@ export class DonationsService {
               storeId: med.storageId,
             },
           });
-  
+
           const consumoPosterior = posteriores.filter(h => h.medicineId === med.medicineId && h.storeId === med.storageId)
             .reduce((acc, h) => acc + (h.type === 'Salida' ? h.amount : -h.amount), 0);
-  
+
           const disponible = (inventarioActual?.stock || 0) - consumoPosterior;
           if (updatedDonationType === 'Entrada' && med.amount < consumoPosterior) {
             throw new Error(`No se puede reducir la cantidad de medicina ${med.medicineId} a ${med.amount} porque se usaron ${consumoPosterior} unidades en salidas posteriores.`);
           }
         }
-  
+
         const updateData: any = {
           institutionId: donation.institutionId,
           providerId: donation.providerId,
@@ -165,19 +165,19 @@ export class DonationsService {
           updateAt: new Date(),
         };
         if (donation.changeDonDetails) updateData.lote = donation.lote;
-  
+
         const updatedDonation = await tx.donation.update({ where: { id }, data: updateData });
-  
+
         if (donation.changeDonDetails) {
           await tx.detDonation.deleteMany({ where: { donationId: id } });
-  
+
           const newDetails = donation.medicines.map(m => ({
             donationId: id,
             medicineId: m.medicineId,
             amount: m.amount
           }));
           await tx.detDonation.createMany({ data: newDetails });
-  
+
           const inventoryDto = {
             donationId: updatedDonation.id,
             lote: updatedDonation.lote,
@@ -192,11 +192,11 @@ export class DonationsService {
             date: updatedDonation.date,
             observations: 'Actualización con dependencias posteriores'
           };
-  
+
           const result = await this.inventoryService.processInventory(inventoryDto, tx);
           if (!result.success) throw new Error(result.message);
         }
-  
+
         return {
           success: true,
           message: 'Donación actualizada correctamente.',

@@ -31,12 +31,12 @@ model Town {
 }
 
 model Parish {
-  id     Int      @id @default(autoincrement())
-  name   String
-  townId Int
-  town   Town     @relation(fields: [townId], references: [id])
-  people People[]
-  events Events[]
+  id           Int            @id @default(autoincrement())
+  name         String
+  townId       Int
+  town         Town           @relation(fields: [townId], references: [id])
+  people       People[]
+  events       Events[]
   institutions Institutions[]
 }
 
@@ -71,8 +71,8 @@ model Institutions {
   deleted  Boolean    @default(false)
   Donation Donation[]
 
-  parishId  Int @default(1)
-  parish    Parish    @relation(fields: [parishId], references: [id])
+  parishId Int    @default(1)
+  parish   Parish @relation(fields: [parishId], references: [id])
 }
 
 // -------------------------------------------
@@ -157,6 +157,14 @@ model Users {
   correo   String
   username String
   password String
+  rolId    Int
+  rol      Role   @relation(fields: [rolId], references: [id])
+}
+
+model Role {
+  id    Int     @id @default(autoincrement())
+  rol   String
+  Users Users[]
 }
 
 // ---------------------------------------
