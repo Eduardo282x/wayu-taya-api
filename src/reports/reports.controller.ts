@@ -1,7 +1,7 @@
 import { Controller, Get, Res ,Post, HttpException, HttpStatus, Body} from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { Response } from 'express';
-import { ReportsDTO } from './reports.dto';
+import { ReportsDTO, SummaryReportDto, SummaryReportResponse } from './reports.dto';
 
 @Controller('reports')
 export class ReportsController {
@@ -12,65 +12,6 @@ export class ReportsController {
   async getFreedom() {
     return 'Well done';
   }
-  /*
-  @Get('/test')
-  async getDocument(@Res() res: Response) {
-    const buffer = await this.reportsService.generateCenteredTextDoc();
-
-    res.set({
-      'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'Content-Disposition': 'attachment; filename="documento.docx"',
-    });
-
-    res.send(buffer);
-  }
-
-  @Get('personastest')
-async downloadPersonReport(@Res() res: Response) {
-  const buffer = await this.reportsService.generatePersonReport();
-
-  res.set({
-    'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'Content-Disposition': 'attachment; filename=personas.docx',
-  });
-
-  res.send(buffer);
-}
-
-@Get('bruscotest')
-async getTemplate(@Res() res: Response) {
-  const buffer = await this.reportsService.generateDonationReportTemplate();
-
-  res.set({
-    'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-    'Content-Disposition': 'attachment; filename="plantilla-reporte.docx"',
-  });
-
-  res.send(buffer);
-}
-/*
-@Post('by-provider-and-lots')
-  async generateCustomReport(
-    @Body() body: { provider: string; lotes: string[] },
-    @Res() res: Response
-  ) {
-    try {
-      const buffer = await this.reportsService.generateReportByProviderAndLots(
-        body.provider,
-        body.lotes
-      );
-
-      res.set({
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'Content-Disposition': 'attachment; filename=donation-report.docx',
-      });
-
-      res.send(buffer);
-    } catch (error) {
-      console.error('Error generando el reporte:', error);
-      throw new HttpException('No se pudo generar el reporte.', HttpStatus.INTERNAL_SERVER_ERROR);
-    }
-  }*/
 
   @Post('by-provider-and-lots')
   async generateCustomReport(
@@ -140,5 +81,23 @@ async getTemplate(@Res() res: Response) {
     }
   }
 
+  @Post('summary-report')
+  async getSummaryReport(@Body() dto: SummaryReportDto): Promise<SummaryReportResponse> {
+    try {
+      if (new Date(dto.from) >= new Date(dto.to)) {
+        throw new HttpException(
+          'La fecha de inicio debe ser anterior a la fecha de fin',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      return await this.reportsService.generateSummaryReport(dto);
+    } catch (error) {
+      console.error(error);
+      if (error instanceof HttpException) throw error;
+
+      throw new HttpException('Error interno del servidor', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+  }
   
 }

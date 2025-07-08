@@ -17,530 +17,15 @@ import {   Document,
     BorderStyle} from 'docx';
     import { readFileSync } from 'fs';
 import { format } from 'date-fns';
-import { ReportsDTO } from './reports.dto';
+import { DonationSummary, ProductSummary, ReportsDTO, StoreSummary, SummaryReportDto, SummaryReportResponse } from './reports.dto';
+import { PrismaService } from 'src/prisma/prisma.service';
 
 const prisma = new PrismaClient();
 
 @Injectable()
 export class ReportsService {
-/*
-  async generateCenteredTextDoc(): Promise<Buffer> {
-    const doc = new Document({
-      sections: [
-        {
-          children: [
-            new Paragraph({
-              alignment: AlignmentType.CENTER,
-              children: [
-                new TextRun({
-                  text: '¡Hola desde el servicio de Reports!',
-                  bold: true,
-                  size: 32,
-                }),
-              ],
-            }),
-          ],
-        },
-      ],
-    });
+  constructor(private readonly prisma: PrismaService) {}
 
-    return await Packer.toBuffer(doc);
-  }
-
-    async generatePersonReport(): Promise<Buffer> {
-    const people = [
-      { name: 'Carlos', email: 'carlos@example.com' },
-      { name: 'Maria', email: 'maria@example.com' },
-    ];
-  
-    const rows = people.map(person =>
-      new TableRow({
-        children: [
-          new TableCell({ children: [new Paragraph(person.name)] }),
-          new TableCell({ children: [new Paragraph(person.email)] }),
-        ],
-      }),
-    );
-  
-    const doc = new Document({
-      sections: [
-        {
-          children: [
-            new Paragraph({
-              children: [new TextRun({ text: 'Reporte de Personas', bold: true, size: 28 })],
-            }),
-            new Table({
-              rows: [
-                new TableRow({
-                  children: [
-                    new TableCell({ children: [new Paragraph('Nombre')] }),
-                    new TableCell({ children: [new Paragraph('Correo')] }),
-                  ],
-                }),
-                ...rows,
-              ],
-            }),
-          ],
-        },
-      ],
-    });
-  
-    return await Packer.toBuffer(doc);
-  }
-  
-  async generateDonationReportTemplate(): Promise<Buffer> {
-    const logoImage = readFileSync('src/assets/logo.png');
-
-    const image = new ImageRun({
-      data: logoImage,
-      transformation: {
-        width: 150,
-        height: 100,
-      }, type: 'png',
-    });
-
-    const header = new Header({
-      children: [
-        new Paragraph({
-          alignment: AlignmentType.LEFT,
-          children: [image],
-        }),
-      ],
-    });
-
-    const title = new Paragraph({
-      alignment: AlignmentType.CENTER,
-      heading: HeadingLevel.HEADING_1,
-      spacing: { after: 300 },
-      children: [
-        new TextRun({
-          text: 'FUNDACIÓN WAYUU TAYA – DIRECT RELIEF',
-          bold: true,
-        }),
-      ],
-    });
-
-    const subtitle = new Paragraph({
-      alignment: AlignmentType.CENTER,
-      heading: HeadingLevel.HEADING_2,
-      spacing: { after: 200 },
-      children: [
-        new TextRun({
-          text: 'REPORTE DE DONACIÓN DE INSUMOS RECIBIDOS',
-          bold: true,
-        }),
-      ],
-    });
-
-    const intro = new Paragraph({
-      spacing: { after: 300 },
-      children: [
-        new TextRun({
-          text:
-            'En los meses agosto y noviembre del año 2024, recibimos por parte de DIRECT RELIEF una donación importante de medicamentos los cuales fueron distribuidos a centros de salud e instituciones del País.',
-        }),
-      ],
-    });
-
-    const createTable = (headers: string[], numRows: number = 4) =>
-      new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          new TableRow({
-            children: headers.map(
-              (h) =>
-                new TableCell({
-                  shading: {
-                    fill: 'CCE5FF',
-                  },
-                  children: [
-                    new Paragraph({
-                      children: [new TextRun({ text: h, bold: true })],
-                    }),
-                  ],
-                })
-            ),
-          }),
-          ...Array.from({ length: numRows }).map(
-            () =>
-              new TableRow({
-                children: headers.map(
-                  () =>
-                    new TableCell({
-                      children: [new Paragraph('')],
-                    })
-                ),
-              })
-          ),
-        ],
-      });
-
-    const loteAgostoTable = createTable([
-      'Meses',
-      'Centros de Salud',
-      'Instituciones y Organizaciones',
-      'Beneficiarios',
-      'Items Entregados',
-    ]);
-
-    const loteNoviembreTable = createTable([
-      'Meses',
-      'Centros de Salud',
-      'Instituciones y Organizaciones',
-      'Beneficiarios',
-      'Items Entregados',
-    ]);
-
-    const vitaminasTable = createTable(
-      ['Vitaminas', 'BT Entregados', 'Beneficiarios'],
-      2
-    );
-
-    const estadosTable = createTable(['Estados', 'Municipios', 'Parroquias'], 2);
-
-    const nombreCentrosTitle = new Paragraph({
-      heading: HeadingLevel.HEADING_3,
-      spacing: { before: 400, after: 200 },
-      children: [
-        new TextRun({
-          text: 'NOMBRE DE CENTROS DE SALUD E INSTITUCIONES BENEFICIADAS',
-          bold: true,
-        }),
-      ],
-    });
-
-    const centrosSaludTable = createTable(
-      ['Estado', 'Municipio', 'Parroquia', 'Centro de Salud'],
-      5
-    );
-
-    const institucionesTable = createTable(
-      ['Municipio', 'Parroquia', 'Organizaciones e Instituciones'],
-      5
-    );
-
-    const doc = new Document({
-      sections: [
-        {
-          headers: {
-            default: header,
-          },
-          children: [
-            title,
-            subtitle,
-            intro,
-            new Paragraph({
-              children: [new TextRun({ text: 'LOTE AGOSTO 2024', bold: true })],
-            }),
-            loteAgostoTable,
-            new Paragraph({
-              children: [new TextRun({ text: 'LOTE NOVIEMBRE 2024', bold: true })],
-            }),
-            loteNoviembreTable,
-            new Paragraph({
-              children: [new TextRun({ text: 'VITAMINAS CENTRUM Y KIRKHUMANITARIAN', bold: true })],
-            }),
-            vitaminasTable,
-            new Paragraph({
-              children: [new TextRun({ text: 'ESTADÍSTICAS GEOGRÁFICAS', bold: true })],
-            }),
-            estadosTable,
-            nombreCentrosTitle,
-            centrosSaludTable,
-            new Paragraph({
-              children: [new TextRun({ text: 'INSTITUCIONES BENEFICIADAS', bold: true })],
-            }),
-            institucionesTable,
-          ],
-        },
-      ],
-    });
-
-    return await Packer.toBuffer(doc);
-  }
-
-
-  /*
-  async generateReportByProviderAndLots(providerName: string, lotes: string[]): Promise<Buffer> {
-    try {
-      const logoImage = readFileSync('src/assets/logo.png');
-      const headerImage = new ImageRun({
-        data: logoImage,
-        transformation: { width: 100, height: 50 },
-        type: 'png',
-      });
-
-      const header = new Header({
-        children: [
-          new Paragraph({
-            alignment: AlignmentType.LEFT,
-            children: [headerImage],
-          }),
-        ],
-      });
-
-      const title = new Paragraph({
-        alignment: AlignmentType.CENTER,
-        heading: HeadingLevel.HEADING_1,
-        spacing: { after: 300 },
-        children: [
-          new TextRun({
-            text: 'REPORTE DE DONACIÓN POR PROVEEDOR Y LOTE',
-            bold: true,
-          }),
-        ],
-      });
-
-      const donations = await prisma.donation.findMany({
-        where: {
-          provider: { name: providerName },
-          lote: { in: lotes },
-        },
-        include: {
-          provider: true,
-          institution: true,
-          detDonation: { include: { medicine: true } },
-        },
-      });
-
-      const groupedByLote: Record<string, typeof donations> = {};
-      donations.forEach((donation) => {
-        if (!groupedByLote[donation.lote]) {
-          groupedByLote[donation.lote] = [];
-        }
-        groupedByLote[donation.lote].push(donation);
-      });
-
-      const tables = Object.entries(groupedByLote).map(([lote, lotDonations]) => {
-        const rows = lotDonations.map((donation) => {
-          const institution = donation.institution?.name || 'Sin institución';
-          const totalItems = donation.detDonation.reduce((acc, det) => acc + det.amount, 0);
-          const totalBeneficiaries = donation.detDonation.reduce((acc, det) => acc + (det.medicine.benefited * det.amount), 0);
-
-          return new TableRow({
-            children: [
-              new TableCell({ children: [new Paragraph(lote)] }),
-              new TableCell({ children: [new Paragraph(institution)] }),
-              new TableCell({ children: [new Paragraph(totalItems.toString())] }),
-              new TableCell({ children: [new Paragraph(totalBeneficiaries.toString())] }),
-            ],
-          });
-        });
-
-        return new Table({
-          width: { size: 100, type: WidthType.PERCENTAGE },
-          rows: [
-            new TableRow({
-              children: [
-                new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Lote')] }),
-                new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Institución')] }),
-                new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Items')] }),
-                new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Beneficiarios')] }),
-              ],
-            }),
-            ...rows,
-          ],
-        });
-      });
-
-      const doc = new Document({
-        sections: [
-          {
-            headers: { default: header },
-            children: [
-              title,
-              new Paragraph({
-                spacing: { after: 300 },
-                children: [
-                  new TextRun(`Este reporte contiene las donaciones realizadas por ${providerName} en los lotes seleccionados.`),
-                ],
-              }),
-              ...tables,
-            ],
-          },
-        ],
-      });
-
-      return await Packer.toBuffer(doc);
-    } catch (error) {
-      console.error('Error en generateReportByProviderAndLots:', error);
-      throw new Error('No se pudo generar el documento Word.');
-    }
-  }
-
-/*
-  async generateReportByProviderAndLots(providerName: string, lotes: string[]): Promise<Buffer> {
-    try {
-      const logoImage = readFileSync('src/assets/logo.png');
-      const image = new ImageRun({
-        data: logoImage,
-        transformation: { width: 100, height: 50 },
-        type: 'png',
-      });
-  
-      const header = new Header({
-        children: [
-          new Paragraph({
-            alignment: AlignmentType.LEFT,
-            children: [image],
-          }),
-        ],
-      });
-  
-      const title = new Paragraph({
-        alignment: AlignmentType.CENTER,
-        heading: HeadingLevel.HEADING_1,
-        spacing: { after: 300 },
-        children: [
-          new TextRun({
-            text: 'REPORTE DE DONACIÓN POR PROVEEDOR Y LOTE',
-            bold: true,
-          }),
-        ],
-      });
-  
-      // Buscar donaciones ENTRADA con type exacto 'Entrada'
-      const entradas = await prisma.donation.findMany({
-        where: {
-          type: 'Entrada',
-          provider: { name: providerName },
-          lote: { in: lotes },
-        },
-        include: {
-          detDonation: { include: { medicine: true } },
-        },
-      });
-  
-      if (entradas.length === 0) {
-        throw new Error('No se encontraron donaciones de entrada para ese proveedor y lotes.');
-      }
-  
-      const lotesConfirmados = entradas.map(e => e.lote);
-  
-      // Buscar donaciones SALIDA con type exacto 'Salida'
-      const salidas = await prisma.donation.findMany({
-        where: {
-          type: 'Salida',
-          lote: { in: lotesConfirmados },
-        },
-        include: {
-          institution: true,
-          detDonation: { include: { medicine: true } },
-        },
-      });
-  
-      type SalidaGrouped = Record<
-        string,
-        {
-          [institutionName: string]: number;
-        }
-      >;
-  
-      const salidasAgrupadas: SalidaGrouped = {};
-  
-      for (const salida of salidas) {
-        const lote = salida.lote;
-        const institutionName = salida.institution?.name || 'Sin institución';
-  
-        if (!salidasAgrupadas[lote]) salidasAgrupadas[lote] = {};
-        if (!salidasAgrupadas[lote][institutionName]) salidasAgrupadas[lote][institutionName] = 0;
-  
-        const totalItemsSalida = salida.detDonation.reduce((acc, det) => acc + det.amount, 0);
-        salidasAgrupadas[lote][institutionName] += totalItemsSalida;
-      }
-  
-      const rows: TableRow[] = [];
-  
-      for (const entrada of entradas) {
-        const lote = entrada.lote;
-        const totalItemsEntrada = entrada.detDonation.reduce((acc, det) => acc + det.amount, 0);
-  
-        rows.push(
-          new TableRow({
-            children: [
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [new TextRun({ text: lote, bold: true })],
-                  }),
-                ],
-              }),
-              new TableCell({
-                children: [
-                  new Paragraph({
-                    children: [new TextRun({ text: `Proveedor: ${providerName}`, bold: true })],
-                  }),
-                ],
-              }),
-              new TableCell({
-                children: [new Paragraph(totalItemsEntrada.toString())],
-              }),
-              new TableCell({
-                children: [new Paragraph('')],
-              }),
-            ],
-          }),
-        );
-  
-        const salidaPorInstitucion = salidasAgrupadas[lote] || {};
-  
-        for (const [institutionName, cantidad] of Object.entries(salidaPorInstitucion)) {
-          rows.push(
-            new TableRow({
-              children: [
-                new TableCell({ children: [new Paragraph('')] }),
-                new TableCell({ children: [new Paragraph(institutionName)] }),
-                new TableCell({ children: [new Paragraph(cantidad.toString())] }),
-                new TableCell({ children: [new Paragraph('')] }),
-              ],
-            }),
-          );
-        }
-      }
-  
-      const table = new Table({
-        width: { size: 100, type: WidthType.PERCENTAGE },
-        rows: [
-          new TableRow({
-            children: [
-              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Lote')] }),
-              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Institución / Proveedor')] }),
-              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Cantidad Items')] }),
-              new TableCell({ shading: { fill: 'CCE5FF' }, children: [new Paragraph('Observaciones')] }),
-            ],
-          }),
-          ...rows,
-        ],
-      });
-  
-      const doc = new Document({
-        sections: [
-          {
-            headers: { default: header },
-            children: [
-              title,
-              new Paragraph({
-                spacing: { after: 300 },
-                children: [
-                  new TextRun({
-                    text: `Reporte de donaciones del proveedor ${providerName} para lotes: ${lotesConfirmados.join(', ')}`,
-                  }),
-                ],
-              }),
-              table,
-            ],
-          },
-        ],
-      });
-  
-      return await Packer.toBuffer(doc);
-    } catch (error) {
-      console.error('Error en generateReportByProviderAndLots:', error);
-      throw new Error('Error generando el documento Word.');
-    }
-  }
-  */
-  //commented lines are only trys and/or tests//
   async generateSampleDoc(providerName: string, lotes: string[]): Promise<Buffer> {
     try {
       if (!providerName || lotes.length === 0) {
@@ -1569,6 +1054,110 @@ export class ReportsService {
     
     
   }
+
+
+  async generateSummaryReport(dto: SummaryReportDto): Promise<SummaryReportResponse> {
+    try {
+      const from = new Date(dto.from);
+      const to = new Date(dto.to);
+      to.setHours(23, 59, 59, 999);
+
+      const [donaciones, productosMasDonados, productosPorAlmacen, totalGlobalInventario] = await Promise.all([
+        this.getDonationsByDateRange(from, to),
+        this.getMostDonatedProducts(from, to),
+        this.getProductsByStore(),
+        this.getTotalInventory(),
+      ]);
+
+      return {
+        donaciones,
+        productosMasDonados,
+        productosPorAlmacen,
+        totalGlobalInventario,
+        periodo: { desde: dto.from, hasta: dto.to },
+      };
+    } catch (error) {
+      console.error('Error al generar el resumen:', error);
+      throw error;
+    }
+  }
+
+  private async getDonationsByDateRange(from: Date, to: Date): Promise<DonationSummary[]> {
+    const donations = await this.prisma.donation.findMany({
+      where: {
+        type: 'Salida',
+        date: { gte: from, lte: to },
+      },
+      include: {
+        detDonation: {
+          include: { medicine: true },
+        },
+      },
+      orderBy: { date: 'desc' },
+    });
+
+    return donations.map((d) => ({
+      id: d.id,
+      date: d.date,
+      details: d.detDonation.map((dd) => ({
+        product: dd.medicine.name,
+        quantity: dd.amount,
+      })),
+    }));
+  }
+
+  private async getMostDonatedProducts(from: Date, to: Date): Promise<ProductSummary[]> {
+    const donations = await this.prisma.donation.findMany({
+      where: {
+        type: 'Salida',
+        date: { gte: from, lte: to },
+      },
+      include: {
+        detDonation: { include: { medicine: true } },
+      },
+    });
+
+    const productTotals = new Map<string, number>();
+    let total = 0;
+
+    donations.forEach((d) =>
+      d.detDonation.forEach((dd) => {
+        const name = dd.medicine.name;
+        productTotals.set(name, (productTotals.get(name) || 0) + dd.amount);
+        total += dd.amount;
+      }),
+    );
+
+    return Array.from(productTotals.entries())
+      .map(([nombreDelProducto, cantidadDonada]) => ({
+        nombreDelProducto,
+        cantidadDonada,
+        porcentajeRespectoAlTotalDeSalidas: total
+          ? Math.round((cantidadDonada / total) * 10000) / 100
+          : 0,
+      }))
+      .sort((a, b) => b.cantidadDonada - a.cantidadDonada);
+  }
+
+  private async getProductsByStore(): Promise<StoreSummary[]> {
+    const stores = await this.prisma.store.findMany({
+      include: { inventory: true },
+    });
+
+    return stores.map((store) => ({
+      nombreAlmacen: store.name,
+      totalProductos: store.inventory.reduce((sum, i) => sum + i.stock, 0),
+    }));
+  }
+
+  private async getTotalInventory(): Promise<number> {
+    const result = await this.prisma.inventory.aggregate({
+      _sum: { stock: true },
+    });
+
+    return result._sum.stock || 0;
+  }
+
 }
 
 
