@@ -24,7 +24,7 @@ export class StateService {
             baseResponse.message = 'Estado creado exitosamente.'
             return baseResponse;
         } catch (err) {
-            badResponse.message = 'Error al crear el state.' + err
+            badResponse.message = 'Error al crear el Estado.' + err
             return badResponse;
         }
     }
@@ -38,7 +38,7 @@ export class StateService {
             baseResponse.message = 'Estado actualizado exitosamente.'
             return baseResponse
         } catch (err) {
-            badResponse.message = 'Error al actualizar el state.' + err
+            badResponse.message = 'Error al actualizar el Estado.' + err
             return badResponse;
         }
     }
@@ -51,7 +51,7 @@ export class StateService {
             baseResponse.message = 'Estado eliminado exitosamente.'
             return baseResponse;
         } catch (err) {
-            badResponse.message = 'Error al eliminar el state.' + err
+            badResponse.message = 'Error al eliminar el Estado: ' + err
             return badResponse;
         }
     }

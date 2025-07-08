@@ -54,10 +54,10 @@ export class InstitutionsService {
             await this.prismaService.institutions.createMany({
                 data: institutions.institutions
             })
-            baseResponse.message = 'Institucion creada exitosamente.'
+            baseResponse.message = 'Instituciones creadas exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al crear la Institucion.' + error
+            badResponse.message = 'Error al crear las Instituciones.' + error
             return badResponse;
         }
     }
@@ -90,10 +90,10 @@ export class InstitutionsService {
                 where: { id: id_institution },
                 data: { deleted: true },
             });
-            baseResponse.message = 'Institucion marcada como deleted exitosamente.';
+            baseResponse.message = 'Institucion marcada como eliminada exitosamente.';
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al marcar el institucion como deleted.' + error;
+            badResponse.message = 'Error al marcar el Institucion como eliminada.' + error;
             return badResponse;
         }
     }

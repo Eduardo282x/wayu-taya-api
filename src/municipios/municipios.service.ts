@@ -27,7 +27,7 @@ export class MunicipiosService {
             baseResponse.message = 'Municipio creado exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al crear municipio.' + error
+            badResponse.message = 'Error al crear Municipio.' + error
             return badResponse;
         }
     }

@@ -43,10 +43,10 @@ export class MedicineService {
                     benefited: medicine.benefited ? medicine.benefited : 1,
                 }
             });
-            baseResponse.message = 'Medicina creado exitosamente.'
+            baseResponse.message = 'Medicina creada exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'error al crear el Medicina.' + error
+            badResponse.message = 'Error al crear el Medicina.' + error
             return badResponse;
         }
     }
@@ -58,10 +58,10 @@ export class MedicineService {
                     category: category.category
                 }
             });
-            baseResponse.message = 'Medicina creado exitosamente.'
+            baseResponse.message = 'Categoría creada exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'error al crear el Medicina.' + error
+            badResponse.message = 'error al crear el Categoría.' + error
             return badResponse;
         }
     }
@@ -73,10 +73,10 @@ export class MedicineService {
                     forms: forms.forms
                 }
             });
-            baseResponse.message = 'Medicina creado exitosamente.'
+            baseResponse.message = 'Forma creada exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'error al crear el Medicina.' + error
+            badResponse.message = 'Error al crear la Forma.' + error
             return badResponse;
         }
     }
@@ -100,7 +100,7 @@ export class MedicineService {
                 where: { id: id }
             });
 
-            baseResponse.message = 'exito al actualizar la Medicina.'
+            baseResponse.message = 'Medicina actualizada exitosamente.'
             return baseResponse;
         } catch (error) {
             badResponse.message = 'Error al actualizar la Medicina.' + error
@@ -117,10 +117,10 @@ export class MedicineService {
                 where: { id: id }
             });
 
-            baseResponse.message = 'exito al actualizar la Medicina.'
+            baseResponse.message = 'Categoría actualizada exitosamente'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al actualizar la Medicina.' + error
+            badResponse.message = 'Error al actualizar la Categoría.' + error
             return badResponse;
         }
     }
@@ -134,10 +134,10 @@ export class MedicineService {
                 where: { id: id }
             });
 
-            baseResponse.message = 'exito al actualizar la Medicina.'
+            baseResponse.message = 'Forma actualizada exitosamente'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al actualizar la Medicina.' + error
+            badResponse.message = 'Error al actualizar la Forma.' + error
             return badResponse;
         }
     }
@@ -161,10 +161,10 @@ export class MedicineService {
                 where: { id: id }
             })
 
-            baseResponse.message = 'Medicina/Producto eliminado exitosamente';
+            baseResponse.message = 'Categoría eliminado exitosamente';
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al eliminar la Medicina/Producto.' + error
+            badResponse.message = 'Error al eliminar la Categoría: ' + error
             return badResponse;
         }
     }
@@ -175,10 +175,10 @@ export class MedicineService {
                 where: { id: id }
             })
 
-            baseResponse.message = 'Medicina/Producto eliminado exitosamente';
+            baseResponse.message = 'Forma eliminada exitosamente';
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al eliminar la Medicina/Producto.' + error
+            badResponse.message = 'Error al eliminar la Forma: ' + error
             return badResponse;
         }
     }

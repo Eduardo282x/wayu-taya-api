@@ -202,7 +202,7 @@ export class DonationsService {
     } catch (error) {
       return {
         success: false,
-        message: error instanceof Error ? error.message : 'Error desconocido en actualización de donación',
+        message: error instanceof Error ? error.message : 'Error desconocido en actualización de donación.',
       };
     }
   }
@@ -246,7 +246,7 @@ export class DonationsService {
 
         return {
           success: true,
-          message: 'Donación eliminada y cambios en inventario revertidos correctamente',
+          message: 'Donación eliminada y cambios en inventario revertidos correctamente.',
           data: deletedDonation
         };
       });

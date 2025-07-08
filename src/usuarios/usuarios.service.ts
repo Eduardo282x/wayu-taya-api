@@ -30,7 +30,7 @@ export class UsuariosService {
             return baseResponse;
         }
         catch (err) {
-            badResponse.message = `Ha ocurrido un error ${err}`
+            badResponse.message = `Ha ocurrido un error creando el usuario: ${err}`
             return badResponse
         }
     }
@@ -51,7 +51,7 @@ export class UsuariosService {
             return baseResponse;
         }
         catch (err) {
-            badResponse.message = `Ha ocurrido un error ${err}`
+            badResponse.message = `Ha ocurrido un error actualizando el usuario: ${err}`
             return badResponse
         }
     }
@@ -62,11 +62,11 @@ export class UsuariosService {
                 where: { id: id_usuario }
             })
 
-            baseResponse.message = 'Usuario deleted exitosamente';
+            baseResponse.message = 'Usuario eliminado exitosamente';
             return baseResponse;
         }
         catch (err) {
-            badResponse.message = `Ha ocurrido un error ${err}`
+            badResponse.message = `Ha ocurrido un error al eliminar el usuario: ${err}`
             return badResponse
         }
     }
