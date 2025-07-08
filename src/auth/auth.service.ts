@@ -16,6 +16,9 @@ export class AuthService {
                 where: {
                     username: login.username,
                     password: login.password
+                },
+                include: {
+                    rol: true
                 }
             })
 

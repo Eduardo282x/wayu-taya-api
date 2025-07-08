@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { badResponse, baseResponse } from 'src/dto/base.dto';
+import { badResponse, baseResponse, BaseResponseLogin } from 'src/dto/base.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { DTOUsuarios } from './usuarios.dto';
+import { DTOUsuarios, DTOUsuariosPassword } from './usuarios.dto';
 
 @Injectable()
 export class UsuariosService {
@@ -29,6 +29,53 @@ export class UsuariosService {
 
             baseResponse.message = 'Usuario creado exitosamente';
             return baseResponse;
+        }
+        catch (err) {
+            badResponse.message = `Ha ocurrido un error ${err}`
+            return badResponse
+        }
+    }
+
+    async updateUserPassword(id: number, newPassword: DTOUsuariosPassword) {
+        try {
+            await this.prismaService.users.update({
+                data: {
+                    password: newPassword.newPassword,
+                },
+                where: { id }
+            })
+
+            baseResponse.message = 'Contraseña actualizada exitosamente';
+            return baseResponse;
+        }
+        catch (err) {
+            badResponse.message = `Ha ocurrido un error ${err}`
+            return badResponse
+        }
+    }
+
+    async updateProfile(id: number, username: DTOUsuarios) {
+        try {
+            const userUpdated = await this.prismaService.users.update({
+                data: {
+                    username: username.username,
+                    name: username.name,
+                    lastName: username.lastName,
+                    correo: username.correo
+                },
+                where: { id },
+                include: {
+                    rol: true
+                }
+            })
+
+            const responseLogin: BaseResponseLogin = {
+                ...baseResponse,
+                token: JSON.stringify(userUpdated)
+            }
+
+            responseLogin.message = `Perfil Actualizado.`
+            return responseLogin
         }
         catch (err) {
             badResponse.message = `Ha ocurrido un error ${err}`
