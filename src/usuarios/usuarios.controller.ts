@@ -13,6 +13,10 @@ export class UsuariosController {
     async getUsers() {
         return await this.usuarioService.getUsers();
     }
+    @Get('/roles')
+    async getRoles() {
+        return await this.usuarioService.getRoles();
+    }
     @Post()
     async createUser(@Body() username: DTOUsuarios) {
         return await this.usuarioService.createUser(username);
