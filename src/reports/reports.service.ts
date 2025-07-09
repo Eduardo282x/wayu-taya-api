@@ -1171,6 +1171,7 @@ export class ReportsService {
   private async getProductsByStore(): Promise<StoreSummary[]> {
     const stores = await this.prisma.store.findMany({
       include: { inventory: true },
+      orderBy: { id: 'asc' }
     });
 
     return stores.map((store) => ({

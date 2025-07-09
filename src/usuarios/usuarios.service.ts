@@ -11,7 +11,12 @@ export class UsuariosService {
     }
 
     async getUsers() {
-        return this.prismaService.users.findMany()
+        return this.prismaService.users.findMany({
+            include: { rol: true }
+        })
+    }
+    async getRoles() {
+        return this.prismaService.role.findMany()
     }
 
     async createUser(username: DTOUsuarios) {
@@ -22,7 +27,7 @@ export class UsuariosService {
                     name: username.name,
                     lastName: username.lastName,
                     password: '1234',
-                    rolId: 2,
+                    rolId: username.rolId,
                     correo: username.correo
                 }
             })
@@ -90,7 +95,8 @@ export class UsuariosService {
                     username: username.username,
                     name: username.name,
                     lastName: username.lastName,
-                    correo: username.correo
+                    correo: username.correo,
+                    rolId: username.rolId,
                 },
                 where: { id: id_usuario }
             })

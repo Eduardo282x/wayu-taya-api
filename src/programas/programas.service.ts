@@ -42,7 +42,7 @@ export class ProgramsService {
                 },
                 where: { id: id_programs }
             });
-            baseResponse.message = 'exito al actualizar el program.'
+            baseResponse.message = 'éxito al actualizar el program.'
             return baseResponse;
         } catch (error) {
             badResponse.message = 'Error al actualizar el program.' + error

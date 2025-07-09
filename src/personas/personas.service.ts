@@ -133,7 +133,7 @@ export class PersonasService {
                 data: dataPersonasProgramas
             })
 
-            baseResponse.message = 'persona actualizada exitosamente.'
+            baseResponse.message = 'Persona actualizada exitosamente.'
             return baseResponse;
         } catch (error) {
             badResponse.message = 'Error al actualizar la persona.' + error

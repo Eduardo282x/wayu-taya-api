@@ -1,4 +1,4 @@
-import { IsEmail, IsNotEmpty, IsString } from "class-validator";
+import { IsEmail, IsNotEmpty, IsNumber, IsString } from "class-validator";
 
 export class DTOUsuarios {
     @IsString()
@@ -10,6 +10,8 @@ export class DTOUsuarios {
     @IsString()
     @IsEmail()
     correo: string;
+    @IsNumber()
+    rolId: number;
 }
 export class DTOUsuariosPassword {
     @IsString()
