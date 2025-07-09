@@ -25,10 +25,10 @@ export class ProgramsService {
                     type: program.type
                 }
             })
-            baseResponse.message = 'exito al crear el program.'
+            baseResponse.message = 'Programa creado exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al crear el program.' + error
+            badResponse.message = 'Error al crear el Programa.' + error
             return badResponse;
         }
     }
@@ -42,10 +42,10 @@ export class ProgramsService {
                 },
                 where: { id: id_programs }
             });
-            baseResponse.message = 'éxito al actualizar el program.'
+            baseResponse.message = 'Programa actualizado exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al actualizar el program.' + error
+            badResponse.message = 'Error al actualizar el Programa.' + error
             return badResponse;
         }
     }
@@ -57,10 +57,10 @@ export class ProgramsService {
                 data: { deleted: true }
             });
 
-            baseResponse.message = 'persona deleted exitosamente.'
+            baseResponse.message = 'Programa eliminado exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al eliminar persona.' + error
+            badResponse.message = 'Error al eliminar el programa.' + error
             return badResponse;
         }
     }
