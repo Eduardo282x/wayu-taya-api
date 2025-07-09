@@ -71,6 +71,7 @@ export class InstitutionsService {
                     address: institutions.address,
                     country: institutions.country,
                     email: institutions.email,
+                    type: institutions.type,
                     parishId: institutions.parishId,
                 },
                 where: { id }

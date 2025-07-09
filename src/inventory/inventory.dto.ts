@@ -77,3 +77,14 @@ export class DetailInventoryMoveDto {
   @IsNumber()
   targetStoreId: number;
 }
+
+export class InventoryOutDTO {
+  @IsNumber()
+  medicineId: number;
+  @IsNumber()
+  storeId: number;
+  @IsNumber()
+  amount: number;
+  @IsString()
+  observations: string;
+}

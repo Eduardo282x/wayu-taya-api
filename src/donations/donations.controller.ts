@@ -2,15 +2,20 @@ import { Body, Controller, Get, Param, Post, Put, Delete, Res, HttpException, Ht
 import { DonationsService } from './donations.service';
 import { DonationsDTO } from './donations.dto';
 import { Response } from 'express';
+import { ReportsService } from 'src/reports/reports.service';
 
 @Controller('donations')
 export class DonationsController {
 
-  constructor(private donationsService: DonationsService) { }
+  constructor(private donationsService: DonationsService, private reportService: ReportsService) { }
 
   @Get()
   async getDonations() {
     return await this.donationsService.getDonations()
+  }
+  @Get('/lotes')
+  async getLotes() {
+    return await this.reportService.getLotes()
   }
 
   @Get('/download/:id')
@@ -43,10 +48,10 @@ export class DonationsController {
     return await this.donationsService.createDonation(data);
   }
 
-    @Put('/:id')
-    async updateDonations(@Param('id') id: string, @Body() data: DonationsDTO) {
-        return await this.donationsService.updateDonation(Number(id), data);
-    }
+  @Put('/:id')
+  async updateDonations(@Param('id') id: string, @Body() data: DonationsDTO) {
+    return await this.donationsService.updateDonation(Number(id), data);
+  }
 
   @Delete(':id')
   async deleteDonation(@Param('id') id: string) {

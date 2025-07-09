@@ -12,7 +12,7 @@ export class ParroquiasService {
 
     async getParroquia() {
         return await this.prismaService.parish.findMany({
-            include: { town: true }
+            include: { town: { include: { city: { include: { state: true } } } } }
         });
     }
 
