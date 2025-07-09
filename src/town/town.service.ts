@@ -55,7 +55,7 @@ export class TownService {
             await this.prismaService.town.delete({
                 where: { id: id_ciudad }
             })
-            baseResponse.message = 'Ciudad deleted exitosamente.'
+            baseResponse.message = 'Ciudad eliminada exitosamente.'
             return baseResponse;
         } catch (error) {
             badResponse.message = 'Error al eliminar la ciudad.' + error

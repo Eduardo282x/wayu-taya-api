@@ -69,10 +69,10 @@ export class ProveedoresService {
                 where: { id: id_proveedor },
                 data: { deleted: true },
             });
-            baseResponse.message = 'Proveedor marcado como deleted exitosamente.';
+            baseResponse.message = 'Proveedor marcado como eliminado exitosamente.';
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al marcar el proveedor como deleted.' + error;
+            badResponse.message = 'Error al marcar el proveedor como eliminado.' + error;
             return badResponse;
         }
     }

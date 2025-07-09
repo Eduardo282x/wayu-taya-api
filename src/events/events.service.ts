@@ -55,10 +55,10 @@ export class EventsService {
         data: dataProvidersEvents
       });
 
-      baseResponse.message = 'Events creado exitosamente.';
+      baseResponse.message = 'Evento creado exitosamente.';
       return baseResponse;
     } catch (error) {
-      badResponse.message = 'Error al crear event.' + error;
+      badResponse.message = 'Error al crear evento.' + error;
       return badResponse;
     }
   }
@@ -92,10 +92,10 @@ export class EventsService {
         });
       }
 
-      baseResponse.message = 'Event actualizado exitosamente.';
+      baseResponse.message = 'Evento actualizado exitosamente.';
       return baseResponse;
     } catch (error) {
-      badResponse.message = 'Error al actualizar el Event. ' + error;
+      badResponse.message = 'Error al actualizar el Evento. ' + error;
       return badResponse;
     }
   }
@@ -106,10 +106,10 @@ export class EventsService {
         where: { id },
         data: { deleted: true },
       });
-      baseResponse.message = 'Event marcado como deleted exitosamente.';
+      baseResponse.message = 'Evento marcado como eliminado exitosamente.';
       return baseResponse;
     } catch (error) {
-      badResponse.message = 'Error al marcar el event como deleted.' + error;
+      badResponse.message = 'Error al marcar el evento como eliminado.' + error;
       return badResponse;
     }
   }
