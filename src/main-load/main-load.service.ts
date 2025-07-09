@@ -60,16 +60,29 @@ export class MainLoadService {
             }
         }
 
+        await this.prismaService.role.createMany({
+            data: [
+                { rol: 'Super Admin' },
+                { rol: 'Administrador' },
+                { rol: 'Usuarios' },
+            ]
+        });
+        await this.prismaService.users.createMany({
+            data: [
+                { username: 'admin', password: 'admin', correo: 'admin', lastName: 'admin', name: 'admin', rolId: 1 },
+                { username: 'Roger', password: 'admin', correo: 'roger@gmail.com', lastName: 'Roger', name: 'Roger', rolId: 2 }
+            ]
+        });
         await this.prismaService.people.createMany({
             data: people
-        })
+        });
 
         await this.prismaService.programs.createMany({
             data: programs
-        })
+        });
         await this.prismaService.forms.createMany({
             data: forms
-        })
+        });
         const allProviders = [...providerDB, ...providers];
         await this.prismaService.providers.createMany({
             data: allProviders

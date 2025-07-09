@@ -10,11 +10,13 @@ export class StoreService {
 
     }
     async getStore() {
-        return await this.prismaService.store.findMany();
+        return await this.prismaService.store.findMany({
+            orderBy: { id: 'asc' }
+        });
     }
 
-    async createStore(store: StoreDTO){
-        try{
+    async createStore(store: StoreDTO) {
+        try {
             await this.prismaService.store.create({
                 data: {
                     name: store.name,
@@ -24,12 +26,12 @@ export class StoreService {
             baseResponse.message = 'Almacén creado exitosamente.'
             return baseResponse;
         } catch(error){
-            badResponse.message = 'Error al crear el Almacen.' + error
+            badResponse.message = 'Error al crear el Almacén.' + error
             return badResponse;
         }
     }
 
-    async updateStore(id: number, store: StoreDTO){
+    async updateStore(id: number, store: StoreDTO) {
         try {
             await this.prismaService.store.update({
                 data: {
@@ -38,10 +40,10 @@ export class StoreService {
                 },
                 where: { id: id }
             });
-            baseResponse.message = 'exito al actualizar el Almacen.'
+            baseResponse.message = 'Almacén actualizado exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'erroror al actualizar el Almacen.' + error
+            badResponse.message = 'Error al actualizar el Almacén.' + error
             return badResponse;
         }
     }
@@ -52,10 +54,10 @@ export class StoreService {
                 where: { id: id }
             })
 
-            baseResponse.message = 'almacen eliminado exitosamente';
+            baseResponse.message = 'Almacén eliminado exitosamente';
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al eliminar el Almacen.' + error
+            badResponse.message = 'Error al eliminar el Almacén: ' + error
             return badResponse;
         }
 

@@ -65,7 +65,7 @@ export class MedicineController {
         return await this.medicineService.updateForms(Number(id), forms);
     }
     @Delete('/:id')
-    async deletemedicine(@Param('id') id: string) {
+    async deleteMedicine(@Param('id') id: string) {
         return await this.medicineService.deleteMedicine(Number(id));
     }
     //categoria eliminar

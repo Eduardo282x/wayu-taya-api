@@ -12,7 +12,7 @@ export class ParroquiasService {
 
     async getParroquia() {
         return await this.prismaService.parish.findMany({
-            include: { town: true }
+            include: { town: { include: { city: { include: { state: true } } } } }
         });
     }
 
@@ -27,7 +27,7 @@ export class ParroquiasService {
             baseResponse.message = 'Parroquia creada exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al crear la parroquia.' + error
+            badResponse.message = 'Error al crear la Parroquia.' + error
             return badResponse;
         }
     }
@@ -41,7 +41,7 @@ export class ParroquiasService {
             baseResponse.message = 'Parroquia actualizada exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al actualizar la parroquia.' + error
+            badResponse.message = 'Error al actualizar la Parroquia.' + error
             return badResponse;
         }
     }
@@ -51,10 +51,10 @@ export class ParroquiasService {
             await this.prismaService.parish.delete({
                 where: { id: id_parroquia }
             })
-            baseResponse.message = 'Parroquia deleted exitosamente.'
+            baseResponse.message = 'Parroquia eliminada exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al eliminar la parroquia.' + error
+            badResponse.message = 'Error al eliminar la parroquia: ' + error
             return badResponse;
         }
     }

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { badResponse, baseResponse } from 'src/dto/base.dto';
+import { badResponse, baseResponse, BaseResponseLogin } from 'src/dto/base.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { DTOUsuarios } from './usuarios.dto';
+import { DTOUsuarios, DTOUsuariosPassword } from './usuarios.dto';
 
 @Injectable()
 export class UsuariosService {
@@ -11,7 +11,12 @@ export class UsuariosService {
     }
 
     async getUsers() {
-        return this.prismaService.users.findMany()
+        return this.prismaService.users.findMany({
+            include: { rol: true }
+        })
+    }
+    async getRoles() {
+        return this.prismaService.role.findMany()
     }
 
     async createUser(username: DTOUsuarios) {
@@ -22,12 +27,60 @@ export class UsuariosService {
                     name: username.name,
                     lastName: username.lastName,
                     password: '1234',
+                    rolId: username.rolId,
                     correo: username.correo
                 }
             })
 
             baseResponse.message = 'Usuario creado exitosamente';
             return baseResponse;
+        }
+        catch (err) {
+            badResponse.message = `Ha ocurrido un error creando el usuario: ${err}`
+            return badResponse
+        }
+    }
+
+    async updateUserPassword(id: number, newPassword: DTOUsuariosPassword) {
+        try {
+            await this.prismaService.users.update({
+                data: {
+                    password: newPassword.newPassword,
+                },
+                where: { id }
+            })
+
+            baseResponse.message = 'Contraseña actualizada exitosamente';
+            return baseResponse;
+        }
+        catch (err) {
+            badResponse.message = `Ha ocurrido un error ${err}`
+            return badResponse
+        }
+    }
+
+    async updateProfile(id: number, username: DTOUsuarios) {
+        try {
+            const userUpdated = await this.prismaService.users.update({
+                data: {
+                    username: username.username,
+                    name: username.name,
+                    lastName: username.lastName,
+                    correo: username.correo
+                },
+                where: { id },
+                include: {
+                    rol: true
+                }
+            })
+
+            const responseLogin: BaseResponseLogin = {
+                ...baseResponse,
+                token: JSON.stringify(userUpdated)
+            }
+
+            responseLogin.message = `Perfil Actualizado.`
+            return responseLogin
         }
         catch (err) {
             badResponse.message = `Ha ocurrido un error ${err}`
@@ -42,7 +95,8 @@ export class UsuariosService {
                     username: username.username,
                     name: username.name,
                     lastName: username.lastName,
-                    correo: username.correo
+                    correo: username.correo,
+                    rolId: username.rolId,
                 },
                 where: { id: id_usuario }
             })
@@ -51,7 +105,7 @@ export class UsuariosService {
             return baseResponse;
         }
         catch (err) {
-            badResponse.message = `Ha ocurrido un error ${err}`
+            badResponse.message = `Ha ocurrido un error actualizando el usuario: ${err}`
             return badResponse
         }
     }
@@ -62,11 +116,11 @@ export class UsuariosService {
                 where: { id: id_usuario }
             })
 
-            baseResponse.message = 'Usuario deleted exitosamente';
+            baseResponse.message = 'Usuario eliminado exitosamente';
             return baseResponse;
         }
         catch (err) {
-            badResponse.message = `Ha ocurrido un error ${err}`
+            badResponse.message = `Ha ocurrido un error al eliminar el usuario: ${err}`
             return badResponse
         }
     }

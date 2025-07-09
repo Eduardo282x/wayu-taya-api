@@ -102,7 +102,7 @@ export class DocumentsService {
                 data: { deleted: true }
             });
 
-            baseResponse.message = 'Documento deleted exitosamente.'
+            baseResponse.message = 'Documento eliminado exitosamente.'
             return baseResponse;
         } catch (error) {
             badResponse.message = 'Error al eliminar el documento.' + error

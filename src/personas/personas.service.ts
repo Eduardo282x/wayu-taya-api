@@ -68,10 +68,10 @@ export class PersonasService {
 
             })
 
-            baseResponse.message = 'exito al crear a la persona.'
+            baseResponse.message = 'Persona creada exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al crear a la persona.' + error
+            badResponse.message = 'Error al crear a la Persona.' + error
             return badResponse;
         }
     }
@@ -95,7 +95,7 @@ export class PersonasService {
             baseResponse.message = 'Persona guardada exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al crear a la persona.' + error
+            badResponse.message = 'Error al crear a la Persona.' + error
             return badResponse;
         }
     }
@@ -133,10 +133,10 @@ export class PersonasService {
                 data: dataPersonasProgramas
             })
 
-            baseResponse.message = 'persona actualizada exitosamente.'
+            baseResponse.message = 'Datos de la Persona actualizados exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al actualizar la persona.' + error
+            badResponse.message = 'Error al actualizar la Persona.' + error
             return badResponse;
         }
     }
@@ -158,10 +158,10 @@ export class PersonasService {
                 where: { id: id_personas }
             });
 
-            baseResponse.message = 'persona actualizada exitosamente.'
+            baseResponse.message = 'Persona actualizada exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al actualizar la persona.' + error
+            badResponse.message = 'Error al actualizar la Persona.' + error
             return badResponse;
         }
     }
@@ -173,10 +173,10 @@ export class PersonasService {
                 data: { deleted: true }
             });
 
-            baseResponse.message = 'persona deleted exitosamente.'
+            baseResponse.message = 'Persona eliminada exitosamente.'
             return baseResponse;
         } catch (error) {
-            badResponse.message = 'Error al eliminar persona.' + error
+            badResponse.message = 'Error al eliminar a la Persona.' + error
             return badResponse;
         }
     }

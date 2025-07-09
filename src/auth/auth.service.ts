@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { badResponse, baseResponse, BaseResponseLogin } from 'src/dto/base.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { DTOLogin } from './auth.dto';
+import { DTOLogin, DTORecoverPassword } from './auth.dto';
 
 @Injectable()
 export class AuthService {
@@ -16,6 +16,9 @@ export class AuthService {
                 where: {
                     username: login.username,
                     password: login.password
+                },
+                include: {
+                    rol: true
                 }
             })
 
@@ -31,6 +34,34 @@ export class AuthService {
 
             responseLogin.message = `Bienvenido ${findUser.name} ${findUser.lastName}`
             return responseLogin
+        } catch (error) {
+            badResponse.message = `Ha ocurrido un error ${error}`;
+            return badResponse;
+        }
+    }
+
+    async changePassword(change: DTORecoverPassword) {
+        try {
+            const findUser = await this.prismaService.users.findFirst({
+                where: { correo: change.email }
+            });
+
+            if (!findUser) {
+                badResponse.message = `Correo no encontrado.`;
+                return badResponse;
+            }
+
+            await this.prismaService.users.update({
+                data: {
+                    password: change.password
+                },
+                where: {
+                    id: findUser.id
+                }
+            })
+
+            baseResponse.message = `Contraseña recuperada.`
+            return baseResponse
         } catch (error) {
             badResponse.message = `Ha ocurrido un error ${error}`;
             return badResponse;
