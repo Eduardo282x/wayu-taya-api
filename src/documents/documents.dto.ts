@@ -27,3 +27,21 @@ export class DocumentDTO {
   @IsString()
   mimeType?: string;
 }
+
+
+export class NewDocumentDTO {
+  @IsString()
+  name: string;
+
+  @IsDate()
+  @Transform(({ value }) => new Date(value))
+  date: Date;
+
+  @IsString()
+  type: string;
+  @IsString()
+  description: string;
+  @IsString()
+  content: string;
+
+}
