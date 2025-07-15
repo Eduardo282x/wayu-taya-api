@@ -1,16 +1,37 @@
-import { Controller, Get, Res ,Post, HttpException, HttpStatus, Body} from '@nestjs/common';
+import { Controller, Get, Res, Post, HttpException, HttpStatus, Body, Param } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { Response } from 'express';
-import { ReportsDTO, SummaryReportDto, SummaryReportResponse } from './reports.dto';
+import { IInventory, ReportsDTO, SummaryReportDto, SummaryReportResponse } from './reports.dto';
+import { InventoryService } from 'src/inventory/inventory.service';
 
 @Controller('reports')
 export class ReportsController {
-  constructor(private readonly reportsService: ReportsService) { }
+  constructor(private readonly reportsService: ReportsService, private readonly inventoryService: InventoryService) { }
 
 
   @Get()
   async getFreedom() {
     return 'Well done';
+  }
+
+  @Get('/report-inventory')
+  async downloadInventory(@Res() res: Response) {
+    const inventory = await this.inventoryService.getInventory();
+    const buffer = await this.reportsService.generateInventoryReportPDF(inventory as IInventory[]);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename=inventory-report.pdf');
+    res.end(buffer);
+  }
+
+  @Get('/report-inventory/:storeId')
+  async downloadInventoryByStore(@Param('storeId') storeId: string, @Res() res: Response) {
+    const inventory = await this.inventoryService.getInventory();
+    const buffer = await this.reportsService.generateInventoryByStorePDF(inventory as IInventory[], Number(storeId));
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename=inventory-store-${storeId}.pdf`);
+    res.end(buffer);
   }
 
   @Post('/by-provider-and-lots')
@@ -99,5 +120,5 @@ export class ReportsController {
       throw new HttpException('Error interno del servidor', HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
-  
+
 }

@@ -479,13 +479,6 @@ export class DonationsService {
           startY += rowHeight;
         });
 
-        // const buffer = [];
-        // doc.on('data', buffer.push.bind(buffer))
-        // doc.on('end', () => {
-        //   const data = Buffer.concat(buffer)
-        //   resolve(data)
-        // })
-
         doc.end()
       })
 

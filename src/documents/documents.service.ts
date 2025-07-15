@@ -3,7 +3,6 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { DocumentDTO, NewDocumentDTO } from './documents.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 const PDFDocument = require('pdfkit-table');
-import * as fs from 'fs';
 
 @Injectable()
 export class DocumentsService {
