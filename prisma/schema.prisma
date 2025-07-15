@@ -98,6 +98,9 @@ model Documents {
   id            Int             @id @default(autoincrement())
   name          String
   date          DateTime
+  type          String          @default("")
+  description   String          @default("")
+  content       String          @default("")
   filePath      String?
   fileName      String?
   mimeType      String?
