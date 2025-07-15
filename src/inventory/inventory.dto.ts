@@ -35,6 +35,10 @@ export class MedicinesDto {
   @IsInt()
   storeId: number;
 
+  @IsOptional()
+  @IsString()
+  lote: string;
+
   @IsInt()
   @Min(1)
   stock: number;

@@ -1,10 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, UploadedFile, UseInterceptors, Res, HttpStatus, HttpException } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
-import { DocumentDTO } from './documents.dto';
+import { DocumentDTO, NewDocumentDTO } from './documents.dto';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { extname } from 'path';
 import { Response } from 'express';
+import { join } from 'path';
+import { existsSync } from 'fs';
 
 @Controller('documents')
 export class DocumentsController {
@@ -21,8 +23,25 @@ export class DocumentsController {
         return await this.documentService.getDocumentsFixed()
     }
 
+    @Get('/download/:id')
+    async downloadDocument(@Param('id') id: string, @Res() res: Response) {
+        const document = await this.documentService.findDocument(Number(id));
+
+        if (!document) {
+            return res.status(404).json({ message: 'Documento no encontrado' });
+        }
+
+        const filePath = join(process.cwd(), document.filePath);
+
+        if (!existsSync(filePath)) {
+            return res.status(404).json({ message: 'Archivo no encontrado en el servidor' });
+        }
+
+        return res.download(filePath, document.name);
+    }
+
     @Post()
-    async createDocument(@Body() data: DocumentDTO) {  
+    async createDocument(@Body() data: DocumentDTO) {
         return await this.documentService.createDocument(data);
     }
 
@@ -47,7 +66,7 @@ export class DocumentsController {
             },
         }),
     }))
-    uploadFile(@UploadedFile() file: Express.Multer.File, @Body() body: { name: string; date: string }) {
+    uploadFile(@UploadedFile() file: Express.Multer.File, @Body() body: NewDocumentDTO) {
         return this.documentService.createFile(file, body);
     }
 

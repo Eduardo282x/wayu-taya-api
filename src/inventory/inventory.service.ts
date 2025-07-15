@@ -206,7 +206,7 @@ export class InventoryService {
                 const baseWhere = {
                     medicineId: item.medicineId,
                     storeId: item.storeId,
-                    donation: { lote }
+                    donation: { lote: inventory.type === 'Entrada' ? lote : item.lote }
                 };
 
                 const record = await trx.inventory.findFirst({ where: baseWhere });

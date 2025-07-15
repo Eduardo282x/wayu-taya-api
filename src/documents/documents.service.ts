@@ -1,9 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { DocumentDTO } from './documents.dto';
+import { DocumentDTO, NewDocumentDTO } from './documents.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
 const PDFDocument = require('pdfkit-table');
-import * as fs from 'fs';
 
 @Injectable()
 export class DocumentsService {
@@ -14,6 +13,7 @@ export class DocumentsService {
     async getDocuments() {
         return await this.prismaService.documents.findMany({
             orderBy: { id: 'asc' },
+            where: { deleted: false },
             include: {
                 collaborators: {
                     include: {
@@ -22,6 +22,12 @@ export class DocumentsService {
                 }
             }
 
+        });
+    }
+
+    async findDocument(id: number) {
+        return await this.prismaService.documents.findFirst({
+            where: { id }
         });
     }
 
@@ -110,11 +116,14 @@ export class DocumentsService {
         }
     }
 
-    async createFile(file: Express.Multer.File, data: { name: string; date: string }) {
+    async createFile(file: Express.Multer.File, data: NewDocumentDTO) {
         try {
             await this.prismaService.documents.create({
                 data: {
                     name: data.name,
+                    type: data.type,
+                    description: data.description,
+                    content: data.content,
                     date: new Date(data.date),
                     fileName: file.filename,
                     filePath: file.path,

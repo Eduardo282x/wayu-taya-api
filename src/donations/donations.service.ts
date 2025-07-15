@@ -86,6 +86,7 @@ export class DonationsService {
             stock: med.amount,
             admissionDate: med.admissionDate,
             expirationDate: med.expirationDate,
+            lote: med.lote,
           })),
           type: donation.type,
           date: donation.date,
@@ -183,6 +184,7 @@ export class DonationsService {
               stock: med.amount,
               admissionDate: med.admissionDate,
               expirationDate: med.expirationDate,
+              lote: med.lote,
             })),
             type: updatedDonation.type,
             date: updatedDonation.date,
@@ -476,13 +478,6 @@ export class DonationsService {
 
           startY += rowHeight;
         });
-
-        // const buffer = [];
-        // doc.on('data', buffer.push.bind(buffer))
-        // doc.on('end', () => {
-        //   const data = Buffer.concat(buffer)
-        //   resolve(data)
-        // })
 
         doc.end()
       })

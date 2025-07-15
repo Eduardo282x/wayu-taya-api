@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
 import {
   Document,
   Packer,
@@ -19,14 +18,153 @@ import {
 } from 'docx';
 import { readFileSync } from 'fs';
 import { format } from 'date-fns';
-import { DonationSummary, ProductSummary, ReportsDTO, StoreSummary, SummaryReportDto, SummaryReportResponse } from './reports.dto';
+import { DonationSummary, IInventory, ProductSummary, ReportsDTO, StoreSummary, SummaryReportDto, SummaryReportResponse } from './reports.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-
-const prisma = new PrismaClient();
+import * as PDFDocument from 'pdfkit';
 
 @Injectable()
 export class ReportsService {
   constructor(private readonly prisma: PrismaService) { }
+
+  async generateInventoryReportPDF(inventoryData: IInventory[]): Promise<Buffer> {
+    return await new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 30, size: 'A4' });
+
+      const buffers: Uint8Array[] = [];
+      doc.on('data', (chunk) => buffers.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', (err) => reject(err))
+
+      doc.fontSize(16).text('REPORTE GENERAL DE INVENTARIO', { align: 'center' });
+      doc.moveDown();
+
+      const columns = [
+        { header: 'Nombre', width: 130 },
+        { header: 'Cantidad Total', width: 50 },
+        { header: 'Almacenes', width: 200 },
+        { header: 'Expiración', width: 130 },
+      ];
+
+      // Ajustar el ancho total y posición (startX) según columnas
+      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const tableWidth = columns.reduce((sum, col) => sum + col.width, 0);
+      const startX = doc.page.margins.left + (pageWidth - tableWidth) / 2;
+
+      let startY = doc.y;
+      const rowHeight = 25;
+
+      // Función para dibujar bordes
+      function drawCellBorder(x: number, y: number, width: number, height: number) {
+        doc.lineWidth(0.5).rect(x, y, width, height).stroke();
+      }
+
+      // Dibujar encabezados
+      let x = startX;
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('#1997B1');
+      for (const col of columns) {
+        doc.text(col.header, x + 2, startY + 5, { width: col.width - 4, align: 'center' });
+        drawCellBorder(x, startY, col.width, rowHeight);
+        x += col.width;
+      }
+      startY += rowHeight;
+
+      doc.font('Helvetica').fontSize(8).fillColor('black');
+
+      // Dibujar filas
+      inventoryData.forEach((item, idx) => {
+        x = startX;
+
+        const row = [
+          `${item.medicine.name} ${item.medicine.amount}${item.medicine.unit}`,
+          item.totalStock.toString(),
+          item.stores.map(s => `${s.name} (${s.amount})`).join(', '),
+          item.datesMedicine.map(d => new Date(d.expirationDate).toLocaleDateString()).join(', ')
+        ];
+
+        for (let i = 0; i < columns.length; i++) {
+          doc.text(row[i], x + 2, startY + 5, { width: columns[i].width - 4, align: 'center' });
+          drawCellBorder(x, startY, columns[i].width, rowHeight);
+          x += columns[i].width;
+        }
+        startY += rowHeight;
+      });
+
+      doc.end();
+    })
+  }
+
+  async generateInventoryByStorePDF(inventoryData: IInventory[], storeId: number): Promise<Buffer> {
+    const filtered = inventoryData
+      .filter(item => item.stores.some(store => store.id === storeId))
+      .map(item => ({
+        ...item,
+        stores: item.stores.filter(store => store.id === storeId),
+      }));
+
+    return new Promise((resolve, reject) => {
+      const doc = new PDFDocument({ margin: 30, size: 'A4' });
+      const buffers: Uint8Array[] = [];
+      doc.on('data', (chunk) => buffers.push(chunk));
+      doc.on('end', () => resolve(Buffer.concat(buffers)));
+      doc.on('error', (err) => reject(err))
+
+      doc.fontSize(16).text(`REPORTE DE INVENTARIO - Almacén ${storeId} `, { align: 'center' });
+      doc.moveDown();
+
+      const columns = [
+        { header: 'Nombre', width: 130 },
+        { header: 'Cantidad Total', width: 130 },
+        { header: 'Almacén', width: 130 },
+        { header: 'Expiración', width: 130 },
+      ];
+
+      // Ajustar el ancho total y posición (startX) según columnas
+      const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+      const tableWidth = columns.reduce((sum, col) => sum + col.width, 0);
+      const startX = doc.page.margins.left + (pageWidth - tableWidth) / 2;
+
+      let startY = doc.y;
+      const rowHeight = 25;
+
+      // Función para dibujar bordes
+      function drawCellBorder(x: number, y: number, width: number, height: number) {
+        doc.lineWidth(0.5).rect(x, y, width, height).stroke();
+      }
+
+      // Dibujar encabezados
+      let x = startX;
+      doc.font('Helvetica-Bold').fontSize(8).fillColor('#1997B1');
+      for (const col of columns) {
+        doc.text(col.header, x + 2, startY + 5, { width: col.width - 4, align: 'center' });
+        drawCellBorder(x, startY, col.width, rowHeight);
+        x += col.width;
+      }
+      startY += rowHeight;
+
+      doc.font('Helvetica').fontSize(8).fillColor('black');
+
+      // Dibujar filas
+      filtered.forEach((item, idx) => {
+        x = startX;
+
+        const row = [
+          `${item.medicine.name} ${item.medicine.amount}${item.medicine.unit}`,
+          item.stores[0].amount,
+          item.stores[0].name,
+          item.datesMedicine.map(d => new Date(d.expirationDate).toLocaleDateString()).join(', ')
+        ];
+
+        for (let i = 0; i < columns.length; i++) {
+          doc.text(row[i], x + 2, startY + 5, { width: columns[i].width - 4, align: 'center' });
+          drawCellBorder(x, startY, columns[i].width, rowHeight);
+          x += columns[i].width;
+        }
+        startY += rowHeight;
+      });
+
+      doc.end();
+    })
+  }
 
   async generateSampleDoc(providerName: string, lotes: string[]): Promise<Buffer> {
     try {
@@ -69,7 +207,7 @@ export class ReportsService {
         ],
       });
 
-      const entradas = await prisma.donation.findMany({
+      const entradas = await this.prisma.donation.findMany({
         where: {
           type: 'Entrada',
           provider: { name: providerName },
@@ -86,7 +224,7 @@ export class ReportsService {
 
       const lotesConfirmados = entradas.map(e => e.lote);
 
-      const salidas = await prisma.donation.findMany({
+      const salidas = await this.prisma.donation.findMany({
         where: {
           type: 'Salida',
           lote: { in: lotesConfirmados },
@@ -107,8 +245,8 @@ export class ReportsService {
           new TableRow({
             children: [
               new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: lote, bold: true })] })] }),
-              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `Entrada de proveedor: ${providerName}`, bold: true })] })] }),
-              new TableCell({ children: [new Paragraph(`${totalEntrada}`)] }),
+              new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: `Entrada de proveedor: ${providerName} `, bold: true })] })] }),
+              new TableCell({ children: [new Paragraph(`${totalEntrada} `)] }),
               new TableCell({ children: [new Paragraph('')] }),
             ],
           })
@@ -126,8 +264,8 @@ export class ReportsService {
               children: [
                 new TableCell({ children: [new Paragraph('')] }),
                 new TableCell({ children: [new Paragraph(nombre)] }),
-                new TableCell({ children: [new Paragraph(`${cantidad}`)] }),
-                new TableCell({ children: [new Paragraph(`${beneficiarios}`)] }),
+                new TableCell({ children: [new Paragraph(`${cantidad} `)] }),
+                new TableCell({ children: [new Paragraph(`${beneficiarios} `)] }),
               ],
             })
           );
@@ -160,7 +298,7 @@ export class ReportsService {
 
       return await Packer.toBuffer(doc);
     } catch (error) {
-      throw new Error(`Error al generar el documento de ejemplo: ${error}`);
+      throw new Error(`Error al generar el documento de ejemplo: ${error} `);
     }
   }
 
@@ -197,7 +335,7 @@ export class ReportsService {
       const content: (Paragraph | Table)[] = [title, subtitle, intro];
 
       for (const lote of lotes) {
-        const salidas = await prisma.donation.findMany({
+        const salidas = await this.prisma.donation.findMany({
           where: { type: 'Salida', lote, provider: { name: providerName } },
           include: {
             institution: true,
@@ -237,14 +375,14 @@ export class ReportsService {
           ],
         });
 
-        content.push(new Paragraph({ text: `LOTE ${lote.toUpperCase()}`, spacing: { after: 200 }, children: [new TextRun({ bold: true })] }));
+        content.push(new Paragraph({ text: `LOTE ${lote.toUpperCase()} `, spacing: { after: 200 }, children: [new TextRun({ bold: true })] }));
         content.push(table);
       }
 
       const doc = new Document({ sections: [{ headers: { default: header }, children: content }] });
       return await Packer.toBuffer(doc);
     } catch (error) {
-      throw new Error(`Error al generar el documento formateado: ${error}`);
+      throw new Error(`Error al generar el documento formateado: ${error} `);
     }
   };
 
@@ -317,14 +455,14 @@ export class ReportsService {
         alignment: AlignmentType.CENTER,
       });
 
-      const entradas = await prisma.donation.findMany({
+      const entradas = await this.prisma.donation.findMany({
         where: { type: 'Entrada', provider: { name: provider }, lote: { in: lotes } },
         include: { detDonation: { include: { medicine: true } } },
       });
       if (entradas.length === 0) throw new Error('No se encontraron entradas para el proveedor y lotes indicados.');
       const lotesConfirmados = entradas.map(e => e.lote);
 
-      const salidas = await prisma.donation.findMany({
+      const salidas = await this.prisma.donation.findMany({
         where: { type: 'Salida', lote: { in: lotesConfirmados } },
         include: {
           institution: {
@@ -394,7 +532,7 @@ export class ReportsService {
           spacing: { after: 300, before: 400 },
           children: [
             new TextRun({
-              text: `LOTE ${lote}`,
+              text: `LOTE ${lote} `,
               font: 'Calibri',
               size: 30,
               bold: true,
@@ -536,7 +674,7 @@ export class ReportsService {
                   children: [new Paragraph({
                     alignment: AlignmentType.CENTER,
                     children: [new TextRun({
-                      text: `${centros.size}`,
+                      text: `${centros.size} `,
                       font: 'Calibri',
                       size: 28,
                       bold: true,
@@ -552,7 +690,7 @@ export class ReportsService {
                   children: [new Paragraph({
                     alignment: AlignmentType.CENTER,
                     children: [new TextRun({
-                      text: `${instituciones.size}`,
+                      text: `${instituciones.size} `,
                       font: 'Calibri',
                       size: 28,
                       bold: true,
@@ -568,7 +706,7 @@ export class ReportsService {
                   children: [new Paragraph({
                     alignment: AlignmentType.CENTER,
                     children: [new TextRun({
-                      text: `${totalBeneficiarios.toLocaleString()}`,
+                      text: `${totalBeneficiarios.toLocaleString()} `,
                       font: 'Calibri',
                       size: 28,
                       bold: true,
@@ -584,7 +722,7 @@ export class ReportsService {
                   children: [new Paragraph({
                     alignment: AlignmentType.CENTER,
                     children: [new TextRun({
-                      text: `${totalItems.toLocaleString()}`,
+                      text: `${totalItems.toLocaleString()} `,
                       font: 'Calibri',
                       size: 28,
                       bold: true,
@@ -720,7 +858,7 @@ export class ReportsService {
                     children: [new Paragraph({
                       alignment: AlignmentType.CENTER,
                       children: [new TextRun({
-                        text: `${data.items.toLocaleString()}`,
+                        text: `${data.items.toLocaleString()} `,
                         font: 'Calibri',
                         size: 28,
                         bold: true,
@@ -735,7 +873,7 @@ export class ReportsService {
                     children: [new Paragraph({
                       alignment: AlignmentType.CENTER,
                       children: [new TextRun({
-                        text: `${data.beneficiarios.toLocaleString()}`,
+                        text: `${data.beneficiarios.toLocaleString()} `,
                         font: 'Calibri',
                         size: 28,
                         bold: true,
@@ -808,7 +946,7 @@ export class ReportsService {
                 children: [new Paragraph({
                   alignment: AlignmentType.CENTER,
                   children: [new TextRun({
-                    text: `${val}`,
+                    text: `${val} `,
                     font: 'Calibri',
                     size: 36,
                     bold: true,
@@ -826,7 +964,7 @@ export class ReportsService {
       const uniqueLocations: { state: string; city: string; town: string; parish: string; institution: string }[] = [];
 
       for (const location of locations) {
-        const locationKey = `${location.state}|${location.city}|${location.town}|${location.parish}|${location.institution}`;
+        const locationKey = `${location.state} | ${location.city} | ${location.town} | ${location.parish} | ${location.institution} `;
         if (!uniqueLocationsSet.has(locationKey)) {
           uniqueLocationsSet.add(locationKey);
           uniqueLocations.push(location);
@@ -1001,7 +1139,8 @@ export class ReportsService {
               year: 'numeric',
               month: 'long',
               day: 'numeric'
-            })}`,
+            })
+              } `,
             font: 'Calibri',
             size: 20,
             color: '808080', // Gris medio
@@ -1051,7 +1190,7 @@ export class ReportsService {
 
       return await Packer.toBuffer(doc);
     } catch (error) {
-      throw new Error(`Error al generar el documento: ${error}`);
+      throw new Error(`Error al generar el documento: ${error} `);
     }
 
 

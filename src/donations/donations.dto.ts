@@ -32,7 +32,10 @@ export class DetDonationDTO {
     @IsNumber()
     amount: number;
     @IsNumber()
-    storageId:number;
+    storageId: number;
+    @IsOptional()
+    @IsString()
+    lote: string;
 
     @IsDate()
     @Transform(({ value }) => new Date(value))

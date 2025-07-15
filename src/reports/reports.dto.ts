@@ -53,3 +53,62 @@ export interface SummaryReportResponse {
     to: string;
   };
 }
+
+
+export interface IInventory {
+  id: number;
+  medicine: IMedicine;
+  totalStock: number;
+  stores: Store[];
+  datesMedicine: DatesMedicine[];
+  lotes: ILotes[];
+}
+
+export interface ILotes {
+  name: string;
+  storeId: number;
+  medicineId: number;
+  expirationDate: Date;
+  admissionDate: Date;
+}
+
+export interface DatesMedicine {
+  admissionDate: Date;
+  expirationDate: Date;
+}
+
+export interface Store {
+  id: number;
+  name: string;
+  address: string;
+  amount: number;
+}
+
+
+export interface IMedicine {
+  id: number;
+  name: string;
+  description: string;
+  categoryId: number;
+  medicine: boolean;
+  unit: string;
+  amount: number;
+  temperate: string;
+  manufacturer: string;
+  activeIngredient: string;
+  countryOfOrigin: string;
+  formId: number;
+  category: ICategory;
+  form: IForm;
+  benefited: number;
+}
+
+export interface ICategory {
+  id: number;
+  category: string;
+}
+
+export interface IForm {
+  id: number;
+  forms: string;
+}
