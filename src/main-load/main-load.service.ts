@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { categories, forms, locations, medicine, people, products, programs, providerDB, providers, store } from './main-load.data';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class MainLoadService {
@@ -67,10 +68,17 @@ export class MainLoadService {
                 { rol: 'Usuarios' },
             ]
         });
+
+        const salt = await bcrypt.genSalt(12);
+        const hashedAdminPassword = await bcrypt.hash('admin', salt);
+        const hashedRogerPassword = await bcrypt.hash('admin', salt);
+        const hashedAndreinaPassword = await bcrypt.hash('admin', salt);
+
         await this.prismaService.users.createMany({
             data: [
-                { username: 'admin', password: 'admin', correo: 'admin', lastName: 'admin', name: 'admin', rolId: 1 },
-                { username: 'Roger', password: 'admin', correo: 'roger@gmail.com', lastName: 'Roger', name: 'Roger', rolId: 2 }
+                { username: 'admin', password: hashedAdminPassword, correo: 'admin', lastName: 'admin', name: 'admin', rolId: 1 },
+                { username: 'Roger', password: hashedRogerPassword, correo: 'roger@gmail.com', lastName: 'Roger', name: 'Roger', rolId: 2 },
+                { username: 'Andreina', password: hashedAndreinaPassword, correo: 'andreina@gmail.com', lastName: 'Andreina', name: 'Andreina', rolId: 2 }
             ]
         });
         await this.prismaService.people.createMany({

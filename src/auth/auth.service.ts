@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { badResponse, baseResponse, BaseResponseLogin } from 'src/dto/base.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DTOLogin, DTORecoverPassword } from './auth.dto';
+import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class AuthService {
@@ -14,8 +15,7 @@ export class AuthService {
         try {
             const findUser = await this.prismaService.users.findFirst({
                 where: {
-                    username: login.username,
-                    password: login.password
+                    username: login.username
                 },
                 include: {
                     rol: true
@@ -23,7 +23,14 @@ export class AuthService {
             })
 
             if (!findUser) {
-                badResponse.message = 'Usuario no encontrado.'
+                badResponse.message = 'Usuario no encontrado.';
+                return badResponse;
+            }
+
+            const passwordMatch = await bcrypt.compare(login.password, findUser.password);
+
+            if (!passwordMatch) {
+                badResponse.message = 'Contraseña incorrecta.';
                 return badResponse;
             }
 
@@ -51,9 +58,11 @@ export class AuthService {
                 return badResponse;
             }
 
+            const hashedPassword = await bcrypt.hash(change.password, 12);
+
             await this.prismaService.users.update({
                 data: {
-                    password: change.password
+                    password: hashedPassword
                 },
                 where: {
                     id: findUser.id
