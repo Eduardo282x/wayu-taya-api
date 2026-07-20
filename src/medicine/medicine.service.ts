@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { MedicineDTO, MedicineFormatExcel, CategoryDTO, FormsDTO } from './medicine.dto';
 import { badResponse, baseResponse } from 'src/dto/base.dto';
-import * as XLSX from 'xlsx';
+import * as ExcelJS from 'exceljs';
 import { Response } from 'express';
 
 @Injectable()
@@ -184,50 +184,57 @@ export class MedicineService {
     }
 
     async downloadExcelTemplate(res: Response) {
-        const headers = [
-            "Nombre", "Descripcion", "Categoria", "Medicina", "Unidad",
-            "Cantidad", "Temperatura", "Manofacturador", "Principio_Activo",
-            "Pais_Origen", "Forma", "Beneficiado"
-        ];
-        const exampleRows = [
-            [
-                "Paracetamol",
-                "Analgésico",
-                "Categoría General",
-                "Si",
-                "mg",
-                100,
-                "Ambiente",
-                "Farmacéutica Ágil",
-                "Paracetamol",
-                "VE",
-                "Tableta",
-                "1"
-            ],
-            [
-                "Ibuprofeno",
-                "Esto es para el dolor muscular",
-                "Antiinflamatorio",  // sin acento en "Categoria"
-                "Si",
-                "mg",
-                200,
-                "Ambiente",
-                "Farmaceutica Agile",  // sin acento en "Farmaceutica"
-                "Ibuprofeno",
-                "VE",
-                "Tableta",
-                "1"
-            ]
-        ];
-        const wb = XLSX.utils.book_new();
-        const ws = XLSX.utils.aoa_to_sheet([headers, ...exampleRows]);
-        XLSX.utils.book_append_sheet(wb, ws, 'Medicinas');
+        try {
+            const workbook = new ExcelJS.Workbook();
+            const worksheet = workbook.addWorksheet('Medicinas');
 
-        const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+            const headers = [
+                "Nombre", "Descripcion", "Categoria", "Medicina", "Unidad",
+                "Cantidad", "Temperatura", "Manofacturador", "Principio_Activo",
+                "Pais_Origen", "Forma", "Beneficiado"
+            ];
+            worksheet.addRow(headers);
 
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', 'attachment; filename="medicine_template.xlsx"');
-        res.send(buffer);
+            const exampleRows = [
+                [
+                    "Paracetamol",
+                    "Analgésico",
+                    "Categoría General",
+                    "Si",
+                    "mg",
+                    100,
+                    "Ambiente",
+                    "Farmacéutica Ágil",
+                    "Paracetamol",
+                    "VE",
+                    "Tableta",
+                    "1"
+                ],
+                [
+                    "Ibuprofeno",
+                    "Esto es para el dolor muscular",
+                    "Antiinflamatorio",
+                    "Si",
+                    "mg",
+                    200,
+                    "Ambiente",
+                    "Farmaceutica Agile",
+                    "Ibuprofeno",
+                    "VE",
+                    "Tableta",
+                    "1"
+                ]
+            ];
+            exampleRows.forEach(row => worksheet.addRow(row));
+
+            res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+            res.setHeader('Content-Disposition', 'attachment; filename="medicine_template.xlsx"');
+            await workbook.xlsx.write(res);
+            res.end();
+        } catch (error) {
+            badResponse.message = 'Error al generar el archivo Excel.';
+            return badResponse;
+        }
     }
 
     async uploadExcel(file: Express.Multer.File) {
@@ -236,10 +243,33 @@ export class MedicineService {
             const categoriesDB = await this.prismaService.category.findMany();
             const formsDB = await this.prismaService.forms.findMany();
 
-            const workbook = XLSX.read(file.buffer, { type: 'buffer' });
-            const sheetName = workbook.SheetNames[0];
-            const sheet = workbook.Sheets[sheetName];
-            const rawData: MedicineFormatExcel[] = XLSX.utils.sheet_to_json(sheet, { defval: null });
+            const workbook = new ExcelJS.Workbook();
+            await workbook.xlsx.load(Buffer.from(file.buffer) as any);
+            const worksheet = workbook.getWorksheet(1);
+
+            const rawData: MedicineFormatExcel[] = [];
+            const headers: string[] = [];
+
+            worksheet.eachRow((row, rowNumber) => {
+                if (rowNumber === 1) {
+                    row.eachCell((cell, colNumber) => {
+                        headers[colNumber] = String(cell.value || '');
+                    });
+                    return;
+                }
+
+                const rowData: Record<string, any> = {};
+                row.eachCell((cell, colNumber) => {
+                    const header = headers[colNumber];
+                    if (header) {
+                        rowData[header] = cell.value;
+                    }
+                });
+
+                if (rowData['Nombre']) {
+                    rawData.push(rowData as unknown as MedicineFormatExcel);
+                }
+            });
 
             const createdMedicines: MedicineDTO[] = [];
             const skippedMedicines: string[] = [];
@@ -247,7 +277,6 @@ export class MedicineService {
             for (const data of rawData) {
                 const normalizedName = this.normalizeText(data.Nombre);
 
-                // Verificar si la medicina ya existe por nombre (puedes agregar manufacturer, formId, etc.)
                 const alreadyExists = medicineDB.some(med =>
                     this.normalizeText(med.name) === normalizedName
                 );
@@ -256,7 +285,7 @@ export class MedicineService {
                     skippedMedicines.push(data.Nombre);
                     continue;
                 }
-                // Normalizar y buscar categoría
+
                 const normalizedCategory = this.normalizeText(data.Categoria);
                 let category = categoriesDB.find(cat => this.normalizeText(cat.category) === normalizedCategory);
 
@@ -267,7 +296,6 @@ export class MedicineService {
                     categoriesDB.push(category);
                 }
 
-                // Normalizar y buscar forma
                 let form;
                 if (data.Forma) {
                     const normalizedForm = this.normalizeText(data.Forma);
@@ -282,7 +310,6 @@ export class MedicineService {
 
                 const isMedicine = data.Medicina == 'Si'
 
-                // Preparar objeto MedicineDTO para crear
                 const medicineDTO: MedicineDTO = {
                     name: data.Nombre,
                     description: data.Descripcion,
@@ -301,7 +328,6 @@ export class MedicineService {
                 createdMedicines.push(medicineDTO);
             }
 
-            // Guardar solo las nuevas medicinas
             if (createdMedicines.length > 0) {
                 await this.prismaService.medicine.createMany({
                     data: createdMedicines,

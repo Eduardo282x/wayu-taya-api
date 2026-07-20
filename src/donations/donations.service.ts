@@ -8,8 +8,8 @@ import * as PDFDocument from 'pdfkit';
 export class DonationsService {
 
   constructor(
-    private prismaService: PrismaService,
-    private inventoryService: InventoryService
+    private readonly prismaService: PrismaService,
+    private readonly inventoryService: InventoryService
   ) { }
 
   async getDonations() {
