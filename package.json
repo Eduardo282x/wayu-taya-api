@@ -31,6 +31,7 @@
     "cloudinary": "^2.10.0",
     "date-fns": "^4.4.0",
     "docx": "^9.7.1",
+    "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
     "pdfkit": "^0.19.1",
     "pdfkit-table": "^0.2.11",
