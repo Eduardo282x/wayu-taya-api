@@ -30,36 +30,6 @@ export class DonationsDTO {
     medicines: DetDonationDTO[];
 }
 
-export class DetDonationDTO {
-    @IsOptional()
-    @IsNumber()
-    medicineId: number;
-
-    @IsOptional()
-    @ValidateNested()
-    @Type(() => MedicineMinDTO)
-    medicine: MedicineMinDTO;
-
-    @IsNumber()
-    amount: number;
-    @IsOptional()
-    @IsNumber()
-    benefited: number;
-    @IsNumber()
-    storageId: number;
-    @IsOptional()
-    @IsString()
-    lote: string;
-
-    @IsDate()
-    @Transform(({ value }) => new Date(value))
-    admissionDate: Date;
-
-    @IsDate()
-    @Transform(({ value }) => new Date(value))
-    expirationDate: Date;
-}
-
 export class MedicineMinDTO {
     @IsString()
     name: string;
@@ -105,3 +75,32 @@ export class MedicineMinDTO {
     countryOfOrigin: string;
 }
 
+export class DetDonationDTO {
+    @IsOptional()
+    @IsNumber()
+    medicineId: number;
+
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => MedicineMinDTO)
+    medicine: MedicineMinDTO;
+
+    @IsNumber()
+    amount: number;
+    @IsOptional()
+    @IsNumber()
+    benefited: number;
+    @IsNumber()
+    storageId: number;
+    @IsOptional()
+    @IsString()
+    lote: string;
+
+    @IsDate()
+    @Transform(({ value }) => new Date(value))
+    admissionDate: Date;
+
+    @IsDate()
+    @Transform(({ value }) => new Date(value))
+    expirationDate: Date;
+}
