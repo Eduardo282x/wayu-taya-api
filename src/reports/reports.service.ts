@@ -75,7 +75,7 @@ export class ReportsService {
         x = startX;
 
         const row = [
-          `${item.medicine.name} ${item.medicine.amount}${item.medicine.unit}`,
+          `${item.medicine.name} · ${item.medicine.presentation}`,
           item.totalStock.toString(),
           item.stores.map(s => `${s.name} (${s.amount})`).join(', '),
           item.datesMedicine.map(d => new Date(d.expirationDate).toLocaleDateString()).join(', ')
@@ -148,7 +148,7 @@ export class ReportsService {
         x = startX;
 
         const row = [
-          `${item.medicine.name} ${item.medicine.amount}${item.medicine.unit}`,
+          `${item.medicine.name} · ${item.medicine.presentation}`,
           item.stores[0].amount,
           item.stores[0].name,
           item.datesMedicine.map(d => new Date(d.expirationDate).toLocaleDateString()).join(', ')
@@ -257,7 +257,7 @@ export class ReportsService {
         for (const salida of instituciones) {
           const nombre = salida.institution?.name || 'Sin institución';
           const cantidad = salida.detDonation.reduce((acc, d) => acc + d.amount, 0);
-          const beneficiarios = salida.detDonation.reduce((acc, d) => acc + (d.medicine.benefited * d.amount), 0);
+          const beneficiarios = salida.detDonation.reduce((acc, d) => acc + (d.benefited * d.amount), 0);
 
           rows.push(
             new TableRow({
@@ -519,11 +519,11 @@ export class ReportsService {
 
           for (const d of salida.detDonation) {
             totalItems += d.amount;
-            totalBeneficiarios += d.amount * d.medicine.benefited;
+            totalBeneficiarios += d.amount * d.benefited;
             const medName = d.medicine.name;
             if (!medicinesMap[medName]) medicinesMap[medName] = { items: 0, beneficiarios: 0 };
             medicinesMap[medName].items += d.amount;
-            medicinesMap[medName].beneficiarios += d.amount * d.medicine.benefited;
+            medicinesMap[medName].beneficiarios += d.amount * d.benefited;
           }
         }
 

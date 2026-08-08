@@ -1,5 +1,5 @@
 import { Transform, Type } from "class-transformer";
-import { IsArray, IsDate, ValidateNested, IsNumber, IsOptional, IsString, IsBoolean } from "class-validator";
+import { IsArray, IsDate, ValidateNested, IsNumber, IsOptional, IsString, IsBoolean, IsObject } from "class-validator";
 
 export class DonationsDTO {
     @IsOptional()
@@ -17,6 +17,10 @@ export class DonationsDTO {
     lote: string;
 
     @IsOptional()
+    @IsNumber()
+    benefited: number;
+
+    @IsOptional()
     @IsBoolean()
     changeDonDetails: boolean;
 
@@ -27,10 +31,20 @@ export class DonationsDTO {
 }
 
 export class DetDonationDTO {
+    @IsOptional()
     @IsNumber()
     medicineId: number;
+
+    @IsOptional()
+    @ValidateNested()
+    @Type(() => MedicineMinDTO)
+    medicine: MedicineMinDTO;
+
     @IsNumber()
     amount: number;
+    @IsOptional()
+    @IsNumber()
+    benefited: number;
     @IsNumber()
     storageId: number;
     @IsOptional()
@@ -44,5 +58,50 @@ export class DetDonationDTO {
     @IsDate()
     @Transform(({ value }) => new Date(value))
     expirationDate: Date;
+}
+
+export class MedicineMinDTO {
+    @IsString()
+    name: string;
+
+    @IsOptional()
+    @IsString()
+    description: string;
+
+    @IsOptional()
+    @IsString()
+    code: string;
+
+    @IsOptional()
+    @IsString()
+    category: string;
+
+    @IsOptional()
+    @IsBoolean()
+    medicine: boolean;
+
+    @IsOptional()
+    @IsString()
+    form: string;
+
+    @IsOptional()
+    @IsString()
+    presentation: string;
+
+    @IsOptional()
+    @IsString()
+    temperate: string;
+
+    @IsOptional()
+    @IsString()
+    manufacturer: string;
+
+    @IsOptional()
+    @IsString()
+    activeIngredient: string;
+
+    @IsOptional()
+    @IsString()
+    countryOfOrigin: string;
 }
 

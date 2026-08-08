@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { DonationsDTO } from './donations.dto';
+import { DonationsDTO, DetDonationDTO } from './donations.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
 import * as PDFDocument from 'pdfkit';
 
@@ -11,6 +11,89 @@ export class DonationsService {
     private readonly prismaService: PrismaService,
     private readonly inventoryService: InventoryService
   ) { }
+
+  normalizeText(text: string): string {
+    return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  }
+
+  private toTitleCase(value: string): string {
+    const collapsed = value.trim().replace(/\s+/g, ' ');
+    return collapsed.replace(/\b\w/g, char => char.toUpperCase());
+  }
+
+  private normalizeSearchKey(value: string): string {
+    return this.normalizeText(value).replace(/\s+/g, ' ');
+  }
+
+  private async resolveCategoryId(tx: any, value?: string): Promise<number> {
+    if (!value || !this.normalizeSearchKey(value)) {
+      const defaultCategory = await tx.category.findFirst();
+      if (defaultCategory) return defaultCategory.id;
+      const createdCategory = await tx.category.create({ data: { category: 'General' } });
+      return createdCategory.id;
+    }
+
+    const key = this.normalizeSearchKey(value);
+    const categories = await tx.category.findMany({ select: { id: true, category: true } });
+    const existing = categories.find(c => this.normalizeSearchKey(c.category) === key);
+    if (existing) return existing.id;
+
+    const created = await tx.category.create({ data: { category: this.toTitleCase(value) } });
+    return created.id;
+  }
+
+  private async resolveFormId(tx: any, value?: string): Promise<number> {
+    if (!value || !this.normalizeSearchKey(value)) return 14;
+
+    const key = this.normalizeSearchKey(value);
+    const forms = await tx.forms.findMany({ select: { id: true, forms: true } });
+    const existing = forms.find(f => this.normalizeSearchKey(f.forms) === key);
+    if (existing) return existing.id;
+
+    const created = await tx.forms.create({ data: { forms: this.toTitleCase(value) } });
+    return created.id;
+  }
+
+  private async resolveMedicine(tx: any, det: DetDonationDTO): Promise<number> {
+    if (det.medicineId) {
+      const existing = await tx.medicine.findUnique({ where: { id: det.medicineId } });
+      if (existing) return existing.id;
+    }
+
+    const name = det.medicine?.name;
+    if (!name) throw new Error('Cada detalle debe incluir medicineId o el nombre de la medicina (medicine.name).');
+
+    const medicines = await tx.medicine.findMany({ select: { id: true, name: true, code: true } });
+    const normalizedName = this.normalizeText(name);
+    const match = medicines.find(m =>
+      (det.medicine?.code && m.code && det.medicine.code === m.code) ||
+      this.normalizeText(m.name) === normalizedName
+    );
+    if (match) return match.id;
+
+    const [categoryId, formId] = await Promise.all([
+      this.resolveCategoryId(tx, det.medicine?.category),
+      this.resolveFormId(tx, det.medicine?.form),
+    ]);
+
+    const created = await tx.medicine.create({
+      data: {
+        name,
+        description: det.medicine?.description ?? '',
+        code: det.medicine?.code ?? null,
+        categoryId,
+        medicine: det.medicine?.medicine ?? true,
+        presentation: det.medicine?.presentation ?? '',
+        temperate: det.medicine?.temperate ?? '',
+        manufacturer: det.medicine?.manufacturer ?? '',
+        activeIngredient: det.medicine?.activeIngredient ?? '',
+        countryOfOrigin: det.medicine?.countryOfOrigin ?? 'VE',
+        formId,
+      },
+    });
+
+    return created.id;
+  }
 
   async getDonations() {
     // grab all
@@ -67,20 +150,28 @@ export class DonationsService {
             type: donation.type,
             date: donation.date,
             lote: donation.lote,
+            benefited: donation.benefited ?? 1,
           },
         });
 
-        const dataDetDonation = donation.medicines.map((pro) => ({
+        const medicinesResolved: (DetDonationDTO & { medicineId: number })[] = [];
+        for (const pro of donation.medicines) {
+          const medicineId = await this.resolveMedicine(tx, pro);
+          medicinesResolved.push({ ...pro, medicineId });
+        }
+
+        const dataDetDonation = medicinesResolved.map((pro) => ({
           donationId: donationCreated.id,
           medicineId: pro.medicineId,
           amount: pro.amount,
+          benefited: pro.benefited ?? 1,
         }));
         await tx.detDonation.createMany({ data: dataDetDonation });
 
         const inventoryDto = {
           donationId: donationCreated.id,
           lote: donation.lote,
-          medicines: donation.medicines.map((med) => ({
+          medicines: medicinesResolved.map((med) => ({
             medicineId: med.medicineId,
             storeId: med.storageId,
             stock: med.amount,
@@ -123,14 +214,20 @@ export class DonationsService {
 
         if (!originalDonation) throw new Error('Donación no encontrada');
 
+        const medicinesResolved: (DetDonationDTO & { medicineId: number })[] = [];
+        for (const pro of donation.medicines) {
+          const medicineId = await this.resolveMedicine(tx, pro);
+          medicinesResolved.push({ ...pro, medicineId });
+        }
+
         if (donation.changeDonDetails === true) {
           await this.inventoryService.revertInventoryWithHistory(tx, originalDonation);
         }
 
         const posteriores = await tx.historyInventory.findMany({
           where: {
-            medicineId: { in: donation.medicines.map(m => m.medicineId) },
-            storeId: { in: donation.medicines.map(m => m.storageId) },
+            medicineId: { in: medicinesResolved.map(m => m.medicineId) },
+            storeId: { in: medicinesResolved.map(m => m.storageId) },
             donationId: { not: id },
             createAt: { gt: originalDonation.updateAt },
           },
@@ -138,7 +235,7 @@ export class DonationsService {
 
         const updatedDonationType = donation.type || originalDonation.type;
 
-        for (const med of donation.medicines) {
+        for (const med of medicinesResolved) {
           const inventarioActual = await tx.inventory.findFirst({
             where: {
               medicineId: med.medicineId,
@@ -159,6 +256,7 @@ export class DonationsService {
           institutionId: donation.institutionId,
           providerId: donation.providerId,
           date: donation.date,
+          benefited: donation.benefited ?? undefined,
           updateAt: new Date(),
         };
         if (donation.changeDonDetails) updateData.lote = donation.lote;
@@ -168,17 +266,18 @@ export class DonationsService {
         if (donation.changeDonDetails) {
           await tx.detDonation.deleteMany({ where: { donationId: id } });
 
-          const newDetails = donation.medicines.map(m => ({
+          const newDetails = medicinesResolved.map(m => ({
             donationId: id,
             medicineId: m.medicineId,
-            amount: m.amount
+            amount: m.amount,
+            benefited: m.benefited ?? 1,
           }));
           await tx.detDonation.createMany({ data: newDetails });
 
           const inventoryDto = {
             donationId: updatedDonation.id,
             lote: updatedDonation.lote,
-            medicines: donation.medicines.map((med) => ({
+            medicines: medicinesResolved.map((med) => ({
               medicineId: med.medicineId,
               storeId: med.storageId,
               stock: med.amount,
@@ -460,7 +559,7 @@ export class DonationsService {
           const row = [
             (idx + 1).toString(),
             // det.medicine.id.toString(),
-            `${det.medicine.name} ${det.amount.toString()} ${det.medicine.unit}`,
+            `${det.medicine.name} ${det.amount.toString()} ${det.medicine.presentation}`,
             det.amount.toString(),
             'NDC',
             donation.lote || '',

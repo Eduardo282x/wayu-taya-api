@@ -32,6 +32,8 @@ export class ProveedoresService {
                     address: proveedores.address,
                     country: proveedores.country,
                     email: proveedores.email,
+                    phone: proveedores.phone,
+                    responsible: proveedores.responsible
                 }
             })
             baseResponse.message = 'Proveedor creado exitosamente.'
@@ -51,6 +53,8 @@ export class ProveedoresService {
                     address: proveedores.address,
                     country: proveedores.country,
                     email: proveedores.email,
+                    phone: proveedores.phone,
+                    responsible: proveedores.responsible
                 },
                 where: { id: id_proveedor }
             })

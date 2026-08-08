@@ -89,18 +89,17 @@ export interface IMedicine {
   id: number;
   name: string;
   description: string;
+  code: string | null;
   categoryId: number;
   medicine: boolean;
-  unit: string;
-  amount: number;
   temperate: string;
+  presentation: string;
   manufacturer: string;
   activeIngredient: string;
   countryOfOrigin: string;
   formId: number;
   category: ICategory;
   form: IForm;
-  benefited: number;
 }
 
 export interface ICategory {

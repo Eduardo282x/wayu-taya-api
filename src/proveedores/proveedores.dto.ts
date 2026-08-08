@@ -11,4 +11,8 @@ export class ProveedoresDTO {
     country: string;
     @IsString()
     email: string;
+    @IsString()
+    responsible: string;
+    @IsString()
+    phone: string;
 }

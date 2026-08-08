@@ -1,23 +1,26 @@
-import { IsBoolean, IsNumber, IsOptional, isString, IsString } from "class-validator";
+import { IsBoolean, IsOptional, IsString } from "class-validator";
 
 export class MedicineDTO {
     @IsString()
     name: string;
     @IsString()
     description: string;
-    @IsNumber()
-    categoryId: number;
+    @IsOptional()
+    @IsString()
+    code: string;
+
+    @IsString()
+    category: string;
     @IsBoolean()
     medicine: boolean;
 
     @IsOptional()
     @IsString()
-    @IsOptional()
-    unit: string;
+    form: string;
 
     @IsOptional()
-    @IsNumber()
-    amount: number;
+    @IsString()
+    presentation: string;
 
     @IsOptional()
     @IsString()
@@ -34,14 +37,6 @@ export class MedicineDTO {
     @IsOptional()
     @IsString()
     countryOfOrigin: string;
-
-    @IsOptional()
-    @IsNumber()
-    formId: number;
-
-    @IsOptional()
-    @IsNumber()
-    benefited: number;
 }
 
 export interface MedicineFormatExcel {
@@ -49,14 +44,13 @@ export interface MedicineFormatExcel {
     Descripcion: string;
     Categoria: string;
     Medicina: string;
-    Unidad: string;
-    Cantidad: number;
+    Codigo: string;
+    Presentacion: string;
     Temperatura: string;
-    Manofacturador: string;
+    Fabricante: string;
     Principio_Activo: string;
     Pais_Origen:  string;
     Forma:            string;
-    Beneficiado:        number;
 }
 
 export class CategoryDTO {

@@ -25,22 +25,55 @@ export class MedicineService {
     async getForms() {
         return await this.prismaService.forms.findMany();
     }
+
+    private toTitleCase(value: string): string {
+        const collapsed = value.trim().replace(/\s+/g, ' ');
+        return collapsed.replace(/\b\w/g, char => char.toUpperCase());
+    }
+
+    private normalizeSearchKey(value: string): string {
+        return this.normalizeText(value).replace(/\s+/g, ' ');
+    }
+
+    private async resolveCategory(value: string): Promise<number> {
+        const key = this.normalizeSearchKey(value);
+        const categories = await this.prismaService.category.findMany({ select: { id: true, category: true } });
+        const existing = categories.find(c => this.normalizeSearchKey(c.category) === key);
+        if (existing) return existing.id;
+        const created = await this.prismaService.category.create({ data: { category: this.toTitleCase(value) } });
+        return created.id;
+    }
+
+    private async resolveForm(value?: string): Promise<number> {
+        if (!value || !this.normalizeSearchKey(value)) return 14;
+        const key = this.normalizeSearchKey(value);
+        const forms = await this.prismaService.forms.findMany({ select: { id: true, forms: true } });
+        const existing = forms.find(f => this.normalizeSearchKey(f.forms) === key);
+        if (existing) return existing.id;
+        const created = await this.prismaService.forms.create({ data: { forms: this.toTitleCase(value) } });
+        return created.id;
+    }
+
     async createMedicine(medicine: MedicineDTO) {
         try {
+            const [categoryId, formId] = await Promise.all([
+                this.resolveCategory(medicine.category),
+                this.resolveForm(medicine.form),
+            ]);
+
             await this.prismaService.medicine.create({
                 data: {
                     name: medicine.name,
                     description: medicine.description,
-                    categoryId: medicine.categoryId,
+                    code: medicine.code ? medicine.code : null,
+                    categoryId,
                     medicine: medicine.medicine,
-                    unit: medicine.unit ? medicine.unit : '',
-                    amount: medicine.amount ? medicine.amount : 0,
+                    presentation: medicine.presentation ? medicine.presentation : '',
                     temperate: medicine.temperate ? medicine.temperate : '',
                     manufacturer: medicine.manufacturer ? medicine.manufacturer : '',
                     activeIngredient: medicine.activeIngredient ? medicine.activeIngredient : '',
                     countryOfOrigin: medicine.countryOfOrigin ? medicine.countryOfOrigin : '',
-                    formId: medicine.formId ? medicine.formId : 14,
-                    benefited: medicine.benefited ? medicine.benefited : 1,
+                    formId,
                 }
             });
             baseResponse.message = 'Medicina creada exitosamente.'
@@ -82,20 +115,24 @@ export class MedicineService {
     }
     async updateMedicine(id: number, medicine: MedicineDTO) {
         try {
+            const [categoryId, formId] = await Promise.all([
+                this.resolveCategory(medicine.category),
+                this.resolveForm(medicine.form),
+            ]);
+
             await this.prismaService.medicine.update({
                 data: {
                     name: medicine.name,
                     description: medicine.description,
-                    categoryId: medicine.categoryId,
+                    code: medicine.code ? medicine.code : null,
+                    categoryId,
                     medicine: medicine.medicine,
-                    unit: medicine.unit,
-                    amount: medicine.amount,
+                    presentation: medicine.presentation,
                     temperate: medicine.temperate,
                     manufacturer: medicine.manufacturer,
                     activeIngredient: medicine.activeIngredient,
                     countryOfOrigin: medicine.countryOfOrigin,
-                    formId: medicine.formId,
-                    benefited: medicine.benefited
+                    formId,
                 },
                 where: { id: id }
             });
@@ -154,6 +191,7 @@ export class MedicineService {
             return badResponse;
         }
     }
+    
     //categoria
     async deleteCategory(id: number) {
         try {
@@ -168,6 +206,7 @@ export class MedicineService {
             return badResponse;
         }
     }
+
     //formas
     async deleteForms(id: number) {
         try {
@@ -189,40 +228,38 @@ export class MedicineService {
             const worksheet = workbook.addWorksheet('Medicinas');
 
             const headers = [
-                "Nombre", "Descripcion", "Categoria", "Medicina", "Unidad",
-                "Cantidad", "Temperatura", "Manofacturador", "Principio_Activo",
-                "Pais_Origen", "Forma", "Beneficiado"
+                "Nombre", "Descripcion", "Categoria", "Medicina", "Codigo",
+                "Presentacion", "Temperatura", "Fabricante", "Principio_Activo",
+                "Pais_Origen", "Forma"
             ];
             worksheet.addRow(headers);
 
             const exampleRows = [
                 [
-                    "Paracetamol",
+                    "Acetaminofén",
+                    "FIEBRE - DOLOR - CONGESTION NASAL",
                     "Analgésico",
-                    "Categoría General",
                     "Si",
-                    "mg",
-                    100,
+                    "00536128935",
+                    "325mg / Fenilefrina 5mg · 24 cápsulas",
                     "Ambiente",
-                    "Farmacéutica Ágil",
-                    "Paracetamol",
-                    "VE",
-                    "Tableta",
-                    "1"
+                    "Rugby Laboratories",
+                    "Acetaminophen, Phenylephrine HCl",
+                    "UNITED STATES",
+                    "Caja"
                 ],
                 [
                     "Ibuprofeno",
                     "Esto es para el dolor muscular",
                     "Antiinflamatorio",
                     "Si",
-                    "mg",
-                    200,
+                    "",
+                    "400mg · 20 comprimidos",
                     "Ambiente",
-                    "Farmaceutica Agile",
+                    "Pfizer",
                     "Ibuprofeno",
                     "VE",
-                    "Tableta",
-                    "1"
+                    "Empaque"
                 ]
             ];
             exampleRows.forEach(row => worksheet.addRow(row));
@@ -271,7 +308,7 @@ export class MedicineService {
                 }
             });
 
-            const createdMedicines: MedicineDTO[] = [];
+            const createdMedicines: any[] = [];
             const skippedMedicines: string[] = [];
 
             for (const data of rawData) {
@@ -291,7 +328,7 @@ export class MedicineService {
 
                 if (!category) {
                     category = await this.prismaService.category.create({
-                        data: { category: data.Categoria }
+                        data: { category: this.toTitleCase(data.Categoria) }
                     });
                     categoriesDB.push(category);
                 }
@@ -302,7 +339,7 @@ export class MedicineService {
                     form = formsDB.find(f => this.normalizeText(f.forms) === normalizedForm);
                     if (!form) {
                         form = await this.prismaService.forms.create({
-                            data: { forms: data.Forma }
+                            data: { forms: this.toTitleCase(data.Forma) }
                         });
                         formsDB.push(form);
                     }
@@ -310,22 +347,19 @@ export class MedicineService {
 
                 const isMedicine = data.Medicina == 'Si'
 
-                const medicineDTO: MedicineDTO = {
+                createdMedicines.push({
                     name: data.Nombre,
                     description: data.Descripcion,
+                    code: data.Codigo || undefined,
                     categoryId: category.id,
                     medicine: isMedicine,
-                    unit: data.Unidad || '',
-                    amount: data.Cantidad || 0,
+                    presentation: data.Presentacion || '',
                     temperate: data.Temperatura || '',
-                    manufacturer: data.Manofacturador || '',
+                    manufacturer: data.Fabricante || '',
                     activeIngredient: data.Principio_Activo || '',
                     countryOfOrigin: data.Pais_Origen || 'VE',
                     formId: form && form.id ? form.id : 14,
-                    benefited: data.Beneficiado || 1,
-                };
-
-                createdMedicines.push(medicineDTO);
+                });
             }
 
             if (createdMedicines.length > 0) {

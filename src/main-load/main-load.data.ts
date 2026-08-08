@@ -4033,6 +4033,9 @@ export const forms = [
     { forms: 'Supositorios' },
     { forms: 'Pomadas' },
     { forms: 'Ninguno' },
+    { forms: 'Caja' },
+    { forms: 'Empaque' },
+    { forms: 'Unidad' },
 ];
 
 export const store = [
@@ -4088,8 +4091,7 @@ export const medicine = [
         description: "Analgésico y antipirético para aliviar el dolor y reducir la fiebre.",
         categoryId: 1, // Analgésico
         medicine: true,
-        unit: "mg",
-        amount: 500,
+        presentation: "500mg · 24 comprimidos",
         temperate: "Ambiente",
         manufacturer: "Genven",
         activeIngredient: "Paracetamol",
@@ -4100,8 +4102,7 @@ export const medicine = [
         description: "Antiinflamatorio no esteroideo para tratar dolor e inflamación.",
         categoryId: 2, // Antiinflamatorio
         medicine: true,
-        unit: "mg",
-        amount: 400,
+        presentation: "400mg · 24 cápsulas",
         temperate: "Ambiente",
         manufacturer: "Pfizer",
         activeIngredient: "Ibuprofeno",
@@ -4112,8 +4113,7 @@ export const medicine = [
         description: "Antibiótico de amplio espectro para infecciones bacterianas.",
         categoryId: 3, // Antibiótico
         medicine: true,
-        unit: "mg",
-        amount: 500,
+        presentation: "500mg · 24 cápsulas",
         temperate: "Refrigerado",
         manufacturer: "Laboratorios Vargas",
         activeIngredient: "Amoxicilina",
@@ -4124,8 +4124,7 @@ export const medicine = [
         description: "Antihistamínico para aliviar los síntomas de la alergia.",
         categoryId: 6, // Antihistamínico
         medicine: true,
-        unit: "mg",
-        amount: 10,
+        presentation: "10mg · 24 comprimidos",
         temperate: "Ambiente",
         manufacturer: "Bayer",
         activeIngredient: "Loratadina",
@@ -4136,8 +4135,7 @@ export const medicine = [
         description: "Broncodilatador para el tratamiento del asma.",
         categoryId: 12, // Descongestionante
         medicine: true,
-        unit: "mg",
-        amount: 100,
+        presentation: "100mcg · suspensión",
         temperate: "Ambiente",
         manufacturer: "GlaxoSmithKline",
         activeIngredient: "Salbutamol",
@@ -4148,8 +4146,7 @@ export const medicine = [
         description: "Antibiótico y antiparasitario para infecciones vaginales y gastrointestinales.",
         categoryId: 3,
         medicine: true,
-        unit: "mg",
-        amount: 250,
+        presentation: "250mg · 24 comprimidos",
         temperate: "Ambiente",
         manufacturer: "Genéricos C.A.",
         activeIngredient: "Metronidazol",
@@ -4160,8 +4157,7 @@ export const medicine = [
         description: "Antiinflamatorio para dolores musculares y articulares.",
         categoryId: 2,
         medicine: true,
-        unit: "mg",
-        amount: 75,
+        presentation: "75mg · ampolla",
         temperate: "Ambiente",
         manufacturer: "Novartis",
         activeIngredient: "Diclofenaco",
@@ -4172,8 +4168,7 @@ export const medicine = [
         description: "Antifúngico tópico para infecciones en la piel.",
         categoryId: 10, // Antifúngico
         medicine: true,
-        unit: "g",
-        amount: 20,
+        presentation: "20g · pomada",
         temperate: "Ambiente",
         manufacturer: "Johnson & Johnson",
         activeIngredient: "Miconazol",
@@ -4184,8 +4179,7 @@ export const medicine = [
         description: "Antiácido utilizado para tratar reflujo y úlceras gástricas.",
         categoryId: 7,
         medicine: true,
-        unit: "mg",
-        amount: 20,
+        presentation: "20mg · 24 cápsulas",
         temperate: "Ambiente",
         manufacturer: "Sandoz",
         activeIngredient: "Omeprazol",
@@ -4196,8 +4190,7 @@ export const medicine = [
         description: "Solución oral para rehidratación.",
         categoryId: 4, // Antipirético o Suplemento
         medicine: true,
-        unit: "ml",
-        amount: 500,
+        presentation: "500ml · suspensión",
         temperate: "Ambiente",
         manufacturer: "Farmatodo",
         activeIngredient: "Glucosa y electrolitos",
@@ -4211,8 +4204,6 @@ export const products = [
         description: "Pasta dental con flúor para niños.",
         categoryId: 16, // Higiene Personal
         medicine: false,
-        unit: "",
-        amount: 0,
         temperate: "",
         manufacturer: "",
         activeIngredient: "",
@@ -4223,8 +4214,6 @@ export const products = [
         description: "Jabón líquido para higiene de manos.",
         categoryId: 16,
         medicine: false,
-        unit: "",
-        amount: 0,
         temperate: "",
         manufacturer: "",
         activeIngredient: "",
@@ -4235,8 +4224,6 @@ export const products = [
         description: "Toallas higiénicas absorbentes para uso femenino.",
         categoryId: 16,
         medicine: false,
-        unit: "",
-        amount: 0,
         temperate: "",
         manufacturer: "",
         activeIngredient: "",
@@ -4247,8 +4234,6 @@ export const products = [
         description: "Suplemento alimenticio con hierro.",
         categoryId: 19, // Suplemento Nutricional
         medicine: false,
-        unit: "",
-        amount: 0,
         temperate: "",
         manufacturer: "",
         activeIngredient: "",
@@ -4259,8 +4244,6 @@ export const products = [
         description: "Kit con elementos básicos de primeros auxilios.",
         categoryId: 21, // Equipos de Protección
         medicine: false,
-        unit: "kit",
-        amount: 1,
         temperate: "Ambiente",
         manufacturer: "Botiquín Express",
         activeIngredient: "-",
@@ -4271,8 +4254,6 @@ export const products = [
         description: "Juguete didáctico para niños entre 2 y 5 años.",
         categoryId: 20, // Juguetes
         medicine: false,
-        unit: "unidad",
-        amount: 1,
         temperate: "Ambiente",
         manufacturer: "Fisher Price",
         activeIngredient: "-",
@@ -4283,8 +4264,6 @@ export const products = [
         description: "Termómetro para medir la temperatura corporal.",
         categoryId: 21, // Equipos Médicos
         medicine: false,
-        unit: "unidad",
-        amount: 1,
         temperate: "Ambiente",
         manufacturer: "OMRON",
         activeIngredient: "-",
@@ -4295,8 +4274,6 @@ export const products = [
         description: "Guantes de látex para uso médico o doméstico.",
         categoryId: 22, // Equipos de Protección
         medicine: false,
-        unit: "pares",
-        amount: 10,
         temperate: "Ambiente",
         manufacturer: "MediGlove",
         activeIngredient: "-",
@@ -4307,8 +4284,6 @@ export const products = [
         description: "Pañales desechables ultra absorbentes.",
         categoryId: 17, // Cuidado Infantil
         medicine: false,
-        unit: "unidades",
-        amount: 30,
         temperate: "Ambiente",
         manufacturer: "Huggies",
         activeIngredient: "-",
@@ -4319,8 +4294,6 @@ export const products = [
         description: "Desinfectante multiusos a base de cloro.",
         categoryId: 18, // Productos de Limpieza
         medicine: false,
-        unit: "ml",
-        amount: 1000,
         temperate: "Ambiente",
         manufacturer: "Clorox",
         activeIngredient: "Hipoclorito de sodio",
@@ -4334,70 +4307,90 @@ export const providers = [
         rif: "J0560276543650",
         address: "Av. La Limpia, Maracaibo",
         country: "Venezuela",
-        email: "contacto@elsol.com.ve"
+        email: "contacto@elsol.com.ve",
+        responsible: "",
+        phone: ""
     },
     {
         name: "Distribuidora Médica Zuliana",
         rif: "J2948374650012",
         address: "Zona Industrial Sur, Maracaibo",
         country: "Venezuela",
-        email: "ventas@dmzuliana.com"
+        email: "ventas@dmzuliana.com",
+        responsible: "",
+        phone: ""
     },
     {
         name: "Laboratorios Vida Sana",
         rif: "J1039284756211",
         address: "Av. Baralt, Caracas",
         country: "Venezuela",
-        email: "info@vidasana.com.ve"
+        email: "info@vidasana.com.ve",
+        responsible: "",
+        phone: ""
     },
     {
         name: "Provefarma C.A.",
         rif: "J2876543210987",
         address: "Calle 100, Valencia",
         country: "Venezuela",
-        email: "proveedores@provefarma.com"
+        email: "proveedores@provefarma.com",
+        responsible: "",
+        phone: ""
     },
     {
         name: "Fundación Medic Venezuela",
         rif: "J1983746500032",
         address: "Av. Libertador, Caracas",
         country: "Venezuela",
-        email: "donaciones@medicvenezuela.org"
+        email: "donaciones@medicvenezuela.org",
+        responsible: "",
+        phone: ""
     },
     {
         name: "Salud Total Internacional",
         rif: "J2783645000172",
         address: "Av. San Martín, Caracas",
         country: "Colombia",
-        email: "contact@saludtotal.co"
+        email: "contact@saludtotal.co",
+        responsible: "",
+        phone: ""
     },
     {
         name: "Cruz Roja Zulia",
         rif: "J0098765432100",
         address: "Calle 72, Maracaibo",
         country: "Venezuela",
-        email: "ayuda@cruzrojazulia.org"
+        email: "ayuda@cruzrojazulia.org",
+        responsible: "",
+        phone: ""
     },
     {
         name: "Médicos Sin Fronteras",
         rif: "J1234567890123",
         address: "Oficinas en Caracas",
         country: "Francia",
-        email: "venezuela@msf.org"
+        email: "venezuela@msf.org",
+        responsible: "",
+        phone: ""
     },
     {
         name: "Donaciones Esperanza",
         rif: "J3344556677889",
         address: "Av. Los Próceres, Barquisimeto",
         country: "Venezuela",
-        email: "contacto@esperanza.org.ve"
+        email: "contacto@esperanza.org.ve",
+        responsible: "",
+        phone: ""
     },
     {
         name: "Farmadistribuciones Lara",
         rif: "J9988776655443",
         address: "Zona Franca, Barquisimeto",
         country: "Venezuela",
-        email: "info@farmalara.com.ve"
+        email: "info@farmalara.com.ve",
+        responsible: "",
+        phone: ""
     }
 ];
 
@@ -4408,6 +4401,8 @@ export const providerDB = [
         country: 'Venezuela',
         address:'',
         email: '',
+        responsible: "",
+        phone: ""
     },
     {
         name: "COLGATE-PALMOLIVE",
@@ -4415,6 +4410,8 @@ export const providerDB = [
         country: 'Venezuela',
         address:'',
         email: '',
+        responsible: "",
+        phone: ""
     },
     {
         name: "CALOX",
@@ -4422,6 +4419,8 @@ export const providerDB = [
         country: 'Venezuela',
         address:'',
         email: '',
+        responsible: "",
+        phone: ""
     },
     {
         name: "COBECA",
@@ -4429,6 +4428,8 @@ export const providerDB = [
         country: 'Venezuela',
         address:'',
         email: '',
+        responsible: "",
+        phone: ""
     },
     {
         name: "INSTITUTO MUNICIPAL DE LA SALUD DE SANTA RITA",
@@ -4436,6 +4437,8 @@ export const providerDB = [
         country: 'Venezuela',
         address:'',
         email: '',
+        responsible: "",
+        phone: ""
     },
     {
         name: "BRIUTCARE",
@@ -4443,5 +4446,7 @@ export const providerDB = [
         country: 'Venezuela',
         address:'',
         email: '',
+        responsible: "",
+        phone: ""
     },
 ];

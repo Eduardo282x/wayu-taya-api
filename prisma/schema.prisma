@@ -134,12 +134,16 @@ model Events {
 }
 
 model Providers {
-  id              Int               @id @default(autoincrement())
-  name            String
-  rif             String //J0560276543650
-  address         String //Av. La limpia
-  country         String
-  email           String
+  id      Int    @id @default(autoincrement())
+  name    String
+  rif     String //J0560276543650
+  address String //Av. La limpia
+
+  responsible String
+  phone       String
+  email       String
+  country     String
+
   providersEvents ProvidersEvents[]
   deleted         Boolean           @default(false)
   Donation        Donation[]
@@ -188,19 +192,18 @@ model Medicine {
   id               Int                @id @default(autoincrement())
   name             String
   description      String
+  code             String?
   categoryId       Int
   category         Category           @relation(fields: [categoryId], references: [id])
   medicine         Boolean
-  unit             String
-  amount           Int
+  presentation     String            @default("")
   temperate        String
   manufacturer     String
   activeIngredient String
   countryOfOrigin  String             @default("VE")
-  benefited        Int                @default(1)
   formId           Int
   form             Forms              @relation(fields: [formId], references: [id])
-  detDonation      DetDonation[]
+  detDonation      DetDonation[]  
   inventory        Inventory[]
   historyInventory HistoryInventory[]
 }
@@ -220,6 +223,7 @@ model Donation {
   type             String
   date             DateTime
   lote             String
+  benefited        Int                @default(1)
   createAt         DateTime           @default(now())
   updateAt         DateTime           @default(now())
   institution      Institutions?      @relation(fields: [institutionId], references: [id])
@@ -236,6 +240,7 @@ model DetDonation {
   medicineId Int
   medicine   Medicine @relation(fields: [medicineId], references: [id])
   amount     Int
+  benefited  Int      @default(1)
 }
 
 model Inventory {
