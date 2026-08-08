@@ -257,7 +257,8 @@ export class ReportsService {
         for (const salida of instituciones) {
           const nombre = salida.institution?.name || 'Sin institución';
           const cantidad = salida.detDonation.reduce((acc, d) => acc + d.amount, 0);
-          const beneficiarios = salida.detDonation.reduce((acc, d) => acc + (d.benefited * d.amount), 0);
+          const beneficiarios = salida.detDonation.reduce((acc, d) => acc + (1 * d.amount), 0);
+          // const beneficiarios = salida.detDonation.reduce((acc, d) => acc + (d.benefited * d.amount), 0);
 
           rows.push(
             new TableRow({
@@ -519,11 +520,13 @@ export class ReportsService {
 
           for (const d of salida.detDonation) {
             totalItems += d.amount;
-            totalBeneficiarios += d.amount * d.benefited;
+            totalBeneficiarios += d.amount * 1;
+            // totalBeneficiarios += d.amount * d.benefited;
             const medName = d.medicine.name;
             if (!medicinesMap[medName]) medicinesMap[medName] = { items: 0, beneficiarios: 0 };
             medicinesMap[medName].items += d.amount;
-            medicinesMap[medName].beneficiarios += d.amount * d.benefited;
+            // medicinesMap[medName].beneficiarios += d.amount * d.benefited;
+            medicinesMap[medName].beneficiarios += d.amount * 1;
           }
         }
 
