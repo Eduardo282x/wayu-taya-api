@@ -4,18 +4,15 @@ import { DTOLogin, DTORecoverPassword } from './auth.dto';
 
 @Controller('auth')
 export class AuthController {
+  constructor(private readonly authService: AuthService) {}
 
-    constructor(private readonly authService: AuthService) {
+  @Post('/login')
+  async authLogin(@Body() login: DTOLogin) {
+    return await this.authService.authLogin(login);
+  }
 
-    }
-
-    @Post()
-    async authLogin(@Body() login: DTOLogin) {
-        return await this.authService.authLogin(login);
-    }
-
-    @Post('/recover')
-    async changePassword(@Body() change: DTORecoverPassword) {
-        return await this.authService.changePassword(change);
-    }
+  @Post('/recover')
+  async changePassword(@Body() change: DTORecoverPassword) {
+    return await this.authService.changePassword(change);
+  }
 }
