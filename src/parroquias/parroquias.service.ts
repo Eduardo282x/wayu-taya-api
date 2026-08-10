@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ParroquiasDTO } from './parroquias.dto';
-import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
 export class ParroquiasService {
@@ -21,13 +20,9 @@ export class ParroquiasService {
           townId: parroquia.id_ciudad,
         },
       });
-      baseResponse.message = 'Parroquia creada exitosamente.';
-      return baseResponse;
+      return { message: 'Parroquia creada exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al crear la Parroquia.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -37,13 +32,9 @@ export class ParroquiasService {
         data: { name: parroquia.parroquia },
         where: { id: id_parroquia },
       });
-      baseResponse.message = 'Parroquia actualizada exitosamente.';
-      return baseResponse;
+      return { message: 'Parroquia actualizada exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al actualizar la Parroquia.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -52,13 +43,9 @@ export class ParroquiasService {
       await this.prismaService.parish.delete({
         where: { id: id_parroquia },
       });
-      baseResponse.message = 'Parroquia eliminada exitosamente.';
-      return baseResponse;
+      return { message: 'Parroquia eliminada exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al eliminar la parroquia: ' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 }

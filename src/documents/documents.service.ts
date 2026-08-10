@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DocumentDTO, NewDocumentDTO } from './documents.dto';
-import { badResponse, baseResponse } from 'src/dto/base.dto';
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- plugin CJS sin tipos ESM
 const PDFDocument = require('pdfkit-table');
 
@@ -60,13 +59,9 @@ export class DocumentsService {
         data: dataCollaborators,
       });
 
-      baseResponse.message = 'Documento creado exitosamente.';
-      return baseResponse;
+      return { message: 'Documento creado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al crear el documento: ' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -95,13 +90,9 @@ export class DocumentsService {
         data: dataCollaborators,
       });
 
-      baseResponse.message = 'Documento actualizado exitosamente.';
-      return baseResponse;
+      return { message: 'Documento actualizado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al actualizar el documento.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -112,13 +103,9 @@ export class DocumentsService {
         data: { deleted: true },
       });
 
-      baseResponse.message = 'Documento eliminado exitosamente.';
-      return baseResponse;
+      return { message: 'Documento eliminado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al eliminar el documento.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -137,13 +124,9 @@ export class DocumentsService {
         },
       });
 
-      baseResponse.message = 'Documento guardado exitosamente.';
-      return baseResponse;
+      return { message: 'Documento guardado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al crear documento: ' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 

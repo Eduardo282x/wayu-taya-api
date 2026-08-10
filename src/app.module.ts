@@ -22,8 +22,10 @@ import { InstitutionsModule } from './institutions/institutions.module';
 import { ReportsModule } from './reports/reports.module';
 import { JwtService } from '@nestjs/jwt';
 import { AuthGuard } from './auth/auth.guard';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
+import { AllExceptionsFilter } from './common/filters/http-exception.filter';
+import { FileLoggerService } from './common/logger/file-logger.service';
 
 @Module({
   imports: [
@@ -55,9 +57,14 @@ import { ConfigModule } from '@nestjs/config';
     AppService,
     PrismaService,
     JwtService,
+    FileLoggerService,
     {
       provide: APP_GUARD,
       useClass: AuthGuard, // se ejecuta primero
+    },
+    {
+      provide: APP_FILTER,
+      useClass: AllExceptionsFilter,
     },
     // {
     //   provide: APP_GUARD,

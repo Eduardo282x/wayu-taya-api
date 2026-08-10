@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   HistoryQueryDto,
@@ -6,7 +10,6 @@ import {
   InventoryMoveDto,
   InventoryOutDTO,
 } from './inventory.dto';
-import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
 export class InventoryService {
@@ -197,10 +200,7 @@ export class InventoryService {
         },
       });
     } catch (error) {
-      badResponse.message =
-        'Error al obtener el historial del inventario: ' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -600,15 +600,16 @@ export class InventoryService {
       });
 
       if (!inventory) {
-        badResponse.message =
-          'No se encontró el inventario para esta medicina y almacén.';
-        return badResponse;
+        throw new NotFoundException(
+          'No se encontró el inventario para esta medicina y almacén.',
+        );
       }
 
       const amount = data.amount;
       if (inventory.stock < amount) {
-        badResponse.message = `Cantidad insuficiente: hay ${inventory.stock}, se solicitó ${amount}`;
-        return badResponse;
+        throw new BadRequestException(
+          `Cantidad insuficiente: hay ${inventory.stock}, se solicitó ${amount}`,
+        );
       }
 
       //update or delete stock
@@ -645,13 +646,9 @@ export class InventoryService {
         });
       });
 
-      baseResponse.message = 'Salida registrada correctamente del inventario.';
-      return baseResponse;
+      return { message: 'Salida registrada correctamente del inventario.' };
     } catch (error) {
-      badResponse.message =
-        'Error la registrar la salida del inventario: ' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 }

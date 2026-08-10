@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ProveedoresDTO } from './proveedores.dto';
-import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
 export class ProveedoresService {
@@ -33,13 +32,9 @@ export class ProveedoresService {
           responsible: proveedores.responsible,
         },
       });
-      baseResponse.message = 'Proveedor creado exitosamente.';
-      return baseResponse;
+      return { message: 'Proveedor creado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al crear el Proveedor.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -57,13 +52,9 @@ export class ProveedoresService {
         },
         where: { id: id_proveedor },
       });
-      baseResponse.message = 'Proveedor actualizado exitosamente.';
-      return baseResponse;
+      return { message: 'Proveedor actualizado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al actualizar el Proveedor. ' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -73,13 +64,9 @@ export class ProveedoresService {
         where: { id: id_proveedor },
         data: { deleted: true },
       });
-      baseResponse.message = 'Proveedor marcado como eliminado exitosamente.';
-      return baseResponse;
+      return { message: 'Proveedor marcado como eliminado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al marcar el proveedor como eliminado.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 }

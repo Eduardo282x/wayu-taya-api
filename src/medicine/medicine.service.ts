@@ -6,7 +6,6 @@ import {
   CategoryDTO,
   FormsDTO,
 } from './medicine.dto';
-import { badResponse, baseResponse } from 'src/dto/base.dto';
 import * as ExcelJS from 'exceljs';
 import { Response } from 'express';
 
@@ -94,13 +93,9 @@ export class MedicineService {
           formId,
         },
       });
-      baseResponse.message = 'Medicina creada exitosamente.';
-      return baseResponse;
+      return { message: 'Medicina creada exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al crear el Medicina.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
   //Categorias
@@ -111,13 +106,9 @@ export class MedicineService {
           category: category.category,
         },
       });
-      baseResponse.message = 'Categoría creada exitosamente.';
-      return baseResponse;
+      return { message: 'Categoría creada exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'error al crear el Categoría.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
   //Formas
@@ -128,13 +119,9 @@ export class MedicineService {
           forms: forms.forms,
         },
       });
-      baseResponse.message = 'Forma creada exitosamente.';
-      return baseResponse;
+      return { message: 'Forma creada exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al crear la Forma.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
   async updateMedicine(id: number, medicine: MedicineDTO) {
@@ -161,13 +148,9 @@ export class MedicineService {
         where: { id: id },
       });
 
-      baseResponse.message = 'Medicina actualizada exitosamente.';
-      return baseResponse;
+      return { message: 'Medicina actualizada exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al actualizar la Medicina.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
   //Categoria
@@ -180,13 +163,9 @@ export class MedicineService {
         where: { id: id },
       });
 
-      baseResponse.message = 'Categoría actualizada exitosamente';
-      return baseResponse;
+      return { message: 'Categoría actualizada exitosamente' };
     } catch (error) {
-      badResponse.message =
-        'Error al actualizar la Categoría.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
   //Formas
@@ -199,13 +178,9 @@ export class MedicineService {
         where: { id: id },
       });
 
-      baseResponse.message = 'Forma actualizada exitosamente';
-      return baseResponse;
+      return { message: 'Forma actualizada exitosamente' };
     } catch (error) {
-      badResponse.message =
-        'Error al actualizar la Forma.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
   async deleteMedicine(id: number) {
@@ -214,13 +189,9 @@ export class MedicineService {
         where: { id: id },
       });
 
-      baseResponse.message = 'Medicina/Producto eliminado exitosamente';
-      return baseResponse;
+      return { message: 'Medicina/Producto eliminado exitosamente' };
     } catch (error) {
-      badResponse.message =
-        'Error al eliminar la Medicina/Producto.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -231,13 +202,9 @@ export class MedicineService {
         where: { id: id },
       });
 
-      baseResponse.message = 'Categoría eliminado exitosamente';
-      return baseResponse;
+      return { message: 'Categoría eliminado exitosamente' };
     } catch (error) {
-      badResponse.message =
-        'Error al eliminar la Categoría: ' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -248,13 +215,9 @@ export class MedicineService {
         where: { id: id },
       });
 
-      baseResponse.message = 'Forma eliminada exitosamente';
-      return baseResponse;
+      return { message: 'Forma eliminada exitosamente' };
     } catch (error) {
-      badResponse.message =
-        'Error al eliminar la Forma: ' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -318,9 +281,8 @@ export class MedicineService {
       );
       await workbook.xlsx.write(res);
       res.end();
-    } catch {
-      badResponse.message = 'Error al generar el archivo Excel.';
-      return badResponse;
+    } catch (error) {
+      throw error;
     }
   }
 
@@ -423,22 +385,18 @@ export class MedicineService {
         });
       }
 
-      baseResponse.data = {
-        inserted: createdMedicines.length,
-        skipped: skippedMedicines.length,
-        skippedItems: skippedMedicines,
+      return {
+        message:
+          `Carga completada: ${createdMedicines.length} medicina(s) agregada(s), ` +
+          `${skippedMedicines.length} ya existían y fueron omitidas.`,
+        data: {
+          inserted: createdMedicines.length,
+          skipped: skippedMedicines.length,
+          skippedItems: skippedMedicines,
+        },
       };
-
-      baseResponse.message =
-        `Carga completada: ${createdMedicines.length} medicina(s) agregada(s), ` +
-        `${skippedMedicines.length} ya existían y fueron omitidas.`;
-
-      return baseResponse;
     } catch (error) {
-      badResponse.message =
-        'Error al cargar las medicinas desde Excel: ' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 

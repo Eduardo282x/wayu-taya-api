@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { EventsDTO } from './events.dto';
-import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
 export class EventsService {
@@ -60,13 +59,9 @@ export class EventsService {
         data: dataProvidersEvents,
       });
 
-      baseResponse.message = 'Evento creado exitosamente.';
-      return baseResponse;
+      return { message: 'Evento creado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al crear evento.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -99,13 +94,9 @@ export class EventsService {
         });
       }
 
-      baseResponse.message = 'Evento actualizado exitosamente.';
-      return baseResponse;
+      return { message: 'Evento actualizado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al actualizar el Evento. ' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -115,13 +106,9 @@ export class EventsService {
         where: { id },
         data: { deleted: true },
       });
-      baseResponse.message = 'Evento marcado como eliminado exitosamente.';
-      return baseResponse;
+      return { message: 'Evento marcado como eliminado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al marcar el evento como eliminado.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 }

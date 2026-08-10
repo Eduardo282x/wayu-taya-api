@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { ProgramsDTO } from './programs.dto';
-import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
 export class ProgramsService {
@@ -22,13 +21,9 @@ export class ProgramsService {
           type: program.type,
         },
       });
-      baseResponse.message = 'Programa creado exitosamente.';
-      return baseResponse;
+      return { message: 'Programa creado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al crear el Programa.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -41,13 +36,9 @@ export class ProgramsService {
         },
         where: { id: id_programs },
       });
-      baseResponse.message = 'Programa actualizado exitosamente.';
-      return baseResponse;
+      return { message: 'Programa actualizado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al actualizar el Programa.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -58,13 +49,9 @@ export class ProgramsService {
         data: { deleted: true },
       });
 
-      baseResponse.message = 'Programa eliminado exitosamente.';
-      return baseResponse;
+      return { message: 'Programa eliminado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al eliminar el programa.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 }

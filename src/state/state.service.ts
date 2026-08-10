@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { StateDTO } from './state.dto';
-import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
 export class StateService {
@@ -18,13 +17,9 @@ export class StateService {
           name: state.name,
         },
       });
-      baseResponse.message = 'Estado creado exitosamente.';
-      return baseResponse;
+      return { message: 'Estado creado exitosamente.' };
     } catch (err) {
-      badResponse.message =
-        'Error al crear el Estado.' +
-        (err instanceof Error ? err.message : String(err));
-      return badResponse;
+      throw err;
     }
   }
 
@@ -34,13 +29,9 @@ export class StateService {
         data: { name: state.name },
         where: { id },
       });
-      baseResponse.message = 'Estado actualizado exitosamente.';
-      return baseResponse;
+      return { message: 'Estado actualizado exitosamente.' };
     } catch (err) {
-      badResponse.message =
-        'Error al actualizar el Estado.' +
-        (err instanceof Error ? err.message : String(err));
-      return badResponse;
+      throw err;
     }
   }
 
@@ -49,13 +40,9 @@ export class StateService {
       await this.prismaService.state.delete({
         where: { id },
       });
-      baseResponse.message = 'Estado eliminado exitosamente.';
-      return baseResponse;
+      return { message: 'Estado eliminado exitosamente.' };
     } catch (err) {
-      badResponse.message =
-        'Error al eliminar el Estado: ' +
-        (err instanceof Error ? err.message : String(err));
-      return badResponse;
+      throw err;
     }
   }
 }

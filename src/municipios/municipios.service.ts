@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { MunicipioDTO } from './municipios.dto';
-import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
 export class MunicipiosService {
@@ -21,13 +20,9 @@ export class MunicipiosService {
           stateId: municipio.id_estado,
         },
       });
-      baseResponse.message = 'Municipio creado exitosamente.';
-      return baseResponse;
+      return { message: 'Municipio creado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al crear Municipio.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -37,13 +32,9 @@ export class MunicipiosService {
         data: { name: municipio.municipio },
         where: { id: id_municipio },
       });
-      baseResponse.message = 'Municipio actualizado exitosamente.';
-      return baseResponse;
+      return { message: 'Municipio actualizado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al actualizar municipio.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -52,13 +43,9 @@ export class MunicipiosService {
       await this.prismaService.city.delete({
         where: { id: id_municipio },
       });
-      baseResponse.message = 'Municipio deleted exitosamente.';
-      return baseResponse;
+      return { message: 'Municipio deleted exitosamente.' };
     } catch (err) {
-      badResponse.message =
-        'Error al eliminar municipio.' +
-        (err instanceof Error ? err.message : String(err));
-      return badResponse;
+      throw err;
     }
   }
 }

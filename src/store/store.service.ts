@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { StoreDTO } from './store.dto';
-import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
 export class StoreService {
@@ -20,13 +19,9 @@ export class StoreService {
           address: store.address,
         },
       });
-      baseResponse.message = 'Almacén creado exitosamente.';
-      return baseResponse;
+      return { message: 'Almacén creado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al crear el Almacén.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -39,13 +34,9 @@ export class StoreService {
         },
         where: { id: id },
       });
-      baseResponse.message = 'Almacén actualizado exitosamente.';
-      return baseResponse;
+      return { message: 'Almacén actualizado exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al actualizar el Almacén.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -55,13 +46,9 @@ export class StoreService {
         where: { id: id },
       });
 
-      baseResponse.message = 'Almacén eliminado exitosamente';
-      return baseResponse;
+      return { message: 'Almacén eliminado exitosamente' };
     } catch (error) {
-      badResponse.message =
-        'Error al eliminar el Almacén: ' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 }

@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { InstitutionsDTO, InstitutionsManyDTO } from './institutions.dto';
-import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
 export class InstitutionsService {
@@ -38,13 +37,9 @@ export class InstitutionsService {
           parishId: institutions.parishId,
         },
       });
-      baseResponse.message = 'Institución creada exitosamente.';
-      return baseResponse;
+      return { message: 'Institución creada exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al crear la Institución.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -53,13 +48,9 @@ export class InstitutionsService {
       await this.prismaService.institutions.createMany({
         data: institutions.institutions,
       });
-      baseResponse.message = 'Instituciones creadas exitosamente.';
-      return baseResponse;
+      return { message: 'Instituciones creadas exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al crear las Instituciones.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -77,13 +68,9 @@ export class InstitutionsService {
         },
         where: { id },
       });
-      baseResponse.message = 'Institución actualizada exitosamente.';
-      return baseResponse;
+      return { message: 'Institución actualizada exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al actualizar la Institución. ' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -93,13 +80,9 @@ export class InstitutionsService {
         where: { id: id_institution },
         data: { deleted: true },
       });
-      baseResponse.message = 'Institucion marcada como eliminada exitosamente.';
-      return baseResponse;
+      return { message: 'Institucion marcada como eliminada exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al marcar el Institucion como eliminada.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 }

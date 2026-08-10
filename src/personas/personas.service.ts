@@ -1,7 +1,6 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PersonaProgramDTO, PersonasDTO } from './personas.dto';
-import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
 export class PersonasService {
@@ -21,8 +20,7 @@ export class PersonasService {
     });
 
     if (!findProgram) {
-      badResponse.message = 'No se encontró el programa';
-      return badResponse;
+      throw new NotFoundException('No se encontró el programa');
     }
 
     return await this.prismaService.peoplePrograms
@@ -65,13 +63,9 @@ export class PersonasService {
         data: dataPersonasProgramas,
       });
 
-      baseResponse.message = 'Persona creada exitosamente.';
-      return baseResponse;
+      return { message: 'Persona creada exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al crear a la Persona.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -91,13 +85,9 @@ export class PersonasService {
         },
       });
 
-      baseResponse.message = 'Persona guardada exitosamente.';
-      return baseResponse;
+      return { message: 'Persona guardada exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al crear a la Persona.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -134,13 +124,9 @@ export class PersonasService {
         data: dataPersonasProgramas,
       });
 
-      baseResponse.message = 'Datos de la Persona actualizados exitosamente.';
-      return baseResponse;
+      return { message: 'Datos de la Persona actualizados exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al actualizar la Persona.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -164,13 +150,9 @@ export class PersonasService {
         where: { id: id_personas },
       });
 
-      baseResponse.message = 'Persona actualizada exitosamente.';
-      return baseResponse;
+      return { message: 'Persona actualizada exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al actualizar la Persona.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 
@@ -181,13 +163,9 @@ export class PersonasService {
         data: { deleted: true },
       });
 
-      baseResponse.message = 'Persona eliminada exitosamente.';
-      return baseResponse;
+      return { message: 'Persona eliminada exitosamente.' };
     } catch (error) {
-      badResponse.message =
-        'Error al eliminar a la Persona.' +
-        (error instanceof Error ? error.message : String(error));
-      return badResponse;
+      throw error;
     }
   }
 }

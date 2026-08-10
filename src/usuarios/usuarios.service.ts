@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { badResponse, baseResponse, BaseResponseLogin } from 'src/dto/base.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DTOUsuarios, DTOUsuariosPassword } from './usuarios.dto';
 
@@ -29,11 +28,9 @@ export class UsuariosService {
         },
       });
 
-      baseResponse.message = 'Usuario creado exitosamente';
-      return baseResponse;
+      return { message: 'Usuario creado exitosamente' };
     } catch (err) {
-      badResponse.message = `Ha ocurrido un error creando el usuario: ${err instanceof Error ? err.message : String(err)}`;
-      return badResponse;
+      throw err;
     }
   }
 
@@ -46,17 +43,15 @@ export class UsuariosService {
         where: { id },
       });
 
-      baseResponse.message = 'Contraseña actualizada exitosamente';
-      return baseResponse;
+      return { message: 'Contraseña actualizada exitosamente' };
     } catch (err) {
-      badResponse.message = `Ha ocurrido un error ${err instanceof Error ? err.message : String(err)}`;
-      return badResponse;
+      throw err;
     }
   }
 
   async updateProfile(id: number, username: DTOUsuarios) {
     try {
-      const userUpdated = await this.prismaService.users.update({
+      await this.prismaService.users.update({
         data: {
           username: username.username,
           name: username.name,
@@ -69,16 +64,9 @@ export class UsuariosService {
         },
       });
 
-      const responseLogin: BaseResponseLogin = {
-        ...baseResponse,
-        token: JSON.stringify(userUpdated),
-      };
-
-      responseLogin.message = `Perfil Actualizado.`;
-      return responseLogin;
+      return { message: `Perfil Actualizado.` };
     } catch (err) {
-      badResponse.message = `Ha ocurrido un error ${err instanceof Error ? err.message : String(err)}`;
-      return badResponse;
+      throw err;
     }
   }
 
@@ -95,11 +83,9 @@ export class UsuariosService {
         where: { id: id_usuario },
       });
 
-      baseResponse.message = 'Usuario actualizado exitosamente';
-      return baseResponse;
+      return { message: 'Usuario actualizado exitosamente' };
     } catch (err) {
-      badResponse.message = `Ha ocurrido un error actualizando el usuario: ${err instanceof Error ? err.message : String(err)}`;
-      return badResponse;
+      throw err;
     }
   }
 
@@ -109,11 +95,9 @@ export class UsuariosService {
         where: { id: id_usuario },
       });
 
-      baseResponse.message = 'Usuario eliminado exitosamente';
-      return baseResponse;
+      return { message: 'Usuario eliminado exitosamente' };
     } catch (err) {
-      badResponse.message = `Ha ocurrido un error al eliminar el usuario: ${err instanceof Error ? err.message : String(err)}`;
-      return badResponse;
+      throw err;
     }
   }
 }

@@ -1,5 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { badResponse, baseResponse, BaseResponseLogin } from 'src/dto/base.dto';
+import { Injectable, UnauthorizedException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DTOLogin, DTORecoverPassword } from './auth.dto';
 import * as bcrypt from 'bcrypt';
@@ -10,7 +9,7 @@ export class AuthService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly jwtService: JwtService,
-  ) {}
+  ) { }
 
   async authLogin(login: DTOLogin) {
     try {
@@ -37,7 +36,7 @@ export class AuthService {
       }
 
       // 5. Extraer la contraseña para no enviarla en el token ni en la respuesta
-      const { password, ...userWithoutPassword } = findUser;
+      const { password: _password, ...userWithoutPassword } = findUser;
 
       // 6. El payload del token solo llevará los datos limpios
 
@@ -62,8 +61,7 @@ export class AuthService {
       });
 
       if (!findUser) {
-        badResponse.message = `Correo no encontrado.`;
-        return badResponse;
+        throw new NotFoundException(`Correo no encontrado.`);
       }
 
       const hashedPassword = await bcrypt.hash(change.password, 12);
@@ -77,11 +75,9 @@ export class AuthService {
         },
       });
 
-      baseResponse.message = `Contraseña recuperada.`;
-      return baseResponse;
+      return { message: `Contraseña recuperada.` };
     } catch (error) {
-      badResponse.message = `Ha ocurrido un error ${error}`;
-      return badResponse;
+      throw error;
     }
   }
 }
