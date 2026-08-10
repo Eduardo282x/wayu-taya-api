@@ -7,13 +7,15 @@ export class InstitutionsService {
   constructor(private prismaService: PrismaService) {}
 
   async getInstitutionsAll() {
-    return await this.prismaService.institutions.findMany({
+    const institutions = await this.prismaService.institutions.findMany({
       orderBy: { id: 'asc' },
     });
+
+    return { institutions };
   }
 
   async getInstitutions() {
-    return await this.prismaService.institutions.findMany({
+    const institutions = await this.prismaService.institutions.findMany({
       orderBy: { id: 'asc' },
       where: { deleted: false },
       include: {
@@ -22,11 +24,13 @@ export class InstitutionsService {
         },
       },
     });
+
+    return { institutions };
   }
 
   async createInstitutions(institutions: InstitutionsDTO) {
     try {
-      await this.prismaService.institutions.create({
+      const institutionCreated = await this.prismaService.institutions.create({
         data: {
           name: institutions.name,
           rif: institutions.rif,
@@ -37,7 +41,7 @@ export class InstitutionsService {
           parishId: institutions.parishId,
         },
       });
-      return { message: 'Institución creada exitosamente.' };
+      return { institution: institutionCreated, message: 'Institución creada exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -56,7 +60,7 @@ export class InstitutionsService {
 
   async updateInstitutions(id: number, institutions: InstitutionsDTO) {
     try {
-      await this.prismaService.institutions.update({
+      const institutionUpdated = await this.prismaService.institutions.update({
         data: {
           name: institutions.name,
           rif: institutions.rif,
@@ -68,7 +72,7 @@ export class InstitutionsService {
         },
         where: { id },
       });
-      return { message: 'Institución actualizada exitosamente.' };
+      return { institution: institutionUpdated, message: 'Institución actualizada exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -76,11 +80,11 @@ export class InstitutionsService {
 
   async deleteInstitutions(id_institution: number) {
     try {
-      await this.prismaService.institutions.update({
+      const institutionDeleted = await this.prismaService.institutions.update({
         where: { id: id_institution },
         data: { deleted: true },
       });
-      return { message: 'Institucion marcada como eliminada exitosamente.' };
+      return { institution: institutionDeleted, message: 'Institucion marcada como eliminada exitosamente.' };
     } catch (error) {
       throw error;
     }

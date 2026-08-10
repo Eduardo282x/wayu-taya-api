@@ -7,11 +7,13 @@ export class PeopleService {
   constructor(private prismaService: PrismaService) {}
 
   async getPeople() {
-    return await this.prismaService.people.findMany({
+    const people = await this.prismaService.people.findMany({
       include: { parish: true },
       where: { deleted: false },
       orderBy: { id: 'asc' },
     });
+
+    return { people };
   }
 
   async getPeopleByProgram(programId: number) {
@@ -63,7 +65,7 @@ export class PeopleService {
         data: dataPersonPrograms,
       });
 
-      return { message: 'Persona creada exitosamente.' };
+      return { person: personCreate, message: 'Persona creada exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -71,7 +73,7 @@ export class PeopleService {
 
   async createPersonWithoutProgram(people: PeopleDTO) {
     try {
-      await this.prismaService.people.create({
+      const personCreate = await this.prismaService.people.create({
         data: {
           name: people.name,
           lastName: people.lastName,
@@ -85,7 +87,7 @@ export class PeopleService {
         },
       });
 
-      return { message: 'Persona guardada exitosamente.' };
+      return { person: personCreate, message: 'Persona guardada exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -93,7 +95,7 @@ export class PeopleService {
 
   async updatePeople(personId: number, people: PersonProgramDTO) {
     try {
-      await this.prismaService.people.update({
+      const personUpdated = await this.prismaService.people.update({
         data: {
           parishId: people.id_parroquia,
           name: people.name,
@@ -124,7 +126,10 @@ export class PeopleService {
         data: dataPersonPrograms,
       });
 
-      return { message: 'Datos de la Persona actualizados exitosamente.' };
+      return {
+        person: personUpdated,
+        message: 'Datos de la Persona actualizados exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -135,7 +140,7 @@ export class PeopleService {
     people: PeopleDTO,
   ) {
     try {
-      await this.prismaService.people.update({
+      const personUpdated = await this.prismaService.people.update({
         data: {
           parishId: people.id_parroquia,
           name: people.name,
@@ -150,7 +155,7 @@ export class PeopleService {
         where: { id: personId },
       });
 
-      return { message: 'Persona actualizada exitosamente.' };
+      return { person: personUpdated, message: 'Persona actualizada exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -158,12 +163,12 @@ export class PeopleService {
 
   async deletePeople(personId: number) {
     try {
-      await this.prismaService.people.update({
+      const personDeleted = await this.prismaService.people.update({
         where: { id: personId },
         data: { deleted: true },
       });
 
-      return { message: 'Persona eliminada exitosamente.' };
+      return { person: personDeleted, message: 'Persona eliminada exitosamente.' };
     } catch (error) {
       throw error;
     }

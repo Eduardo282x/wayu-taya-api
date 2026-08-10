@@ -7,17 +7,19 @@ export class StateService {
   constructor(private prismaService: PrismaService) {}
 
   async getState() {
-    return await this.prismaService.state.findMany();
+    const states = await this.prismaService.state.findMany();
+
+    return { states };
   }
 
   async createState(state: StateDTO) {
     try {
-      await this.prismaService.state.create({
+      const stateCreated = await this.prismaService.state.create({
         data: {
           name: state.name,
         },
       });
-      return { message: 'Estado creado exitosamente.' };
+      return { state: stateCreated, message: 'Estado creado exitosamente.' };
     } catch (err) {
       throw err;
     }
@@ -25,11 +27,11 @@ export class StateService {
 
   async updateState(id: number, state: StateDTO) {
     try {
-      await this.prismaService.state.update({
+      const stateUpdated = await this.prismaService.state.update({
         data: { name: state.name },
         where: { id },
       });
-      return { message: 'Estado actualizado exitosamente.' };
+      return { state: stateUpdated, message: 'Estado actualizado exitosamente.' };
     } catch (err) {
       throw err;
     }
@@ -37,10 +39,10 @@ export class StateService {
 
   async deleteState(id: number) {
     try {
-      await this.prismaService.state.delete({
+      const stateDeleted = await this.prismaService.state.delete({
         where: { id },
       });
-      return { message: 'Estado eliminado exitosamente.' };
+      return { state: stateDeleted, message: 'Estado eliminado exitosamente.' };
     } catch (err) {
       throw err;
     }

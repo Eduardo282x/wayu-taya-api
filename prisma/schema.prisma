@@ -158,14 +158,15 @@ model ProvidersEvents {
 }
 
 model Users {
-  id       Int    @id @default(autoincrement())
+  id       Int     @id @default(autoincrement())
   name     String
   lastName String
   correo   String
   username String
   password String
   rolId    Int
-  rol      Role   @relation(fields: [rolId], references: [id])
+  rol      Role    @relation(fields: [rolId], references: [id])
+  deleted  Boolean @default(false)
 }
 
 model Role {
@@ -196,14 +197,14 @@ model Medicine {
   categoryId       Int
   category         Category           @relation(fields: [categoryId], references: [id])
   medicine         Boolean
-  presentation     String            @default("")
+  presentation     String             @default("")
   temperate        String
   manufacturer     String
   activeIngredient String
   countryOfOrigin  String             @default("VE")
   formId           Int
   form             Forms              @relation(fields: [formId], references: [id])
-  detDonation      DetDonation[]  
+  detDonation      DetDonation[]
   inventory        Inventory[]
   historyInventory HistoryInventory[]
 }
@@ -212,6 +213,7 @@ model Store {
   id               Int                @id @default(autoincrement())
   name             String
   address          String
+  deleted          Boolean            @default(false)
   inventory        Inventory[]
   historyInventory HistoryInventory[]
 }
@@ -224,6 +226,7 @@ model Donation {
   date             DateTime
   lote             String
   benefited        Int                @default(1)
+  deleted          Boolean            @default(false)
   createAt         DateTime           @default(now())
   updateAt         DateTime           @default(now())
   institution      Institutions?      @relation(fields: [institutionId], references: [id])

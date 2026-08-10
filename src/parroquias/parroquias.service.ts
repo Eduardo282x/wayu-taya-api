@@ -7,20 +7,22 @@ export class ParroquiasService {
   constructor(private prismaService: PrismaService) {}
 
   async getParroquia() {
-    return await this.prismaService.parish.findMany({
+    const parishes = await this.prismaService.parish.findMany({
       include: { town: { include: { city: { include: { state: true } } } } },
     });
+
+    return { parishes };
   }
 
   async createParroquia(parroquia: ParroquiasDTO) {
     try {
-      await this.prismaService.parish.create({
+      const parishCreated = await this.prismaService.parish.create({
         data: {
           name: parroquia.parroquia,
           townId: parroquia.id_ciudad,
         },
       });
-      return { message: 'Parroquia creada exitosamente.' };
+      return { parish: parishCreated, message: 'Parroquia creada exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -28,11 +30,11 @@ export class ParroquiasService {
 
   async updateParroquia(id_parroquia: number, parroquia: ParroquiasDTO) {
     try {
-      await this.prismaService.parish.update({
+      const parishUpdated = await this.prismaService.parish.update({
         data: { name: parroquia.parroquia },
         where: { id: id_parroquia },
       });
-      return { message: 'Parroquia actualizada exitosamente.' };
+      return { parish: parishUpdated, message: 'Parroquia actualizada exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -40,10 +42,10 @@ export class ParroquiasService {
 
   async deleteParroquia(id_parroquia: number) {
     try {
-      await this.prismaService.parish.delete({
+      const parishDeleted = await this.prismaService.parish.delete({
         where: { id: id_parroquia },
       });
-      return { message: 'Parroquia eliminada exitosamente.' };
+      return { parish: parishDeleted, message: 'Parroquia eliminada exitosamente.' };
     } catch (error) {
       throw error;
     }

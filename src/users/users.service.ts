@@ -7,12 +7,17 @@ export class UsersService {
   constructor(private readonly prismaService: PrismaService) { }
 
   async getUsers() {
-    return this.prismaService.users.findMany({
+    const users = await this.prismaService.users.findMany({
       include: { rol: true },
+      where: { deleted: false },
     });
+
+    return { users };
   }
   async getRoles() {
-    return this.prismaService.role.findMany();
+    const roles = await this.prismaService.role.findMany();
+
+    return { roles };
   }
 
   async createUser(user: UserDTO) {
@@ -36,14 +41,17 @@ export class UsersService {
 
   async updateUserPassword(id: number, newPassword: UserPasswordDTO) {
     try {
-      await this.prismaService.users.update({
+      const userUpdated = await this.prismaService.users.update({
         data: {
           password: newPassword.newPassword,
         },
         where: { id },
       });
 
-      return { message: 'Contraseña actualizada exitosamente' };
+      return {
+        user: userUpdated,
+        message: 'Contraseña actualizada exitosamente',
+      };
     } catch (err) {
       throw err;
     }
@@ -51,7 +59,7 @@ export class UsersService {
 
   async updateProfile(id: number, user: UserDTO) {
     try {
-      await this.prismaService.users.update({
+      const userUpdated = await this.prismaService.users.update({
         data: {
           username: user.username,
           name: user.name,
@@ -64,7 +72,7 @@ export class UsersService {
         },
       });
 
-      return { message: `Perfil Actualizado.` };
+      return { user: userUpdated, message: `Perfil Actualizado.` };
     } catch (err) {
       throw err;
     }
@@ -72,7 +80,7 @@ export class UsersService {
 
   async updateUser(id_usuario: number, user: UserDTO) {
     try {
-      await this.prismaService.users.update({
+      const userUpdated = await this.prismaService.users.update({
         data: {
           username: user.username,
           name: user.name,
@@ -83,7 +91,7 @@ export class UsersService {
         where: { id: id_usuario },
       });
 
-      return { message: 'Usuario actualizado exitosamente' };
+      return { user: userUpdated, message: 'Usuario actualizado exitosamente' };
     } catch (err) {
       throw err;
     }
@@ -91,11 +99,12 @@ export class UsersService {
 
   async deleteUser(id_usuario: number) {
     try {
-      await this.prismaService.users.delete({
+      const userDeleted = await this.prismaService.users.update({
+        data: { deleted: true },
         where: { id: id_usuario },
       });
 
-      return { message: 'Usuario eliminado exitosamente' };
+      return { user: userDeleted, message: 'Usuario eliminado exitosamente' };
     } catch (err) {
       throw err;
     }

@@ -7,7 +7,7 @@ export class EventsService {
   constructor(private prismaService: PrismaService) {}
 
   async getEvents() {
-    return await this.prismaService.events.findMany({
+    const events = await this.prismaService.events.findMany({
       orderBy: { id: 'asc' },
       where: { deleted: false },
       include: {
@@ -15,10 +15,12 @@ export class EventsService {
         providersEvents: { include: { providers: true } },
       },
     });
+
+    return { events };
   }
 
   async getEventsFixed() {
-    return await this.prismaService.events
+    const events = await this.prismaService.events
       .findMany({
         orderBy: { id: 'asc' },
         where: { deleted: false },
@@ -35,6 +37,8 @@ export class EventsService {
           };
         }),
       );
+
+    return { events };
   }
 
   async createEvent(event: EventsDTO) {
@@ -59,7 +63,7 @@ export class EventsService {
         data: dataProvidersEvents,
       });
 
-      return { message: 'Evento creado exitosamente.' };
+      return { event: eventCreated, message: 'Evento creado exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -67,7 +71,7 @@ export class EventsService {
 
   async updateEvent(id: number, event: EventsDTO) {
     try {
-      await this.prismaService.events.update({
+      const eventUpdated = await this.prismaService.events.update({
         data: {
           name: event.name,
           description: event.description,
@@ -94,7 +98,7 @@ export class EventsService {
         });
       }
 
-      return { message: 'Evento actualizado exitosamente.' };
+      return { event: eventUpdated, message: 'Evento actualizado exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -102,11 +106,11 @@ export class EventsService {
 
   async deleteEvent(id: number) {
     try {
-      await this.prismaService.events.update({
+      const eventDeleted = await this.prismaService.events.update({
         where: { id },
         data: { deleted: true },
       });
-      return { message: 'Evento marcado como eliminado exitosamente.' };
+      return { event: eventDeleted, message: 'Evento marcado como eliminado exitosamente.' };
     } catch (error) {
       throw error;
     }

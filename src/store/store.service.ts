@@ -49,8 +49,9 @@ export class StoreService {
 
   async deleteStore(id: number) {
     try {
-      const deleteStore = await this.prismaService.store.delete({
+      const deleteStore = await this.prismaService.store.update({
         where: { id: id },
+        data: { deleted: true },
       });
 
       return { store: deleteStore, message: 'Almacén eliminado exitosamente' };

@@ -13,18 +13,24 @@ import { Response } from 'express';
 export class MedicineService {
   constructor(private prismaService: PrismaService) {}
   async getMedicine() {
-    return await this.prismaService.medicine.findMany({
+    const medicines = await this.prismaService.medicine.findMany({
       include: {
         category: true,
         form: true,
       },
     });
+
+    return { medicines };
   }
   async getCategory() {
-    return await this.prismaService.category.findMany();
+    const categories = await this.prismaService.category.findMany();
+
+    return { categories };
   }
   async getForms() {
-    return await this.prismaService.forms.findMany();
+    const forms = await this.prismaService.forms.findMany();
+
+    return { forms };
   }
 
   private toTitleCase(value: string): string {
@@ -74,7 +80,7 @@ export class MedicineService {
         this.resolveForm(medicine.form),
       ]);
 
-      await this.prismaService.medicine.create({
+      const medicineCreated = await this.prismaService.medicine.create({
         data: {
           name: medicine.name,
           description: medicine.description,
@@ -93,7 +99,7 @@ export class MedicineService {
           formId,
         },
       });
-      return { message: 'Medicina creada exitosamente.' };
+      return { medicine: medicineCreated, message: 'Medicina creada exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -101,12 +107,12 @@ export class MedicineService {
   //Categorias
   async createCategory(category: CategoryDTO) {
     try {
-      await this.prismaService.category.create({
+      const categoryCreated = await this.prismaService.category.create({
         data: {
           category: category.category,
         },
       });
-      return { message: 'Categoría creada exitosamente.' };
+      return { category: categoryCreated, message: 'Categoría creada exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -114,12 +120,12 @@ export class MedicineService {
   //Formas
   async createForms(forms: FormsDTO) {
     try {
-      await this.prismaService.forms.create({
+      const formCreated = await this.prismaService.forms.create({
         data: {
           forms: forms.forms,
         },
       });
-      return { message: 'Forma creada exitosamente.' };
+      return { form: formCreated, message: 'Forma creada exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -131,7 +137,7 @@ export class MedicineService {
         this.resolveForm(medicine.form),
       ]);
 
-      await this.prismaService.medicine.update({
+      const medicineUpdated = await this.prismaService.medicine.update({
         data: {
           name: medicine.name,
           description: medicine.description,
@@ -148,7 +154,7 @@ export class MedicineService {
         where: { id: id },
       });
 
-      return { message: 'Medicina actualizada exitosamente.' };
+      return { medicine: medicineUpdated, message: 'Medicina actualizada exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -156,14 +162,14 @@ export class MedicineService {
   //Categoria
   async updateCategory(id: number, category: CategoryDTO) {
     try {
-      await this.prismaService.category.update({
+      const categoryUpdated = await this.prismaService.category.update({
         data: {
           category: category.category,
         },
         where: { id: id },
       });
 
-      return { message: 'Categoría actualizada exitosamente' };
+      return { category: categoryUpdated, message: 'Categoría actualizada exitosamente' };
     } catch (error) {
       throw error;
     }
@@ -171,25 +177,25 @@ export class MedicineService {
   //Formas
   async updateForms(id: number, forms: FormsDTO) {
     try {
-      await this.prismaService.forms.update({
+      const formUpdated = await this.prismaService.forms.update({
         data: {
           forms: forms.forms,
         },
         where: { id: id },
       });
 
-      return { message: 'Forma actualizada exitosamente' };
+      return { form: formUpdated, message: 'Forma actualizada exitosamente' };
     } catch (error) {
       throw error;
     }
   }
   async deleteMedicine(id: number) {
     try {
-      await this.prismaService.medicine.delete({
+      const medicineDeleted = await this.prismaService.medicine.delete({
         where: { id: id },
       });
 
-      return { message: 'Medicina/Producto eliminado exitosamente' };
+      return { medicine: medicineDeleted, message: 'Medicina/Producto eliminado exitosamente' };
     } catch (error) {
       throw error;
     }
@@ -198,11 +204,11 @@ export class MedicineService {
   //categoria
   async deleteCategory(id: number) {
     try {
-      await this.prismaService.category.delete({
+      const categoryDeleted = await this.prismaService.category.delete({
         where: { id: id },
       });
 
-      return { message: 'Categoría eliminado exitosamente' };
+      return { category: categoryDeleted, message: 'Categoría eliminado exitosamente' };
     } catch (error) {
       throw error;
     }
@@ -211,11 +217,11 @@ export class MedicineService {
   //formas
   async deleteForms(id: number) {
     try {
-      await this.prismaService.forms.delete({
+      const formDeleted = await this.prismaService.forms.delete({
         where: { id: id },
       });
 
-      return { message: 'Forma eliminada exitosamente' };
+      return { form: formDeleted, message: 'Forma eliminada exitosamente' };
     } catch (error) {
       throw error;
     }

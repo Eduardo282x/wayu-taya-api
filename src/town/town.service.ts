@@ -7,22 +7,24 @@ export class TownService {
   constructor(private prismaService: PrismaService) {}
 
   async getTown() {
-    return await this.prismaService.town.findMany({
+    const towns = await this.prismaService.town.findMany({
       include: {
         city: true,
       },
     });
+
+    return { towns };
   }
 
   async createCiudad(ciudad: TownDTO) {
     try {
-      await this.prismaService.town.create({
+      const townCreated = await this.prismaService.town.create({
         data: {
           name: ciudad.town,
           cityId: ciudad.id_municipio,
         },
       });
-      return { message: 'Ciudad creada exitosamente.' };
+      return { town: townCreated, message: 'Ciudad creada exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -30,14 +32,14 @@ export class TownService {
 
   async updateCiudad(id_ciudad: number, ciudad: TownDTO) {
     try {
-      await this.prismaService.town.update({
+      const townUpdated = await this.prismaService.town.update({
         data: {
           name: ciudad.town,
           cityId: ciudad.id_municipio,
         },
         where: { id: id_ciudad },
       });
-      return { message: 'Ciudad actualizada exitosamente.' };
+      return { town: townUpdated, message: 'Ciudad actualizada exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -45,10 +47,10 @@ export class TownService {
 
   async deleteCiudad(id_ciudad: number) {
     try {
-      await this.prismaService.town.delete({
+      const townDeleted = await this.prismaService.town.delete({
         where: { id: id_ciudad },
       });
-      return { message: 'Ciudad eliminada exitosamente.' };
+      return { town: townDeleted, message: 'Ciudad eliminada exitosamente.' };
     } catch (error) {
       throw error;
     }

@@ -164,7 +164,7 @@ export class DonationsService {
       };
     });
 
-    return donationsWithDates;
+    return { donations: donationsWithDates };
   }
 
   async createDonation(donation: DonationsDTO) {

@@ -9,7 +9,7 @@ export class DocumentsService {
   constructor(private prismaService: PrismaService) {}
 
   async getDocuments() {
-    return await this.prismaService.documents.findMany({
+    const documents = await this.prismaService.documents.findMany({
       orderBy: { id: 'asc' },
       where: { deleted: false },
       include: {
@@ -20,6 +20,8 @@ export class DocumentsService {
         },
       },
     });
+
+    return { documents };
   }
 
   async findDocument(id: number) {
@@ -29,14 +31,16 @@ export class DocumentsService {
   }
 
   async getDocumentsFixed() {
-    return this.getDocuments().then((res) =>
-      res.map((data) => {
+    const documents = await this.getDocuments().then((res) =>
+      res.documents.map((data) => {
         return {
           ...data,
           Colaboradores: data.collaborators.map((co) => co.people),
         };
       }),
     );
+
+    return { documents };
   }
 
   async createDocument(document: DocumentDTO) {
@@ -59,7 +63,7 @@ export class DocumentsService {
         data: dataCollaborators,
       });
 
-      return { message: 'Documento creado exitosamente.' };
+      return { document: documentCreated, message: 'Documento creado exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -67,7 +71,7 @@ export class DocumentsService {
 
   async updateDocument(id: number, document: DocumentDTO) {
     try {
-      await this.prismaService.documents.update({
+      const documentUpdated = await this.prismaService.documents.update({
         data: {
           name: document.name,
           date: document.date,
@@ -90,7 +94,7 @@ export class DocumentsService {
         data: dataCollaborators,
       });
 
-      return { message: 'Documento actualizado exitosamente.' };
+      return { document: documentUpdated, message: 'Documento actualizado exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -98,12 +102,12 @@ export class DocumentsService {
 
   async deleteDocument(id: number) {
     try {
-      await this.prismaService.documents.update({
+      const documentDeleted = await this.prismaService.documents.update({
         where: { id },
         data: { deleted: true },
       });
 
-      return { message: 'Documento eliminado exitosamente.' };
+      return { document: documentDeleted, message: 'Documento eliminado exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -111,7 +115,7 @@ export class DocumentsService {
 
   async createFile(file: Express.Multer.File, data: NewDocumentDTO) {
     try {
-      await this.prismaService.documents.create({
+      const documentCreated = await this.prismaService.documents.create({
         data: {
           name: data.name,
           type: data.type,
@@ -124,7 +128,7 @@ export class DocumentsService {
         },
       });
 
-      return { message: 'Documento guardado exitosamente.' };
+      return { document: documentCreated, message: 'Documento guardado exitosamente.' };
     } catch (error) {
       throw error;
     }

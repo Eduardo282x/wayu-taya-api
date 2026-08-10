@@ -7,21 +7,25 @@ export class ProvidersService {
   constructor(private prismaService: PrismaService) {}
 
   async getProvidersAll() {
-    return await this.prismaService.providers.findMany({
+    const providers = await this.prismaService.providers.findMany({
       orderBy: { id: 'asc' },
     });
+
+    return { providers };
   }
 
   async getProviders() {
-    return await this.prismaService.providers.findMany({
+    const providers = await this.prismaService.providers.findMany({
       orderBy: { id: 'asc' },
       where: { deleted: false },
     });
+
+    return { providers };
   }
 
   async createProviders(providers: ProviderDTO) {
     try {
-      await this.prismaService.providers.create({
+      const providerCreated = await this.prismaService.providers.create({
         data: {
           name: providers.name,
           rif: providers.rif,
@@ -32,7 +36,7 @@ export class ProvidersService {
           responsible: providers.responsible,
         },
       });
-      return { message: 'Proveedor creado exitosamente.' };
+      return { provider: providerCreated, message: 'Proveedor creado exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -40,7 +44,7 @@ export class ProvidersService {
 
   async updateProviders(providerId: number, providers: ProviderDTO) {
     try {
-      await this.prismaService.providers.update({
+      const providerUpdated = await this.prismaService.providers.update({
         data: {
           name: providers.name,
           rif: providers.rif,
@@ -52,7 +56,7 @@ export class ProvidersService {
         },
         where: { id: providerId },
       });
-      return { message: 'Proveedor actualizado exitosamente.' };
+      return { provider: providerUpdated, message: 'Proveedor actualizado exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -60,11 +64,11 @@ export class ProvidersService {
 
   async deleteProviders(providerId: number) {
     try {
-      await this.prismaService.providers.update({
+      const providerDeleted = await this.prismaService.providers.update({
         where: { id: providerId },
         data: { deleted: true },
       });
-      return { message: 'Proveedor marcado como eliminado exitosamente.' };
+      return { provider: providerDeleted, message: 'Proveedor marcado como eliminado exitosamente.' };
     } catch (error) {
       throw error;
     }

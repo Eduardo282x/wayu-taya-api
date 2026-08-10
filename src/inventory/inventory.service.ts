@@ -123,10 +123,12 @@ export class InventoryService {
       >,
     );
 
-    return Object.values(groupedByMedicine).map((item) => {
+    const groupedInventory = Object.values(groupedByMedicine).map((item) => {
       const { expirationSet: _expirationSet, ...rest } = item;
       return rest;
     });
+
+    return { inventory: groupedInventory };
   }
   /*
         async createInventoryOld(inventory: InventoryDto) {
@@ -190,7 +192,7 @@ export class InventoryService {
         }
       }
 
-      return this.prisma.historyInventory.findMany({
+      const history = await this.prisma.historyInventory.findMany({
         where,
         orderBy: { date: 'desc' },
         include: {
@@ -199,6 +201,8 @@ export class InventoryService {
           donation: true,
         },
       });
+
+      return { history };
     } catch (error) {
       throw error;
     }

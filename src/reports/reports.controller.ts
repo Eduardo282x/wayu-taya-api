@@ -34,7 +34,7 @@ export class ReportsController {
   async downloadInventory(@Res() res: Response) {
     const inventory = await this.inventoryService.getInventory();
     const buffer = await this.reportsService.generateInventoryReportPDF(
-      inventory as IInventory[],
+      inventory.inventory as unknown as IInventory[],
     );
 
     res.setHeader('Content-Type', 'application/pdf');
@@ -52,7 +52,7 @@ export class ReportsController {
   ) {
     const inventory = await this.inventoryService.getInventory();
     const buffer = await this.reportsService.generateInventoryByStorePDF(
-      inventory as IInventory[],
+      inventory.inventory as unknown as IInventory[],
       Number(storeId),
     );
 

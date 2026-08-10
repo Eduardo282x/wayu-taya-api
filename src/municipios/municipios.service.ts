@@ -7,20 +7,22 @@ export class MunicipiosService {
   constructor(private prismaService: PrismaService) {}
 
   async getMunicipios() {
-    return await this.prismaService.city.findMany({
+    const cities = await this.prismaService.city.findMany({
       include: { state: true },
     });
+
+    return { cities };
   }
 
   async createMunicipio(municipio: MunicipioDTO) {
     try {
-      await this.prismaService.city.create({
+      const cityCreated = await this.prismaService.city.create({
         data: {
           name: municipio.municipio,
           stateId: municipio.id_estado,
         },
       });
-      return { message: 'Municipio creado exitosamente.' };
+      return { city: cityCreated, message: 'Municipio creado exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -28,11 +30,11 @@ export class MunicipiosService {
 
   async updateMunicipio(id_municipio: number, municipio: MunicipioDTO) {
     try {
-      await this.prismaService.city.update({
+      const cityUpdated = await this.prismaService.city.update({
         data: { name: municipio.municipio },
         where: { id: id_municipio },
       });
-      return { message: 'Municipio actualizado exitosamente.' };
+      return { city: cityUpdated, message: 'Municipio actualizado exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -40,10 +42,10 @@ export class MunicipiosService {
 
   async deleteMunicipio(id_municipio: number) {
     try {
-      await this.prismaService.city.delete({
+      const cityDeleted = await this.prismaService.city.delete({
         where: { id: id_municipio },
       });
-      return { message: 'Municipio deleted exitosamente.' };
+      return { city: cityDeleted, message: 'Municipio deleted exitosamente.' };
     } catch (err) {
       throw err;
     }

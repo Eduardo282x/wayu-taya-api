@@ -8,7 +8,7 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
-export class PersonasDTO {
+export class PeopleDTO {
   @IsNumber()
   id_parroquia: number;
   @IsString()
@@ -30,7 +30,7 @@ export class PersonasDTO {
   birthdate: Date;
 }
 
-export class PersonaProgramDTO extends PersonasDTO {
+export class PersonProgramDTO extends PeopleDTO {
   @IsArray()
   @IsNumber({}, { each: true })
   id_programa: number[];
