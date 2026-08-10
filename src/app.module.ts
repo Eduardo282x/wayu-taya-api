@@ -7,12 +7,12 @@ import { CiudadesModule } from './town/town.module';
 import { ParroquiasModule } from './parroquias/parroquias.module';
 import { MunicipiosModule } from './municipios/municipios.module';
 import { EventsModule } from './events/events.module';
-import { ProveedoresModule } from './proveedores/proveedores.module';
+import { ProvidersModule } from './providers/providers.module';
 import { DocumentsModule } from './documents/documents.module';
-import { UsuariosModule } from './usuarios/usuarios.module';
+import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
-import { PersonasModule } from './personas/personas.module';
-import { ProgramasModule } from './programas/programas.module';
+import { PeopleModule } from './people/people.module';
+import { ProgramsModule } from './programs/programs.module';
 import { MainLoadModule } from './main-load/main-load.module';
 import { StoreModule } from './store/store.module';
 import { MedicineModule } from './medicine/medicine.module';
@@ -34,12 +34,12 @@ import { FileLoggerService } from './common/logger/file-logger.service';
     ParroquiasModule,
     MunicipiosModule,
     EventsModule,
-    ProveedoresModule,
+    ProvidersModule,
     DocumentsModule,
-    UsuariosModule,
+    UsersModule,
     AuthModule,
-    PersonasModule,
-    ProgramasModule,
+    PeopleModule,
+    ProgramsModule,
     MainLoadModule,
     StoreModule,
     MedicineModule,
