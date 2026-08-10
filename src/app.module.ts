@@ -20,6 +20,10 @@ import { InventoryModule } from './inventory/inventory.module';
 import { DonationsModule } from './donations/donations.module';
 import { InstitutionsModule } from './institutions/institutions.module';
 import { ReportsModule } from './reports/reports.module';
+import { JwtService } from '@nestjs/jwt';
+import { AuthGuard } from './auth/auth.guard';
+import { APP_GUARD } from '@nestjs/core';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -40,9 +44,25 @@ import { ReportsModule } from './reports/reports.module';
     InventoryModule,
     DonationsModule,
     InstitutionsModule,
-    ReportsModule
+    ReportsModule,
+    ConfigModule.forRoot({
+      isGlobal: true,
+      envFilePath: ['.env']
+    }),
   ],
   controllers: [AppController],
-  providers: [AppService, PrismaService],
+  providers: [
+    AppService,
+    PrismaService,
+    JwtService,
+    {
+      provide: APP_GUARD,
+      useClass: AuthGuard, // se ejecuta primero
+    }
+    // {
+    //   provide: APP_GUARD,
+    //   useClass: RolesGuard, // se ejecuta después, depende del user ya autenticado
+    // },
+  ],
 })
 export class AppModule { }
