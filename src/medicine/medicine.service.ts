@@ -11,7 +11,7 @@ import { Response } from 'express';
 
 @Injectable()
 export class MedicineService {
-  constructor(private prismaService: PrismaService) {}
+  constructor(private prismaService: PrismaService) { }
   async getMedicine() {
     const medicines = await this.prismaService.medicine.findMany({
       include: {
@@ -104,32 +104,7 @@ export class MedicineService {
       throw error;
     }
   }
-  //Categorias
-  async createCategory(category: CategoryDTO) {
-    try {
-      const categoryCreated = await this.prismaService.category.create({
-        data: {
-          category: category.category,
-        },
-      });
-      return { category: categoryCreated, message: 'Categoría creada exitosamente.' };
-    } catch (error) {
-      throw error;
-    }
-  }
-  //Formas
-  async createForms(forms: FormsDTO) {
-    try {
-      const formCreated = await this.prismaService.forms.create({
-        data: {
-          forms: forms.forms,
-        },
-      });
-      return { form: formCreated, message: 'Forma creada exitosamente.' };
-    } catch (error) {
-      throw error;
-    }
-  }
+
   async updateMedicine(id: number, medicine: MedicineDTO) {
     try {
       const [categoryId, formId] = await Promise.all([
