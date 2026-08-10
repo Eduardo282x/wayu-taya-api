@@ -17,8 +17,18 @@ export class AuthService {
         where: {
           username: login.username,
         },
-        include: {
-          rol: true,
+        select: {
+          id: true,
+          name: true,
+          lastName: true,
+          password: true,
+          correo: true,
+          username: true,
+          rol: {
+            select: {
+              rol: true
+            }
+          }
         },
       });
 
@@ -50,6 +60,7 @@ export class AuthService {
         token,
       };
     } catch (error) {
+      console.log(error);
       throw error;
     }
   }
