@@ -4,22 +4,29 @@ import { StoreDTO } from './store.dto';
 
 @Injectable()
 export class StoreService {
-  constructor(private prismaService: PrismaService) {}
+  constructor(private prismaService: PrismaService) { }
   async getStore() {
-    return await this.prismaService.store.findMany({
+    const stores = await this.prismaService.store.findMany({
       orderBy: { id: 'asc' },
+      where: {
+        deleted: false
+      }
     });
+
+    return {
+      stores
+    }
   }
 
   async createStore(store: StoreDTO) {
     try {
-      await this.prismaService.store.create({
+      const newStore = await this.prismaService.store.create({
         data: {
           name: store.name,
           address: store.address,
         },
       });
-      return { message: 'Almacén creado exitosamente.' };
+      return { store: newStore, message: 'Almacén creado exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -27,14 +34,14 @@ export class StoreService {
 
   async updateStore(id: number, store: StoreDTO) {
     try {
-      await this.prismaService.store.update({
+      const storeUpdate = await this.prismaService.store.update({
         data: {
           name: store.name,
           address: store.address,
         },
         where: { id: id },
       });
-      return { message: 'Almacén actualizado exitosamente.' };
+      return { store: storeUpdate, message: 'Almacén actualizado exitosamente.' };
     } catch (error) {
       throw error;
     }
@@ -42,11 +49,11 @@ export class StoreService {
 
   async deleteStore(id: number) {
     try {
-      await this.prismaService.store.delete({
+      const deleteStore = await this.prismaService.store.delete({
         where: { id: id },
       });
 
-      return { message: 'Almacén eliminado exitosamente' };
+      return { store: deleteStore, message: 'Almacén eliminado exitosamente' };
     } catch (error) {
       throw error;
     }
