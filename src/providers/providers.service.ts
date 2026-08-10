@@ -1,35 +1,35 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { ProveedoresDTO } from './proveedores.dto';
+import { ProviderDTO } from './providers.dto';
 
 @Injectable()
-export class ProveedoresService {
+export class ProvidersService {
   constructor(private prismaService: PrismaService) {}
 
-  async getProveedoresAll() {
+  async getProvidersAll() {
     return await this.prismaService.providers.findMany({
       orderBy: { id: 'asc' },
     });
   }
 
-  async getProveedores() {
+  async getProviders() {
     return await this.prismaService.providers.findMany({
       orderBy: { id: 'asc' },
       where: { deleted: false },
     });
   }
 
-  async createProveedores(proveedores: ProveedoresDTO) {
+  async createProviders(providers: ProviderDTO) {
     try {
       await this.prismaService.providers.create({
         data: {
-          name: proveedores.name,
-          rif: proveedores.rif,
-          address: proveedores.address,
-          country: proveedores.country,
-          email: proveedores.email,
-          phone: proveedores.phone,
-          responsible: proveedores.responsible,
+          name: providers.name,
+          rif: providers.rif,
+          address: providers.address,
+          country: providers.country,
+          email: providers.email,
+          phone: providers.phone,
+          responsible: providers.responsible,
         },
       });
       return { message: 'Proveedor creado exitosamente.' };
@@ -38,19 +38,19 @@ export class ProveedoresService {
     }
   }
 
-  async updateProveedores(id_proveedor: number, proveedores: ProveedoresDTO) {
+  async updateProviders(providerId: number, providers: ProviderDTO) {
     try {
       await this.prismaService.providers.update({
         data: {
-          name: proveedores.name,
-          rif: proveedores.rif,
-          address: proveedores.address,
-          country: proveedores.country,
-          email: proveedores.email,
-          phone: proveedores.phone,
-          responsible: proveedores.responsible,
+          name: providers.name,
+          rif: providers.rif,
+          address: providers.address,
+          country: providers.country,
+          email: providers.email,
+          phone: providers.phone,
+          responsible: providers.responsible,
         },
-        where: { id: id_proveedor },
+        where: { id: providerId },
       });
       return { message: 'Proveedor actualizado exitosamente.' };
     } catch (error) {
@@ -58,10 +58,10 @@ export class ProveedoresService {
     }
   }
 
-  async deleteProveedores(id_proveedor: number) {
+  async deleteProviders(providerId: number) {
     try {
       await this.prismaService.providers.update({
-        where: { id: id_proveedor },
+        where: { id: providerId },
         data: { deleted: true },
       });
       return { message: 'Proveedor marcado como eliminado exitosamente.' };

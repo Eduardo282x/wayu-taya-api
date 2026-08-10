@@ -27,14 +27,14 @@ export class ProgramsService {
     }
   }
 
-  async updatePrograms(id_programs: number, programs: ProgramsDTO) {
+  async updatePrograms(programId: number, programs: ProgramsDTO) {
     try {
       await this.prismaService.programs.update({
         data: {
           program: programs.program,
           type: programs.type,
         },
-        where: { id: id_programs },
+        where: { id: programId },
       });
       return { message: 'Programa actualizado exitosamente.' };
     } catch (error) {

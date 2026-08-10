@@ -1,10 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { DTOUsuarios, DTOUsuariosPassword } from './usuarios.dto';
+import { UserDTO, UserPasswordDTO } from './users.dto';
 
 @Injectable()
-export class UsuariosService {
-  constructor(private readonly prismaService: PrismaService) {}
+export class UsersService {
+  constructor(private readonly prismaService: PrismaService) { }
 
   async getUsers() {
     return this.prismaService.users.findMany({
@@ -15,26 +15,26 @@ export class UsuariosService {
     return this.prismaService.role.findMany();
   }
 
-  async createUser(username: DTOUsuarios) {
+  async createUser(user: UserDTO) {
     try {
-      await this.prismaService.users.create({
+      const newUser = await this.prismaService.users.create({
         data: {
-          username: username.username,
-          name: username.name,
-          lastName: username.lastName,
+          username: user.username,
+          name: user.name,
+          lastName: user.lastName,
           password: '1234',
-          rolId: username.rolId,
-          correo: username.correo,
+          rolId: user.rolId,
+          correo: user.correo,
         },
       });
 
-      return { message: 'Usuario creado exitosamente' };
+      return { user: newUser, message: 'Usuario creado exitosamente' };
     } catch (err) {
       throw err;
     }
   }
 
-  async updateUserPassword(id: number, newPassword: DTOUsuariosPassword) {
+  async updateUserPassword(id: number, newPassword: UserPasswordDTO) {
     try {
       await this.prismaService.users.update({
         data: {
@@ -49,14 +49,14 @@ export class UsuariosService {
     }
   }
 
-  async updateProfile(id: number, username: DTOUsuarios) {
+  async updateProfile(id: number, user: UserDTO) {
     try {
       await this.prismaService.users.update({
         data: {
-          username: username.username,
-          name: username.name,
-          lastName: username.lastName,
-          correo: username.correo,
+          username: user.username,
+          name: user.name,
+          lastName: user.lastName,
+          correo: user.correo,
         },
         where: { id },
         include: {
@@ -70,15 +70,15 @@ export class UsuariosService {
     }
   }
 
-  async updateUser(id_usuario: number, username: DTOUsuarios) {
+  async updateUser(id_usuario: number, user: UserDTO) {
     try {
       await this.prismaService.users.update({
         data: {
-          username: username.username,
-          name: username.name,
-          lastName: username.lastName,
-          correo: username.correo,
-          rolId: username.rolId,
+          username: user.username,
+          name: user.name,
+          lastName: user.lastName,
+          correo: user.correo,
+          rolId: user.rolId,
         },
         where: { id: id_usuario },
       });

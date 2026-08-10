@@ -1,6 +1,6 @@
 import { IsEmail, IsNotEmpty, IsNumber, IsString } from 'class-validator';
 
-export class DTOUsuarios {
+export class UserDTO {
   @IsString()
   username: string;
   @IsString()
@@ -13,7 +13,7 @@ export class DTOUsuarios {
   @IsNumber()
   rolId: number;
 }
-export class DTOUsuariosPassword {
+export class UserPasswordDTO {
   @IsString()
   @IsNotEmpty({ message: 'La contraseña es requerida.' })
   newPassword: string;
