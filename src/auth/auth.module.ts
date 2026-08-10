@@ -13,12 +13,12 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET'),
         signOptions: {
-          expiresIn: '7d'
+          expiresIn: '7d',
         },
       }),
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PrismaService, JwtService]
+  providers: [AuthService, PrismaService, JwtService],
 })
-export class AuthModule { }
+export class AuthModule {}

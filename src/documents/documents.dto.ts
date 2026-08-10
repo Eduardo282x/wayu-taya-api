@@ -1,5 +1,11 @@
 import { Transform } from 'class-transformer';
-import { IsString, IsOptional, IsNumber, IsArray, IsDate } from 'class-validator';
+import {
+  IsString,
+  IsOptional,
+  IsNumber,
+  IsArray,
+  IsDate,
+} from 'class-validator';
 
 export class DocumentDTO {
   @IsString()
@@ -28,7 +34,6 @@ export class DocumentDTO {
   mimeType?: string;
 }
 
-
 export class NewDocumentDTO {
   @IsString()
   name: string;
@@ -43,5 +48,4 @@ export class NewDocumentDTO {
   description: string;
   @IsString()
   content: string;
-
 }

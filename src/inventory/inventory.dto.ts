@@ -1,6 +1,14 @@
 import { Transform, Type } from 'class-transformer';
-import { IsInt, Min, IsDate, IsOptional, IsString, ValidateNested, IsArray, IsNumber } from 'class-validator';
-
+import {
+  IsInt,
+  Min,
+  IsDate,
+  IsOptional,
+  IsString,
+  ValidateNested,
+  IsArray,
+  IsNumber,
+} from 'class-validator';
 
 export class InventoryDto {
   @IsInt()
@@ -13,7 +21,7 @@ export class InventoryDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => MedicinesDto)
-  medicines: MedicinesDto[]
+  medicines: MedicinesDto[];
 
   // for history
   @IsString()
@@ -68,7 +76,7 @@ export class InventoryMoveDto {
   @IsArray()
   @ValidateNested({ each: true })
   @Type(() => DetailInventoryMoveDto)
-  movements: DetailInventoryMoveDto[]
+  movements: DetailInventoryMoveDto[];
 }
 
 export class DetailInventoryMoveDto {

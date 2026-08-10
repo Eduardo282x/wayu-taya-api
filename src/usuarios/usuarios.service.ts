@@ -5,123 +5,115 @@ import { DTOUsuarios, DTOUsuariosPassword } from './usuarios.dto';
 
 @Injectable()
 export class UsuariosService {
+  constructor(private readonly prismaService: PrismaService) {}
 
-    constructor(private readonly prismaService: PrismaService) {
+  async getUsers() {
+    return this.prismaService.users.findMany({
+      include: { rol: true },
+    });
+  }
+  async getRoles() {
+    return this.prismaService.role.findMany();
+  }
 
+  async createUser(username: DTOUsuarios) {
+    try {
+      await this.prismaService.users.create({
+        data: {
+          username: username.username,
+          name: username.name,
+          lastName: username.lastName,
+          password: '1234',
+          rolId: username.rolId,
+          correo: username.correo,
+        },
+      });
+
+      baseResponse.message = 'Usuario creado exitosamente';
+      return baseResponse;
+    } catch (err) {
+      badResponse.message = `Ha ocurrido un error creando el usuario: ${err instanceof Error ? err.message : String(err)}`;
+      return badResponse;
     }
+  }
 
-    async getUsers() {
-        return this.prismaService.users.findMany({
-            include: { rol: true }
-        })
+  async updateUserPassword(id: number, newPassword: DTOUsuariosPassword) {
+    try {
+      await this.prismaService.users.update({
+        data: {
+          password: newPassword.newPassword,
+        },
+        where: { id },
+      });
+
+      baseResponse.message = 'Contraseña actualizada exitosamente';
+      return baseResponse;
+    } catch (err) {
+      badResponse.message = `Ha ocurrido un error ${err instanceof Error ? err.message : String(err)}`;
+      return badResponse;
     }
-    async getRoles() {
-        return this.prismaService.role.findMany()
+  }
+
+  async updateProfile(id: number, username: DTOUsuarios) {
+    try {
+      const userUpdated = await this.prismaService.users.update({
+        data: {
+          username: username.username,
+          name: username.name,
+          lastName: username.lastName,
+          correo: username.correo,
+        },
+        where: { id },
+        include: {
+          rol: true,
+        },
+      });
+
+      const responseLogin: BaseResponseLogin = {
+        ...baseResponse,
+        token: JSON.stringify(userUpdated),
+      };
+
+      responseLogin.message = `Perfil Actualizado.`;
+      return responseLogin;
+    } catch (err) {
+      badResponse.message = `Ha ocurrido un error ${err instanceof Error ? err.message : String(err)}`;
+      return badResponse;
     }
+  }
 
-    async createUser(username: DTOUsuarios) {
-        try {
-            await this.prismaService.users.create({
-                data: {
-                    username: username.username,
-                    name: username.name,
-                    lastName: username.lastName,
-                    password: '1234',
-                    rolId: username.rolId,
-                    correo: username.correo
-                }
-            })
+  async updateUser(id_usuario: number, username: DTOUsuarios) {
+    try {
+      await this.prismaService.users.update({
+        data: {
+          username: username.username,
+          name: username.name,
+          lastName: username.lastName,
+          correo: username.correo,
+          rolId: username.rolId,
+        },
+        where: { id: id_usuario },
+      });
 
-            baseResponse.message = 'Usuario creado exitosamente';
-            return baseResponse;
-        }
-        catch (err) {
-            badResponse.message = `Ha ocurrido un error creando el usuario: ${err}`
-            return badResponse
-        }
+      baseResponse.message = 'Usuario actualizado exitosamente';
+      return baseResponse;
+    } catch (err) {
+      badResponse.message = `Ha ocurrido un error actualizando el usuario: ${err instanceof Error ? err.message : String(err)}`;
+      return badResponse;
     }
+  }
 
-    async updateUserPassword(id: number, newPassword: DTOUsuariosPassword) {
-        try {
-            await this.prismaService.users.update({
-                data: {
-                    password: newPassword.newPassword,
-                },
-                where: { id }
-            })
+  async deleteUser(id_usuario: number) {
+    try {
+      await this.prismaService.users.delete({
+        where: { id: id_usuario },
+      });
 
-            baseResponse.message = 'Contraseña actualizada exitosamente';
-            return baseResponse;
-        }
-        catch (err) {
-            badResponse.message = `Ha ocurrido un error ${err}`
-            return badResponse
-        }
+      baseResponse.message = 'Usuario eliminado exitosamente';
+      return baseResponse;
+    } catch (err) {
+      badResponse.message = `Ha ocurrido un error al eliminar el usuario: ${err instanceof Error ? err.message : String(err)}`;
+      return badResponse;
     }
-
-    async updateProfile(id: number, username: DTOUsuarios) {
-        try {
-            const userUpdated = await this.prismaService.users.update({
-                data: {
-                    username: username.username,
-                    name: username.name,
-                    lastName: username.lastName,
-                    correo: username.correo
-                },
-                where: { id },
-                include: {
-                    rol: true
-                }
-            })
-
-            const responseLogin: BaseResponseLogin = {
-                ...baseResponse,
-                token: JSON.stringify(userUpdated)
-            }
-
-            responseLogin.message = `Perfil Actualizado.`
-            return responseLogin
-        }
-        catch (err) {
-            badResponse.message = `Ha ocurrido un error ${err}`
-            return badResponse
-        }
-    }
-
-    async updateUser(id_usuario: number, username: DTOUsuarios) {
-        try {
-            await this.prismaService.users.update({
-                data: {
-                    username: username.username,
-                    name: username.name,
-                    lastName: username.lastName,
-                    correo: username.correo,
-                    rolId: username.rolId,
-                },
-                where: { id: id_usuario }
-            })
-
-            baseResponse.message = 'Usuario actualizado exitosamente';
-            return baseResponse;
-        }
-        catch (err) {
-            badResponse.message = `Ha ocurrido un error actualizando el usuario: ${err}`
-            return badResponse
-        }
-    }
-
-    async deleteUser(id_usuario: number) {
-        try {
-            await this.prismaService.users.delete({
-                where: { id: id_usuario }
-            })
-
-            baseResponse.message = 'Usuario eliminado exitosamente';
-            return baseResponse;
-        }
-        catch (err) {
-            badResponse.message = `Ha ocurrido un error al eliminar el usuario: ${err}`
-            return badResponse
-        }
-    }
+  }
 }

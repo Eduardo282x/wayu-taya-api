@@ -5,32 +5,37 @@ import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
 export class EventsService {
-
-  constructor(private prismaService: PrismaService) {
-
-  }
+  constructor(private prismaService: PrismaService) {}
 
   async getEvents() {
     return await this.prismaService.events.findMany({
       orderBy: { id: 'asc' },
       where: { deleted: false },
-      include: { parish: true, providersEvents: { include: { providers: true } } }
+      include: {
+        parish: true,
+        providersEvents: { include: { providers: true } },
+      },
     });
   }
 
   async getEventsFixed() {
-    return await this.prismaService.events.findMany({
-      orderBy: { id: 'asc' },
-      where: { deleted: false },
-      include: { parish: true, providersEvents: { include: { providers: true } } }
-    }).then(res =>
-      res.map(data => {
-        return {
-          ...data,
-          providersEvents: data.providersEvents.map(pro => pro.providers)
-        }
+    return await this.prismaService.events
+      .findMany({
+        orderBy: { id: 'asc' },
+        where: { deleted: false },
+        include: {
+          parish: true,
+          providersEvents: { include: { providers: true } },
+        },
       })
-    )
+      .then((res) =>
+        res.map((data) => {
+          return {
+            ...data,
+            providersEvents: data.providersEvents.map((pro) => pro.providers),
+          };
+        }),
+      );
   }
 
   async createEvent(event: EventsDTO) {
@@ -43,22 +48,24 @@ export class EventsService {
           parishId: event.parishId,
           startDate: event.startDate,
           endDate: event.endDate,
-        }
+        },
       });
 
       const dataProvidersEvents = event.providersId.map((pro) => ({
         eventId: eventCreated.id,
-        providerId: pro
+        providerId: pro,
       }));
 
       await this.prismaService.providersEvents.createMany({
-        data: dataProvidersEvents
+        data: dataProvidersEvents,
       });
 
       baseResponse.message = 'Evento creado exitosamente.';
       return baseResponse;
     } catch (error) {
-      badResponse.message = 'Error al crear evento.' + error;
+      badResponse.message =
+        'Error al crear evento.' +
+        (error instanceof Error ? error.message : String(error));
       return badResponse;
     }
   }
@@ -74,28 +81,30 @@ export class EventsService {
           startDate: event.startDate,
           endDate: event.endDate,
         },
-        where: { id }
+        where: { id },
       });
 
       if (event.cambio_proveedores) {
         await this.prismaService.providersEvents.deleteMany({
-          where: { eventId: id }
+          where: { eventId: id },
         });
 
         const dataProvidersEvents = event.providersId.map((pro) => ({
           eventId: id,
-          providerId: pro
+          providerId: pro,
         }));
 
         await this.prismaService.providersEvents.createMany({
-          data: dataProvidersEvents
+          data: dataProvidersEvents,
         });
       }
 
       baseResponse.message = 'Evento actualizado exitosamente.';
       return baseResponse;
     } catch (error) {
-      badResponse.message = 'Error al actualizar el Evento. ' + error;
+      badResponse.message =
+        'Error al actualizar el Evento. ' +
+        (error instanceof Error ? error.message : String(error));
       return badResponse;
     }
   }
@@ -109,7 +118,9 @@ export class EventsService {
       baseResponse.message = 'Evento marcado como eliminado exitosamente.';
       return baseResponse;
     } catch (error) {
-      badResponse.message = 'Error al marcar el evento como eliminado.' + error;
+      badResponse.message =
+        'Error al marcar el evento como eliminado.' +
+        (error instanceof Error ? error.message : String(error));
       return badResponse;
     }
   }

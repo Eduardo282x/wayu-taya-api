@@ -5,80 +5,81 @@ import { badResponse, baseResponse } from 'src/dto/base.dto';
 
 @Injectable()
 export class ProveedoresService {
+  constructor(private prismaService: PrismaService) {}
 
-    constructor(private prismaService: PrismaService) {
+  async getProveedoresAll() {
+    return await this.prismaService.providers.findMany({
+      orderBy: { id: 'asc' },
+    });
+  }
 
+  async getProveedores() {
+    return await this.prismaService.providers.findMany({
+      orderBy: { id: 'asc' },
+      where: { deleted: false },
+    });
+  }
+
+  async createProveedores(proveedores: ProveedoresDTO) {
+    try {
+      await this.prismaService.providers.create({
+        data: {
+          name: proveedores.name,
+          rif: proveedores.rif,
+          address: proveedores.address,
+          country: proveedores.country,
+          email: proveedores.email,
+          phone: proveedores.phone,
+          responsible: proveedores.responsible,
+        },
+      });
+      baseResponse.message = 'Proveedor creado exitosamente.';
+      return baseResponse;
+    } catch (error) {
+      badResponse.message =
+        'Error al crear el Proveedor.' +
+        (error instanceof Error ? error.message : String(error));
+      return badResponse;
     }
+  }
 
-    async getProveedoresAll() {
-        return await this.prismaService.providers.findMany({
-            orderBy: { id: 'asc' }
-        });
+  async updateProveedores(id_proveedor: number, proveedores: ProveedoresDTO) {
+    try {
+      await this.prismaService.providers.update({
+        data: {
+          name: proveedores.name,
+          rif: proveedores.rif,
+          address: proveedores.address,
+          country: proveedores.country,
+          email: proveedores.email,
+          phone: proveedores.phone,
+          responsible: proveedores.responsible,
+        },
+        where: { id: id_proveedor },
+      });
+      baseResponse.message = 'Proveedor actualizado exitosamente.';
+      return baseResponse;
+    } catch (error) {
+      badResponse.message =
+        'Error al actualizar el Proveedor. ' +
+        (error instanceof Error ? error.message : String(error));
+      return badResponse;
     }
+  }
 
-    async getProveedores() {
-        return await this.prismaService.providers.findMany({
-            orderBy: { id: 'asc' },
-            where: { deleted: false }
-        });
+  async deleteProveedores(id_proveedor: number) {
+    try {
+      await this.prismaService.providers.update({
+        where: { id: id_proveedor },
+        data: { deleted: true },
+      });
+      baseResponse.message = 'Proveedor marcado como eliminado exitosamente.';
+      return baseResponse;
+    } catch (error) {
+      badResponse.message =
+        'Error al marcar el proveedor como eliminado.' +
+        (error instanceof Error ? error.message : String(error));
+      return badResponse;
     }
-
-    async createProveedores(proveedores: ProveedoresDTO) {
-        try {
-            await this.prismaService.providers.create({
-                data: {
-                    name: proveedores.name,
-                    rif: proveedores.rif,
-                    address: proveedores.address,
-                    country: proveedores.country,
-                    email: proveedores.email,
-                    phone: proveedores.phone,
-                    responsible: proveedores.responsible
-                }
-            })
-            baseResponse.message = 'Proveedor creado exitosamente.'
-            return baseResponse;
-        } catch (error) {
-            badResponse.message = 'Error al crear el Proveedor.' + error
-            return badResponse;
-        }
-    }
-
-    async updateProveedores(id_proveedor: number, proveedores: ProveedoresDTO) {
-        try {
-            await this.prismaService.providers.update({
-                data: {
-                    name: proveedores.name,
-                    rif: proveedores.rif,
-                    address: proveedores.address,
-                    country: proveedores.country,
-                    email: proveedores.email,
-                    phone: proveedores.phone,
-                    responsible: proveedores.responsible
-                },
-                where: { id: id_proveedor }
-            })
-            baseResponse.message = 'Proveedor actualizado exitosamente.'
-            return baseResponse;
-        }
-        catch (error) {
-            badResponse.message = 'Error al actualizar el Proveedor. ' + error
-            return badResponse;
-        }
-    }
-
-    async deleteProveedores(id_proveedor: number) {
-        try {
-            await this.prismaService.providers.update({
-                where: { id: id_proveedor },
-                data: { deleted: true },
-            });
-            baseResponse.message = 'Proveedor marcado como eliminado exitosamente.';
-            return baseResponse;
-        } catch (error) {
-            badResponse.message = 'Error al marcar el proveedor como eliminado.' + error;
-            return badResponse;
-        }
-    }
-
+  }
 }

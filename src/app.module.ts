@@ -47,7 +47,7 @@ import { ConfigModule } from '@nestjs/config';
     ReportsModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      envFilePath: ['.env']
+      envFilePath: ['.env'],
     }),
   ],
   controllers: [AppController],
@@ -58,11 +58,11 @@ import { ConfigModule } from '@nestjs/config';
     {
       provide: APP_GUARD,
       useClass: AuthGuard, // se ejecuta primero
-    }
+    },
     // {
     //   provide: APP_GUARD,
     //   useClass: RolesGuard, // se ejecuta después, depende del user ya autenticado
     // },
   ],
 })
-export class AppModule { }
+export class AppModule {}

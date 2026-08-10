@@ -1,106 +1,114 @@
-import { Transform, Type } from "class-transformer";
-import { IsArray, IsDate, ValidateNested, IsNumber, IsOptional, IsString, IsBoolean, IsObject } from "class-validator";
+import { Transform, Type } from 'class-transformer';
+import {
+  IsArray,
+  IsDate,
+  ValidateNested,
+  IsNumber,
+  IsOptional,
+  IsString,
+  IsBoolean,
+} from 'class-validator';
 
 export class DonationsDTO {
-    @IsOptional()
-    @IsNumber()
-    institutionId: number;
-    @IsOptional()
-    @IsNumber()
-    providerId: number;
-    @IsString()
-    type: string;
-    @IsDate()
-    @Transform(({ value }) => new Date(value))
-    date: Date;
-    @IsString()
-    lote: string;
+  @IsOptional()
+  @IsNumber()
+  institutionId: number;
+  @IsOptional()
+  @IsNumber()
+  providerId: number;
+  @IsString()
+  type: string;
+  @IsDate()
+  @Transform(({ value }) => new Date(value))
+  date: Date;
+  @IsString()
+  lote: string;
 
-    @IsOptional()
-    @IsNumber()
-    benefited: number;
+  @IsOptional()
+  @IsNumber()
+  benefited: number;
 
-    @IsOptional()
-    @IsBoolean()
-    changeDonDetails: boolean;
+  @IsOptional()
+  @IsBoolean()
+  changeDonDetails: boolean;
 
-    @IsArray()
-    @ValidateNested({ each: true })
-    @Type(() => DetDonationDTO)
-    medicines: DetDonationDTO[];
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DetDonationDTO)
+  medicines: DetDonationDTO[];
 }
 
 export class MedicineMinDTO {
-    @IsString()
-    name: string;
+  @IsString()
+  name: string;
 
-    @IsOptional()
-    @IsString()
-    description: string;
+  @IsOptional()
+  @IsString()
+  description: string;
 
-    @IsOptional()
-    @IsString()
-    code: string;
+  @IsOptional()
+  @IsString()
+  code: string;
 
-    @IsOptional()
-    @IsString()
-    category: string;
+  @IsOptional()
+  @IsString()
+  category: string;
 
-    @IsOptional()
-    @IsBoolean()
-    medicine: boolean;
+  @IsOptional()
+  @IsBoolean()
+  medicine: boolean;
 
-    @IsOptional()
-    @IsString()
-    form: string;
+  @IsOptional()
+  @IsString()
+  form: string;
 
-    @IsOptional()
-    @IsString()
-    presentation: string;
+  @IsOptional()
+  @IsString()
+  presentation: string;
 
-    @IsOptional()
-    @IsString()
-    temperate: string;
+  @IsOptional()
+  @IsString()
+  temperate: string;
 
-    @IsOptional()
-    @IsString()
-    manufacturer: string;
+  @IsOptional()
+  @IsString()
+  manufacturer: string;
 
-    @IsOptional()
-    @IsString()
-    activeIngredient: string;
+  @IsOptional()
+  @IsString()
+  activeIngredient: string;
 
-    @IsOptional()
-    @IsString()
-    countryOfOrigin: string;
+  @IsOptional()
+  @IsString()
+  countryOfOrigin: string;
 }
 
 export class DetDonationDTO {
-    @IsOptional()
-    @IsNumber()
-    medicineId: number;
+  @IsOptional()
+  @IsNumber()
+  medicineId: number;
 
-    @IsOptional()
-    @ValidateNested()
-    @Type(() => MedicineMinDTO)
-    medicine: MedicineMinDTO;
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => MedicineMinDTO)
+  medicine: MedicineMinDTO;
 
-    @IsNumber()
-    amount: number;
-    @IsOptional()
-    @IsNumber()
-    benefited: number;
-    @IsNumber()
-    storageId: number;
-    @IsOptional()
-    @IsString()
-    lote: string;
+  @IsNumber()
+  amount: number;
+  @IsOptional()
+  @IsNumber()
+  benefited: number;
+  @IsNumber()
+  storageId: number;
+  @IsOptional()
+  @IsString()
+  lote: string;
 
-    @IsDate()
-    @Transform(({ value }) => new Date(value))
-    admissionDate: Date;
+  @IsDate()
+  @Transform(({ value }) => new Date(value))
+  admissionDate: Date;
 
-    @IsDate()
-    @Transform(({ value }) => new Date(value))
-    expirationDate: Date;
+  @IsDate()
+  @Transform(({ value }) => new Date(value))
+  expirationDate: Date;
 }

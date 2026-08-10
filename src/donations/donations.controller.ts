@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Post, Put, Delete, Res, HttpException, HttpStatus } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  Delete,
+  Res,
+  HttpException,
+  HttpStatus,
+} from '@nestjs/common';
 import { DonationsService } from './donations.service';
 import { DonationsDTO } from './donations.dto';
 import { Response } from 'express';
@@ -6,16 +17,18 @@ import { ReportsService } from 'src/reports/reports.service';
 
 @Controller('donations')
 export class DonationsController {
-
-  constructor(private donationsService: DonationsService, private reportService: ReportsService) { }
+  constructor(
+    private donationsService: DonationsService,
+    private reportService: ReportsService,
+  ) {}
 
   @Get()
   async getDonations() {
-    return await this.donationsService.getDonations()
+    return await this.donationsService.getDonations();
   }
   @Get('/lotes')
   async getLotes() {
-    return await this.reportService.getLotes()
+    return await this.reportService.getLotes();
   }
 
   @Get('/download/:id')
@@ -27,12 +40,15 @@ export class DonationsController {
 
     try {
       // Llama al servicio que genera el PDF y guarda en archivo temporal o buffer
-      const pdfBuffer = await this.donationsService.generateDonationPDF(donationId) as Buffer;
+      const pdfBuffer = (await this.donationsService.generateDonationPDF(
+        donationId,
+      )) as Buffer;
 
       // Envía el archivo generado como descarga
       res.set({
         'Content-Type': 'application/pdf',
-        'Content-Disposition': 'attachment; filename=autorizacion_usodeimagen.pdf',
+        'Content-Disposition':
+          'attachment; filename=autorizacion_usodeimagen.pdf',
         'Content-Length': pdfBuffer.length,
       });
 
@@ -57,6 +73,4 @@ export class DonationsController {
   async deleteDonation(@Param('id') id: string) {
     return await this.donationsService.deleteDonation(Number(id));
   }
-
-
 }

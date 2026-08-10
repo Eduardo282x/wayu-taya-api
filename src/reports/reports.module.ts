@@ -7,6 +7,6 @@ import { InventoryService } from 'src/inventory/inventory.service';
 @Module({
   controllers: [ReportsController],
   providers: [ReportsService, PrismaService, InventoryService],
-  exports: [ReportsService]
+  exports: [ReportsService],
 })
 export class ReportsModule {}

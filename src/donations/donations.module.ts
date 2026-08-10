@@ -7,6 +7,11 @@ import { ReportsService } from 'src/reports/reports.service';
 
 @Module({
   controllers: [DonationsController],
-  providers: [DonationsService, PrismaService, InventoryService, ReportsService]
+  providers: [
+    DonationsService,
+    PrismaService,
+    InventoryService,
+    ReportsService,
+  ],
 })
-export class DonationsModule { }
+export class DonationsModule {}

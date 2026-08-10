@@ -1,32 +1,39 @@
-import { Transform } from "class-transformer";
-import { IsArray, IsBoolean, IsDate, IsNumber, IsOptional, IsString } from "class-validator";
+import { Transform } from 'class-transformer';
+import {
+  IsArray,
+  IsBoolean,
+  IsDate,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class EventsDTO {
-    @IsNumber()
-    parishId: number;
+  @IsNumber()
+  parishId: number;
 
-    @IsString()
-    name: string;
+  @IsString()
+  name: string;
 
-    @IsString()
-    description: string;
+  @IsString()
+  description: string;
 
-    @IsString()
-    address: string;
-    
-    @IsDate()
-    @Transform(({ value }) => new Date(value))
-    startDate: Date;
+  @IsString()
+  address: string;
 
-    @IsDate()
-    @Transform(({ value }) => new Date(value))
-    endDate: Date;
+  @IsDate()
+  @Transform(({ value }) => new Date(value))
+  startDate: Date;
 
-    @IsArray()
-    @IsNumber({}, { each: true })
-    providersId: number[];
+  @IsDate()
+  @Transform(({ value }) => new Date(value))
+  endDate: Date;
 
-    @IsOptional()
-    @IsBoolean()
-    cambio_proveedores: boolean;
+  @IsArray()
+  @IsNumber({}, { each: true })
+  providersId: number[];
+
+  @IsOptional()
+  @IsBoolean()
+  cambio_proveedores: boolean;
 }

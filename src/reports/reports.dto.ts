@@ -1,10 +1,9 @@
-import { Transform } from "class-transformer";
-import { IsArray, IsDate, IsDateString, IsNotEmpty, IsString } from "class-validator";
-
+import { Transform } from 'class-transformer';
+import { IsArray, IsDate, IsString } from 'class-validator';
 
 export class ReportsDTO {
   @IsString()
-  provider: string
+  provider: string;
   @IsArray()
   @IsString({ each: true })
   lotes: string[];
@@ -47,13 +46,12 @@ export interface SummaryReportResponse {
   productByStorage: StoreSummary[];
   totalInventory: number;
   lotes: string[];
-  providers: { provider: string, id: number }[];
+  providers: { provider: string; id: number }[];
   period: {
     from: string;
     to: string;
   };
 }
-
 
 export interface IInventory {
   id: number;
@@ -83,7 +81,6 @@ export interface Store {
   address: string;
   amount: number;
 }
-
 
 export interface IMedicine {
   id: number;

@@ -1,34 +1,49 @@
-import { Body, Controller, Delete, Get, Param, Post, Put } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Post,
+  Put,
+} from '@nestjs/common';
 import { InstitutionsService } from './institutions.service';
 import { InstitutionsDTO, InstitutionsManyDTO } from './institutions.dto';
 
 @Controller('institutions')
 export class InstitutionsController {
+  constructor(private institutionsService: InstitutionsService) {}
 
-    constructor (private institutionsService: InstitutionsService){}
+  @Get()
+  async getInstitutions() {
+    return await this.institutionsService.getInstitutions();
+  }
 
-    @Get()
-    async getInstitutions() {
-        return await this.institutionsService.getInstitutions();
-    }
+  @Post()
+  async createInstitutions(@Body() datos: InstitutionsDTO) {
+    return await this.institutionsService.createInstitutions(datos);
+  }
 
-    @Post()
-    async createInstitutions(@Body() datos: InstitutionsDTO) {
-        return await this.institutionsService.createInstitutions(datos);
-    }
+  @Post('/many')
+  async createManyInstitutions(@Body() datos: InstitutionsManyDTO) {
+    return await this.institutionsService.createManyInstitutions(datos);
+  }
 
-    @Post('/many')
-    async createManyInstitutions(@Body() datos: InstitutionsManyDTO) {
-        return await this.institutionsService.createManyInstitutions(datos);
-    }
+  @Put('/:id')
+  async updateInstitutions(
+    @Param('id') id_institution: string,
+    @Body() datos: InstitutionsDTO,
+  ) {
+    return await this.institutionsService.updateInstitutions(
+      Number(id_institution),
+      datos,
+    );
+  }
 
-    @Put('/:id')
-    async updateInstitutions(@Param('id') id_institution:string, @Body() datos: InstitutionsDTO) {
-        return await this.institutionsService.updateInstitutions(Number(id_institution),datos);
-    }
-
-    @Delete('/:id')
-    async deleteProveedores(@Param('id') id_institution: string) {
-        return await this.institutionsService.deleteInstitutions(Number(id_institution));
-    }
+  @Delete('/:id')
+  async deleteProveedores(@Param('id') id_institution: string) {
+    return await this.institutionsService.deleteInstitutions(
+      Number(id_institution),
+    );
+  }
 }

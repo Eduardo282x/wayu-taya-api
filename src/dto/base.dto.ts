@@ -1,19 +1,19 @@
 export interface BaseResponse {
-    data?: any;
-    message: string;
-    success: boolean;
+  data?: any;
+  message: string;
+  success: boolean;
 }
 export interface BaseResponseLogin extends BaseResponse {
-    token: string;
+  token: string;
 }
 
 export const baseResponse: BaseResponse = {
-    data: [],
-    message: '',
-    success: true
-}
+  data: [],
+  message: '',
+  success: true,
+};
 
 export const badResponse: BaseResponse = {
-    message: '',
-    success: false
-}
+  message: '',
+  success: false,
+};
