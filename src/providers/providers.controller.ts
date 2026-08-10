@@ -10,7 +10,7 @@ import {
 import { ProvidersService } from './providers.service';
 import { ProviderDTO } from './providers.dto';
 
-@Controller('proveedores')
+@Controller('providers')
 export class ProvidersController {
   constructor(private providersService: ProvidersService) {}
 
