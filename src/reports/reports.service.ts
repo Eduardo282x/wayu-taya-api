@@ -1584,12 +1584,13 @@ export class ReportsService {
     });
     return parseProvidersDuplicate;
   }
-  async getLotes(): Promise<string[]> {
+  
+  async getLotes(): Promise<{ lotes: string[] }> {
     const donations = await this.prisma.donation.findMany();
     const onlyLotes = donations.map((item) => item.lote);
     const removeDuplicate = new Set(onlyLotes);
     const parseLotesDuplicates = [...removeDuplicate];
-    return parseLotesDuplicates;
+    return { lotes: parseLotesDuplicates };
   }
 
   private async getDonationsByDateRange(

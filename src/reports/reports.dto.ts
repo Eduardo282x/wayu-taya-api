@@ -45,7 +45,7 @@ export interface SummaryReportResponse {
   productMostDonated: ProductSummary[];
   productByStorage: StoreSummary[];
   totalInventory: number;
-  lotes: string[];
+  lotes: { lotes: string[] };
   providers: { provider: string; id: number }[];
   period: {
     from: string;

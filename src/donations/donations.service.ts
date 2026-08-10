@@ -9,7 +9,7 @@ export class DonationsService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly inventoryService: InventoryService,
-  ) {}
+  ) { }
 
   normalizeText(text: string): string {
     return text
@@ -169,7 +169,7 @@ export class DonationsService {
 
   async createDonation(donation: DonationsDTO) {
     try {
-      return await this.prismaService.$transaction(async (tx) => {
+      const newDonation = await this.prismaService.$transaction(async (tx) => {
         const donationCreated = await tx.donation.create({
           data: {
             institutionId: donation.institutionId,
@@ -225,7 +225,13 @@ export class DonationsService {
           data: donationCreated,
         };
       });
+
+      return {
+        donation: newDonation,
+        message: 'Donación registrada exitosamente.'
+      }
     } catch (error) {
+      console.log(error)
       return {
         success: false,
         message:
@@ -694,7 +700,7 @@ export class DonationsService {
       console.error('Error generando PDF de donación:', error);
       throw new Error(
         'Error generando PDF de donación: ' +
-          (error instanceof Error ? error.message : String(error)),
+        (error instanceof Error ? error.message : String(error)),
         { cause: error },
       );
     }
