@@ -40,7 +40,7 @@ export class UsersService {
           lastName: user.lastName,
           password: '1234',
           rolId: user.rolId,
-          correo: user.correo,
+          correo: '',
         },
       });
 
@@ -75,7 +75,6 @@ export class UsersService {
           username: user.username,
           name: user.name,
           lastName: user.lastName,
-          correo: user.correo,
         },
         where: { id },
         include: {
@@ -96,7 +95,6 @@ export class UsersService {
           username: user.username,
           name: user.name,
           lastName: user.lastName,
-          correo: user.correo,
           rolId: user.rolId,
         },
         where: { id: id_usuario },

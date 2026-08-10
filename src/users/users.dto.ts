@@ -7,9 +7,6 @@ export class UserDTO {
   name: string;
   @IsString()
   lastName: string;
-  @IsString()
-  @IsEmail()
-  correo: string;
   @IsNumber()
   rolId: number;
 }
