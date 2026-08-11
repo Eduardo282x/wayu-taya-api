@@ -169,7 +169,8 @@ export class DonationsService {
 
   async createDonation(donation: DonationsDTO) {
     try {
-      const newDonation = await this.prismaService.$transaction(async (tx) => {
+      const newDonation = await this.prismaService.$transaction(
+        async (tx) => {
         const donationCreated = await tx.donation.create({
           data: {
             institutionId: donation.institutionId,
@@ -224,7 +225,9 @@ export class DonationsService {
             'Donación creada exitosamente y acción de inventario procesada.',
           data: donationCreated,
         };
-      });
+      },
+      { timeout: 30000, maxWait: 20000 },
+    );
 
       return {
         donation: newDonation,
@@ -353,7 +356,9 @@ export class DonationsService {
           message: 'Donación actualizada correctamente.',
           data: updatedDonation,
         };
-      });
+      },
+      { timeout: 30000, maxWait: 20000 },
+    );
     } catch (error) {
       return {
         success: false,
@@ -408,7 +413,9 @@ export class DonationsService {
             'Donación eliminada y cambios en inventario revertidos correctamente.',
           data: deletedDonation,
         };
-      });
+      },
+      { timeout: 30000, maxWait: 20000 },
+    );
     } catch (error) {
       return {
         success: false,
@@ -419,7 +426,7 @@ export class DonationsService {
     }
   }
 
-  async generateDonationPDF(donationId: number) {
+  async generateDonationPDF(donationId: number, type: 'normal' | 'delivery') {
     try {
       const donation = await this.prismaService.donation.findUnique({
         where: { id: donationId },
@@ -564,10 +571,12 @@ export class DonationsService {
           console.warn('No se pudo cargar el logotipo:', err);
         }
 
+        const title = type == 'normal' ? 'FACTURA NO COMERCIAL' : 'NOTA DE ENTREGA'
+
         // 5. Encabezado y datos principales
         doc
           .fontSize(10)
-          .text('FACTURA NO COMERCIAL', 45, 30, { align: 'center' });
+          .text(title, 45, 30, { align: 'center' });
         doc
           .fontSize(8)
           .text(

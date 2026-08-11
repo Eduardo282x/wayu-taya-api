@@ -42,6 +42,36 @@ export class DonationsController {
       // Llama al servicio que genera el PDF y guarda en archivo temporal o buffer
       const pdfBuffer = (await this.donationsService.generateDonationPDF(
         donationId,
+        'normal'
+      )) as Buffer;
+
+      // Envía el archivo generado como descarga
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition':
+          'attachment; filename=autorizacion_usodeimagen.pdf',
+        'Content-Length': pdfBuffer.length,
+      });
+
+      res.end(pdfBuffer);
+    } catch (error) {
+      console.error('Error generando PDF:', error);
+      res.status(500).send('Error generando PDF');
+    }
+  }
+
+  @Get('/note-delivery/:id')
+  async downloadNoteDeliveryDonationPDF(@Param('id') id: string, @Res() res: Response) {
+    const donationId = Number(id);
+    if (isNaN(donationId)) {
+      throw new HttpException('Invalid donation ID', HttpStatus.BAD_REQUEST);
+    }
+
+    try {
+      // Llama al servicio que genera el PDF y guarda en archivo temporal o buffer
+      const pdfBuffer = (await this.donationsService.generateDonationPDF(
+        donationId,
+        'delivery'
       )) as Buffer;
 
       // Envía el archivo generado como descarga
