@@ -106,9 +106,5 @@ export class DetDonationDTO {
 
   @IsDate()
   @Transform(({ value }) => new Date(value))
-  admissionDate: Date;
-
-  @IsDate()
-  @Transform(({ value }) => new Date(value))
   expirationDate: Date;
 }

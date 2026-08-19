@@ -83,12 +83,10 @@ export class InventoryService {
         }
 
         if (
-          !acc[medicineId].lotes.some(
-            (lote) => lote.name === item.donation.lote,
-          )
+          !acc[medicineId].lotes.some((lote) => lote.name === item.lote)
         ) {
           acc[medicineId].lotes.push({
-            name: item.donation.lote,
+            name: item.lote,
             storeId: item.store.id,
             medicineId: item.medicine.id,
             expirationDate: item.expirationDate,
@@ -267,14 +265,25 @@ export class InventoryService {
       if (!lote)
         throw new Error('No se pudo determinar el lote de la donación.');
 
-      for (const item of inventory.medicines) {
-        const baseWhere = {
-          medicineId: item.medicineId,
-          storeId: item.storeId,
-          donation: { lote: inventory.type === 'Entrada' ? lote : item.lote },
-        };
+      const records = await trx.inventory.findMany({
+        where: {
+          medicineId: { in: inventory.medicines.map((m) => m.medicineId) },
+          storeId: { in: inventory.medicines.map((m) => m.storeId) },
+        },
+        orderBy: { id: 'asc' },
+      });
 
-        const record = await trx.inventory.findFirst({ where: baseWhere });
+      const historyData: any[] = [];
+      const newInventoryRecords: any[] = [];
+
+      for (const item of inventory.medicines) {
+        const expectedLote = item.lote || lote;
+        const record = records.find(
+          (r) =>
+            r.medicineId === item.medicineId &&
+            r.storeId === item.storeId &&
+            r.lote === expectedLote,
+        );
 
         if (inventory.type === 'Entrada') {
           if (record) {
@@ -286,43 +295,40 @@ export class InventoryService {
               },
             });
 
-            await trx.historyInventory.create({
-              data: {
-                medicineId: item.medicineId,
-                storeId: item.storeId,
-                donationId: record.donationId,
-                amount: item.stock,
-                type: 'Entrada',
-                date: inventory.date,
-                observations: inventory.observations || '',
-                admissionDate: record.admissionDate,
-                expirationDate: record.expirationDate,
-              },
+            historyData.push({
+              medicineId: item.medicineId,
+              storeId: item.storeId,
+              donationId: record.donationId,
+              amount: item.stock,
+              type: 'Entrada',
+              date: inventory.date,
+              observations: inventory.observations || '',
+              admissionDate: record.admissionDate,
+              expirationDate: record.expirationDate,
+              lote: record.lote,
             });
           } else {
-            const nuevo = await trx.inventory.create({
-              data: {
-                donationId: inventory.donationId,
-                medicineId: item.medicineId,
-                storeId: item.storeId,
-                stock: item.stock,
-                admissionDate: item.admissionDate,
-                expirationDate: item.expirationDate,
-              },
+            newInventoryRecords.push({
+              donationId: inventory.donationId,
+              medicineId: item.medicineId,
+              storeId: item.storeId,
+              stock: item.stock,
+              admissionDate: item.admissionDate,
+              expirationDate: item.expirationDate,
+              lote: expectedLote,
             });
 
-            await trx.historyInventory.create({
-              data: {
-                donationId: nuevo.donationId,
-                medicineId: nuevo.medicineId,
-                storeId: nuevo.storeId,
-                type: 'Entrada',
-                amount: item.stock,
-                date: inventory.date,
-                observations: inventory.observations || '',
-                admissionDate: nuevo.admissionDate,
-                expirationDate: nuevo.expirationDate,
-              },
+            historyData.push({
+              medicineId: item.medicineId,
+              storeId: item.storeId,
+              donationId: inventory.donationId,
+              amount: item.stock,
+              type: 'Entrada',
+              date: inventory.date,
+              observations: inventory.observations || '',
+              admissionDate: item.admissionDate,
+              expirationDate: item.expirationDate,
+              lote: expectedLote,
             });
           }
         } else if (inventory.type === 'Salida') {
@@ -350,20 +356,26 @@ export class InventoryService {
             });
           }
 
-          await trx.historyInventory.create({
-            data: {
-              medicineId: item.medicineId,
-              storeId: item.storeId,
-              donationId: inventory.donationId,
-              amount: item.stock,
-              type: 'Salida',
-              date: inventory.date,
-              observations: inventory.observations || '',
-              admissionDate: record.admissionDate,
-              expirationDate: record.expirationDate,
-            },
+          historyData.push({
+            medicineId: item.medicineId,
+            storeId: item.storeId,
+            donationId: inventory.donationId,
+            amount: item.stock,
+            type: 'Salida',
+            date: inventory.date,
+            observations: inventory.observations || '',
+            admissionDate: record.admissionDate,
+            expirationDate: record.expirationDate,
+            lote: record.lote,
           });
         }
+      }
+
+      if (newInventoryRecords.length) {
+        await trx.inventory.createMany({ data: newInventoryRecords });
+      }
+      if (historyData.length) {
+        await trx.historyInventory.createMany({ data: historyData });
       }
 
       return {
@@ -387,6 +399,7 @@ export class InventoryService {
       expirationDate: Date;
       createAt: Date;
       updateAt: Date;
+      lote: string;
     }
 
     try {
@@ -404,15 +417,33 @@ export class InventoryService {
         orderBy: { id: 'asc' },
       })) as HistoryRecord[];
 
-      const groupedRecords: Record<string, HistoryRecord[]> = {};
+      const groups: {
+        medicineId: number;
+        storeId: number;
+        lote: string;
+        records: HistoryRecord[];
+      }[] = [];
+
       for (const record of historyRecords) {
-        const key = `${record.medicineId}-${record.storeId}`;
-        if (!groupedRecords[key]) groupedRecords[key] = [];
-        groupedRecords[key].push(record);
+        const group = groups.find(
+          (g) =>
+            g.medicineId === record.medicineId &&
+            g.storeId === record.storeId &&
+            g.lote === record.lote,
+        );
+        if (group) {
+          group.records.push(record);
+        } else {
+          groups.push({
+            medicineId: record.medicineId,
+            storeId: record.storeId,
+            lote: record.lote,
+            records: [record],
+          });
+        }
       }
 
-      for (const [key, records] of Object.entries(groupedRecords)) {
-        const [medicineId, storeId] = key.split('-').map(Number);
+      for (const { medicineId, storeId, lote, records } of groups) {
         const typedRecords = records;
 
         let netChange = 0;
@@ -422,7 +453,7 @@ export class InventoryService {
         }
 
         const currentInventory = await tx.inventory.findFirst({
-          where: { medicineId, storeId },
+          where: { medicineId, storeId, lote },
         });
 
         const isEntry = originalDonation.type === 'Entrada';
@@ -465,6 +496,7 @@ export class InventoryService {
               donationId: originalDonation.id,
               medicineId,
               storeId,
+              lote,
               stock: newStock,
               admissionDate: typedRecords[0].admissionDate,
               expirationDate: typedRecords[0].expirationDate,
@@ -480,6 +512,7 @@ export class InventoryService {
             medicineId,
             storeId,
             donationId: originalDonation.id,
+            lote,
             amount: Math.abs(netChange),
             type: reversionType,
             date: new Date(),
@@ -543,6 +576,7 @@ export class InventoryService {
               medicineId,
               storeId: targetStoreId,
               donationId: sourceInventory.donationId,
+              lote: sourceInventory.lote,
               admissionDate: sourceInventory.admissionDate,
               expirationDate: sourceInventory.expirationDate,
             },
@@ -565,6 +599,7 @@ export class InventoryService {
                 medicineId,
                 storeId: targetStoreId,
                 donationId: sourceInventory.donationId,
+                lote: sourceInventory.lote,
                 admissionDate: sourceInventory.admissionDate,
                 expirationDate: sourceInventory.expirationDate,
                 stock: quantity,

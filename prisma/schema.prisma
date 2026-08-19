@@ -244,6 +244,7 @@ model DetDonation {
   medicine   Medicine @relation(fields: [medicineId], references: [id])
   amount     Int
   benefited  Int      @default(1)
+  lote       String   @default("")
 }
 
 model Inventory {
@@ -259,6 +260,7 @@ model Inventory {
   expirationDate DateTime
   createAt       DateTime @default(now())
   updateAt       DateTime @default(now())
+  lote           String   @default("")
 }
 
 model HistoryInventory {
@@ -277,4 +279,5 @@ model HistoryInventory {
   expirationDate DateTime
   createAt       DateTime @default(now())
   updateAt       DateTime @default(now())
+  lote           String   @default("")
 }

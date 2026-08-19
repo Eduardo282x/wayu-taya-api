@@ -28,96 +28,114 @@ export class DonationsService {
     return this.normalizeText(value).replace(/\s+/g, ' ');
   }
 
-  private async resolveCategoryId(tx: any, value?: string): Promise<number> {
-    if (!value || !this.normalizeSearchKey(value)) {
-      const defaultCategory = await tx.category.findFirst();
-      if (defaultCategory) return defaultCategory.id;
-      const createdCategory = await tx.category.create({
-        data: { category: 'General' },
-      });
-      return createdCategory.id;
-    }
-
-    const key = this.normalizeSearchKey(value);
-    const categories = await tx.category.findMany({
-      select: { id: true, category: true },
-    });
-    const existing = categories.find(
-      (c) => this.normalizeSearchKey(c.category) === key,
-    );
-    if (existing) return existing.id;
-
-    const created = await tx.category.create({
-      data: { category: this.toTitleCase(value) },
-    });
-    return created.id;
-  }
-
-  private async resolveFormId(tx: any, value?: string): Promise<number> {
-    if (!value || !this.normalizeSearchKey(value)) return 14;
-
-    const key = this.normalizeSearchKey(value);
-    const forms = await tx.forms.findMany({
-      select: { id: true, forms: true },
-    });
-    const existing = forms.find(
-      (f) => this.normalizeSearchKey(f.forms) === key,
-    );
-    if (existing) return existing.id;
-
-    const created = await tx.forms.create({
-      data: { forms: this.toTitleCase(value) },
-    });
-    return created.id;
-  }
-
-  private async resolveMedicine(tx: any, det: DetDonationDTO): Promise<number> {
-    if (det.medicineId) {
-      const existing = await tx.medicine.findUnique({
-        where: { id: det.medicineId },
-      });
-      if (existing) return existing.id;
-    }
-
-    const name = det.medicine?.name;
-    if (!name)
-      throw new Error(
-        'Cada detalle debe incluir medicineId o el nombre de la medicina (medicine.name).',
-      );
-
-    const medicines = await tx.medicine.findMany({
-      select: { id: true, name: true, code: true },
-    });
-    const normalizedName = this.normalizeText(name);
-    const match = medicines.find(
-      (m) =>
-        (det.medicine?.code && m.code && det.medicine.code === m.code) ||
-        this.normalizeText(m.name) === normalizedName,
-    );
-    if (match) return match.id;
-
-    const [categoryId, formId] = await Promise.all([
-      this.resolveCategoryId(tx, det.medicine?.category),
-      this.resolveFormId(tx, det.medicine?.form),
+  private async resolveMedicines(
+    tx: any,
+    dets: DetDonationDTO[],
+  ): Promise<(DetDonationDTO & { medicineId: number })[]> {
+    const [medicines, categories, forms] = await Promise.all([
+      tx.medicine.findMany({ select: { id: true, name: true, code: true } }),
+      tx.category.findMany(),
+      tx.forms.findMany(),
     ]);
 
-    const created = await tx.medicine.create({
-      data: {
-        name,
-        description: det.medicine?.description ?? '',
-        code: det.medicine?.code ?? null,
-        categoryId,
-        medicine: det.medicine?.medicine ?? true,
-        presentation: det.medicine?.presentation ?? '',
-        temperate: det.medicine?.temperate ?? '',
-        manufacturer: det.medicine?.manufacturer ?? '',
-        activeIngredient: det.medicine?.activeIngredient ?? '',
-        countryOfOrigin: det.medicine?.countryOfOrigin ?? 'VE',
-        formId,
-      },
-    });
+    const categoriesByKey = new Map<string, any>(
+      categories.map((c: any) => [this.normalizeSearchKey(c.category), c]),
+    );
+    const formsByKey = new Map<string, any>(
+      forms.map((f: any) => [this.normalizeSearchKey(f.forms), f]),
+    );
 
-    return created.id;
+    const resolved: (DetDonationDTO & { medicineId: number })[] = [];
+
+    for (const det of dets) {
+      if (det.medicineId) {
+        const existing = medicines.find((m) => m.id === det.medicineId);
+        if (existing) {
+          resolved.push({ ...det, medicineId: existing.id });
+          continue;
+        }
+      }
+
+      const name = det.medicine?.name;
+      if (!name)
+        throw new Error(
+          'Cada detalle debe incluir medicineId o el nombre de la medicina (medicine.name).',
+        );
+
+      const normalizedName = this.normalizeText(name);
+      const match = medicines.find(
+        (m) =>
+          (det.medicine?.code && m.code && det.medicine.code === m.code) ||
+          this.normalizeText(m.name) === normalizedName,
+      );
+      if (match) {
+        resolved.push({ ...det, medicineId: match.id });
+        continue;
+      }
+
+      const categoryValue = det.medicine?.category;
+      let categoryId: number;
+      if (!categoryValue || !this.normalizeSearchKey(categoryValue)) {
+        if (categories.length > 0) {
+          categoryId = categories[0].id;
+        } else {
+          const createdCategory = await tx.category.create({
+            data: { category: 'General' },
+          });
+          categoryId = createdCategory.id;
+          categories.push(createdCategory);
+        }
+      } else {
+        const key = this.normalizeSearchKey(categoryValue);
+        let category = categoriesByKey.get(key);
+        if (!category) {
+          category = await tx.category.create({
+            data: { category: this.toTitleCase(categoryValue) },
+          });
+          categories.push(category);
+          categoriesByKey.set(key, category);
+        }
+        categoryId = category.id;
+      }
+
+      const formValue = det.medicine?.form;
+      let formId: number;
+      if (!formValue || !this.normalizeSearchKey(formValue)) {
+        formId = 14;
+      } else {
+        const key = this.normalizeSearchKey(formValue);
+        let form = formsByKey.get(key);
+        if (!form) {
+          form = await tx.forms.create({
+            data: { forms: this.toTitleCase(formValue) },
+          });
+          forms.push(form);
+          formsByKey.set(key, form);
+        }
+        formId = form.id;
+      }
+
+      const created = await tx.medicine.create({
+        data: {
+          name,
+          description: det.medicine?.description ?? '',
+          code: det.medicine?.code ?? null,
+          categoryId,
+          medicine: det.medicine?.medicine ?? true,
+          presentation: det.medicine?.presentation ?? '',
+          temperate: det.medicine?.temperate ?? '',
+          manufacturer: det.medicine?.manufacturer ?? '',
+          activeIngredient: det.medicine?.activeIngredient ?? '',
+          countryOfOrigin: det.medicine?.countryOfOrigin ?? 'VE',
+          formId,
+        },
+      });
+
+      medicines.push({ id: created.id, name, code: created.code });
+      resolved.push({ ...det, medicineId: created.id });
+    }
+
+    return resolved;
   }
 
   async getDonations() {
@@ -183,17 +201,14 @@ export class DonationsService {
         });
 
         const medicinesResolved: (DetDonationDTO & { medicineId: number })[] =
-          [];
-        for (const pro of donation.medicines) {
-          const medicineId = await this.resolveMedicine(tx, pro);
-          medicinesResolved.push({ ...pro, medicineId });
-        }
+          await this.resolveMedicines(tx, donation.medicines);
 
         const dataDetDonation = medicinesResolved.map((pro) => ({
           donationId: donationCreated.id,
           medicineId: pro.medicineId,
           amount: pro.amount,
           benefited: pro.benefited ?? 1,
+          lote: pro.lote || donation.lote || '',
         }));
         await tx.detDonation.createMany({ data: dataDetDonation });
 
@@ -204,7 +219,7 @@ export class DonationsService {
             medicineId: med.medicineId,
             storeId: med.storageId,
             stock: med.amount,
-            admissionDate: med.admissionDate,
+            admissionDate: donation.date,
             expirationDate: med.expirationDate,
             lote: med.lote,
           })),
@@ -258,11 +273,7 @@ export class DonationsService {
         if (!originalDonation) throw new Error('Donación no encontrada');
 
         const medicinesResolved: (DetDonationDTO & { medicineId: number })[] =
-          [];
-        for (const pro of donation.medicines) {
-          const medicineId = await this.resolveMedicine(tx, pro);
-          medicinesResolved.push({ ...pro, medicineId });
-        }
+          await this.resolveMedicines(tx, donation.medicines);
 
         if (donation.changeDonDetails === true) {
           await this.inventoryService.revertInventoryWithHistory(
@@ -325,6 +336,7 @@ export class DonationsService {
             medicineId: m.medicineId,
             amount: m.amount,
             benefited: m.benefited ?? 1,
+            lote: m.lote || donation.lote || '',
           }));
           await tx.detDonation.createMany({ data: newDetails });
 
@@ -335,7 +347,7 @@ export class DonationsService {
               medicineId: med.medicineId,
               storeId: med.storageId,
               stock: med.amount,
-              admissionDate: med.admissionDate,
+              admissionDate: donation.date,
               expirationDate: med.expirationDate,
               lote: med.lote,
             })),
@@ -682,7 +694,7 @@ export class DonationsService {
             `${det.medicine.name} ${det.amount.toString()} ${det.medicine.presentation}`,
             det.amount.toString(),
             'NDC',
-            donation.lote || '',
+            det.lote || donation.lote || '',
             'S/N',
             admissionDate,
             expirationDate,
