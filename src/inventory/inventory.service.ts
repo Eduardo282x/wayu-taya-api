@@ -9,14 +9,53 @@ import {
   InventoryDto,
   InventoryMoveDto,
   InventoryOutDTO,
+  GetInventoryQueryDto,
 } from './inventory.dto';
 
 @Injectable()
 export class InventoryService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getInventory() {
+  async getInventory(query?: GetInventoryQueryDto) {
+    const page = query?.page ?? 1;
+    const size = query?.size ?? 100;
+
+    const where: any = {};
+    if (query?.storeId) {
+      where.storeId = query.storeId;
+    }
+    if (query?.name) {
+      where.medicine = {
+        name: { contains: query.name, mode: 'insensitive' },
+      };
+    }
+
+    const [paginatedGroups, total] = await Promise.all([
+      this.prisma.inventory.groupBy({
+        by: ['medicineId'],
+        where,
+        orderBy: { medicineId: 'asc' },
+        skip: (page - 1) * size,
+        take: size,
+      }),
+      this.prisma.inventory
+        .groupBy({
+          by: ['medicineId'],
+          where,
+        })
+        .then((groups) => groups.length),
+    ]);
+
+    const medicineIds = paginatedGroups.map((g) => g.medicineId);
+
     const inventory = await this.prisma.inventory.findMany({
+      where: {
+        medicineId: { in: medicineIds },
+        ...(query?.storeId ? { storeId: query.storeId } : {}),
+        ...(query?.name
+          ? { medicine: { name: { contains: query.name, mode: 'insensitive' } } }
+          : {}),
+      },
       include: {
         donation: true,
         medicine: true,
@@ -126,7 +165,15 @@ export class InventoryService {
       return rest;
     });
 
-    return { inventory: groupedInventory };
+    return {
+      inventory: groupedInventory,
+      pagination: {
+        total,
+        page,
+        size,
+        totalPages: Math.ceil(total / size),
+      },
+    };
   }
   /*
         async createInventoryOld(inventory: InventoryDto) {

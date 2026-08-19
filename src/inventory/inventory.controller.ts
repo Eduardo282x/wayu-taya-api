@@ -5,6 +5,7 @@ import {
   InventoryDto,
   InventoryMoveDto,
   InventoryOutDTO,
+  GetInventoryQueryDto,
 } from './inventory.dto';
 
 @Controller('inventory')
@@ -12,8 +13,8 @@ export class InventoryController {
   constructor(private inventoryService: InventoryService) {}
 
   @Get()
-  async getInventory() {
-    return await this.inventoryService.getInventory();
+  async getInventory(@Query() query: GetInventoryQueryDto) {
+    return await this.inventoryService.getInventory(query);
   }
 
   @Get('/historial')

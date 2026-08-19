@@ -72,6 +72,29 @@ export class HistoryQueryDto {
   to: Date;
 }
 
+export class GetInventoryQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  page: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  size: number;
+
+  @IsOptional()
+  @IsString()
+  name: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  storeId: number;
+}
+
 export class InventoryMoveDto {
   @IsArray()
   @ValidateNested({ each: true })
