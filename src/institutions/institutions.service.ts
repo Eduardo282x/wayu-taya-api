@@ -1,6 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { InstitutionsDTO, InstitutionsManyDTO } from './institutions.dto';
+import {
+  GetInstitutionsQueryDTO,
+  InstitutionsDTO,
+  InstitutionsManyDTO,
+} from './institutions.dto';
 
 @Injectable()
 export class InstitutionsService {
@@ -14,18 +18,36 @@ export class InstitutionsService {
     return { institutions };
   }
 
-  async getInstitutions() {
-    const institutions = await this.prismaService.institutions.findMany({
-      orderBy: { id: 'asc' },
-      where: { deleted: false },
-      include: {
-        parish: {
-          select: { name: true },
-        },
-      },
-    });
+  async getInstitutions(query?: GetInstitutionsQueryDTO) {
+    const page = query?.page ?? 1;
+    const size = query?.size ?? 100;
 
-    return { institutions };
+    const where = { deleted: false };
+
+    const [institutions, total] = await Promise.all([
+      this.prismaService.institutions.findMany({
+        orderBy: { id: 'asc' },
+        where,
+        include: {
+          parish: {
+            select: { name: true },
+          },
+        },
+        skip: (page - 1) * size,
+        take: size,
+      }),
+      this.prismaService.institutions.count({ where }),
+    ]);
+
+    return {
+      institutions,
+      pagination: {
+        total,
+        page,
+        size,
+        totalPages: Math.ceil(total / size),
+      },
+    };
   }
 
   async createInstitutions(institutions: InstitutionsDTO) {

@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsString, ValidateNested, IsArray, IsNumber, IsOptional } from 'class-validator';
+import { IsString, ValidateNested, IsArray, IsNumber, IsOptional, Min } from 'class-validator';
 
 export class InstitutionsDTO {
   @IsString()
@@ -25,4 +25,18 @@ export class InstitutionsManyDTO {
   @ValidateNested({ each: true })
   @Type(() => InstitutionsDTO)
   institutions: InstitutionsDTO[];
+}
+
+export class GetInstitutionsQueryDTO {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  page: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  size: number;
 }
