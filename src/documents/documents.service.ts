@@ -10,7 +10,7 @@ export class DocumentsService {
 
   async getDocuments() {
     const documents = await this.prismaService.documents.findMany({
-      orderBy: { id: 'asc' },
+      orderBy: { id: 'desc' },
       where: { deleted: false },
       include: {
         collaborators: {

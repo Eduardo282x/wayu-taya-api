@@ -317,7 +317,7 @@ export class InventoryService {
           medicineId: { in: inventory.medicines.map((m) => m.medicineId) },
           storeId: { in: inventory.medicines.map((m) => m.storeId) },
         },
-        orderBy: { id: 'asc' },
+        orderBy: { id: 'desc' },
       });
 
       const historyData: any[] = [];
@@ -461,7 +461,7 @@ export class InventoryService {
             },
           },
         },
-        orderBy: { id: 'asc' },
+        orderBy: { id: 'desc' },
       })) as HistoryRecord[];
 
       const groups: {

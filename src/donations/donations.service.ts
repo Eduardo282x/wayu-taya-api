@@ -211,7 +211,7 @@ export class DonationsService {
     const [donations, total] = await Promise.all([
       this.prismaService.donation.findMany({
         where,
-        orderBy: { id: 'asc' },
+        orderBy: { id: 'desc' },
         skip: (page - 1) * size,
         take: size,
         include: {

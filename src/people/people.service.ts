@@ -10,7 +10,7 @@ export class PeopleService {
     const people = await this.prismaService.people.findMany({
       include: { parish: true },
       where: { deleted: false },
-      orderBy: { id: 'asc' },
+      orderBy: { id: 'desc' },
     });
 
     return { people };

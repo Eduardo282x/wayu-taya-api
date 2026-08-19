@@ -8,7 +8,7 @@ export class EventsService {
 
   async getEvents() {
     const events = await this.prismaService.events.findMany({
-      orderBy: { id: 'asc' },
+      orderBy: { id: 'desc' },
       where: { deleted: false },
       include: {
         parish: true,
@@ -22,7 +22,7 @@ export class EventsService {
   async getEventsFixed() {
     const events = await this.prismaService.events
       .findMany({
-        orderBy: { id: 'asc' },
+        orderBy: { id: 'desc' },
         where: { deleted: false },
         include: {
           parish: true,
