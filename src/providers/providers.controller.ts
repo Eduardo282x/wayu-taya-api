@@ -6,17 +6,18 @@ import {
   Param,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { ProvidersService } from './providers.service';
-import { ProviderDTO } from './providers.dto';
+import { GetProvidersQueryDTO, ProviderDTO } from './providers.dto';
 
 @Controller('providers')
 export class ProvidersController {
   constructor(private providersService: ProvidersService) {}
 
   @Get()
-  async getProviders() {
-    return await this.providersService.getProviders();
+  async getProviders(@Query() query: GetProvidersQueryDTO) {
+    return await this.providersService.getProviders(query);
   }
 
   @Post()

@@ -1,4 +1,5 @@
-import { IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
 
 export class ProviderDTO {
   @IsString()
@@ -15,4 +16,18 @@ export class ProviderDTO {
   responsible: string;
   @IsString()
   phone: string;
+}
+
+export class GetProvidersQueryDTO {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  page: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  size: number;
 }

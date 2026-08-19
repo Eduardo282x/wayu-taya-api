@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { ProviderDTO } from './providers.dto';
+import { GetProvidersQueryDTO, ProviderDTO } from './providers.dto';
 
 @Injectable()
 export class ProvidersService {
@@ -14,13 +14,31 @@ export class ProvidersService {
     return { providers };
   }
 
-  async getProviders() {
-    const providers = await this.prismaService.providers.findMany({
-      orderBy: { id: 'asc' },
-      where: { deleted: false },
-    });
+  async getProviders(query?: GetProvidersQueryDTO) {
+    const page = query?.page ?? 1;
+    const size = query?.size ?? 100;
 
-    return { providers };
+    const where = { deleted: false };
+
+    const [providers, total] = await Promise.all([
+      this.prismaService.providers.findMany({
+        orderBy: { id: 'asc' },
+        where,
+        skip: (page - 1) * size,
+        take: size,
+      }),
+      this.prismaService.providers.count({ where }),
+    ]);
+
+    return {
+      providers,
+      pagination: {
+        total,
+        page,
+        size,
+        totalPages: Math.ceil(total / size),
+      },
+    };
   }
 
   async createProviders(providers: ProviderDTO) {
