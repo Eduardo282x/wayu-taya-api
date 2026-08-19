@@ -6,12 +6,13 @@ import {
   Post,
   Put,
   Delete,
+  Query,
   Res,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
 import { DonationsService } from './donations.service';
-import { DonationsDTO } from './donations.dto';
+import { DonationsDTO, GetDonationsQueryDTO } from './donations.dto';
 import { Response } from 'express';
 import { ReportsService } from 'src/reports/reports.service';
 
@@ -23,8 +24,8 @@ export class DonationsController {
   ) {}
 
   @Get()
-  async getDonations() {
-    return await this.donationsService.getDonations();
+  async getDonations(@Query() query: GetDonationsQueryDTO) {
+    return await this.donationsService.getDonations(query);
   }
   @Get('/lotes')
   async getLotes() {

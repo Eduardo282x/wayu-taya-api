@@ -1,6 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  HttpException,
+  Injectable,
+} from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { DonationsDTO, DetDonationDTO } from './donations.dto';
+import { DonationsDTO, DetDonationDTO, GetDonationsQueryDTO } from './donations.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
 import PDFDocument from 'pdfkit';
 
@@ -26,6 +31,50 @@ export class DonationsService {
 
   private normalizeSearchKey(value: string): string {
     return this.normalizeText(value).replace(/\s+/g, ' ');
+  }
+
+  private async validateControlNumberUnique(
+    tx: any,
+    controlNumber: string,
+    excludeId?: number,
+  ): Promise<void> {
+    const existing = await tx.donation.count({
+      where: {
+        controlNumber,
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+    });
+    if (existing > 0) {
+      throw new ConflictException(
+        `El número de control "${controlNumber}" ya existe en otra donación.`,
+      );
+    }
+  }
+
+  private validateBenefitedForType(donation: DonationsDTO): void {
+    if (donation.type === 'Salida') {
+      if (
+        donation.benefited == null ||
+        typeof donation.benefited !== 'number' ||
+        donation.benefited < 1
+      ) {
+        throw new BadRequestException(
+          'Las donaciones de salida requieren el campo "benefited" con un valor mayor o igual a 1.',
+        );
+      }
+
+      for (const [index, det] of donation.medicines.entries()) {
+        if (
+          det.benefited == null ||
+          typeof det.benefited !== 'number' ||
+          det.benefited < 1
+        ) {
+          throw new BadRequestException(
+            `Las donaciones de salida requieren el campo "benefited" (mayor o igual a 1) en el medicamento #${index + 1}.`,
+          );
+        }
+      }
+    }
   }
 
   private async resolveMedicines(
@@ -138,18 +187,49 @@ export class DonationsService {
     return resolved;
   }
 
-  async getDonations() {
+  async getDonations(query?: GetDonationsQueryDTO) {
+    const page = query?.page ?? 1;
+    const size = query?.size ?? 100;
+
+    const where: any = {};
+    if (query?.lote) {
+      where.lote = { contains: query.lote, mode: 'insensitive' };
+    }
+    if (query?.controlNumber) {
+      where.controlNumber = { contains: query.controlNumber, mode: 'insensitive' };
+    }
+    if (query?.type) {
+      where.type = query.type;
+    }
+    if (query?.providerId) {
+      where.providerId = query.providerId;
+    }
+    if (query?.institutionId) {
+      where.institutionId = query.institutionId;
+    }
+    if (query?.startDate || query?.endDate) {
+      where.date = {};
+      if (query.startDate) where.date.gte = query.startDate;
+      if (query.endDate) where.date.lte = query.endDate;
+    }
+
     // grab all
-    const donations = await this.prismaService.donation.findMany({
-      orderBy: { id: 'asc' },
-      include: {
-        detDonation: {
-          include: { medicine: true },
+    const [donations, total] = await Promise.all([
+      this.prismaService.donation.findMany({
+        where,
+        orderBy: { id: 'asc' },
+        skip: (page - 1) * size,
+        take: size,
+        include: {
+          detDonation: {
+            include: { medicine: true },
+          },
+          institution: true,
+          provider: true,
         },
-        institution: true,
-        provider: true,
-      },
-    });
+      }),
+      this.prismaService.donation.count({ where }),
+    ]);
 
     // id from all 4 inven
     const donationIds = donations.map((donation) => donation.id);
@@ -182,80 +262,90 @@ export class DonationsService {
       };
     });
 
-    return { donations: donationsWithDates };
+    return {
+      donations: donationsWithDates,
+      pagination: {
+        total,
+        page,
+        size,
+        totalPages: Math.ceil(total / size),
+      }
+    };
   }
 
   async createDonation(donation: DonationsDTO) {
     try {
       const newDonation = await this.prismaService.$transaction(
         async (tx) => {
-        const donationCreated = await tx.donation.create({
-          data: {
-            institutionId: donation.institutionId,
-            providerId: donation.providerId,
+          await this.validateControlNumberUnique(tx, donation.controlNumber);
+          this.validateBenefitedForType(donation);
+
+          const donationCreated = await tx.donation.create({
+            data: {
+              institutionId: donation.institutionId,
+              providerId: donation.providerId,
+              type: donation.type,
+              date: donation.date,
+              controlNumber: donation.controlNumber,
+              lote: donation.lote,
+              benefited: donation.benefited ?? 0,
+            },
+          });
+
+          const medicinesResolved: (DetDonationDTO & { medicineId: number })[] =
+            await this.resolveMedicines(tx, donation.medicines);
+
+          const dataDetDonation = medicinesResolved.map((pro) => ({
+            donationId: donationCreated.id,
+            medicineId: pro.medicineId,
+            amount: pro.amount,
+            benefited: pro.benefited ?? 0,
+            lote: pro.lote || donation.lote || '',
+          }));
+          await tx.detDonation.createMany({ data: dataDetDonation });
+
+          const inventoryDto = {
+            donationId: donationCreated.id,
+            lote: donation.lote,
+            medicines: medicinesResolved.map((med) => ({
+              medicineId: med.medicineId,
+              storeId: med.storageId,
+              stock: med.amount,
+              admissionDate: donation.date,
+              expirationDate: med.expirationDate,
+              lote: med.lote,
+            })),
             type: donation.type,
             date: donation.date,
-            lote: donation.lote,
-            benefited: donation.benefited ?? 1,
-          },
-        });
+            observations: '',
+          };
 
-        const medicinesResolved: (DetDonationDTO & { medicineId: number })[] =
-          await this.resolveMedicines(tx, donation.medicines);
+          const result = await this.inventoryService.processInventory(
+            inventoryDto,
+            tx,
+          );
+          if (!result.success) throw new BadRequestException(result.message);
 
-        const dataDetDonation = medicinesResolved.map((pro) => ({
-          donationId: donationCreated.id,
-          medicineId: pro.medicineId,
-          amount: pro.amount,
-          benefited: pro.benefited ?? 1,
-          lote: pro.lote || donation.lote || '',
-        }));
-        await tx.detDonation.createMany({ data: dataDetDonation });
-
-        const inventoryDto = {
-          donationId: donationCreated.id,
-          lote: donation.lote,
-          medicines: medicinesResolved.map((med) => ({
-            medicineId: med.medicineId,
-            storeId: med.storageId,
-            stock: med.amount,
-            admissionDate: donation.date,
-            expirationDate: med.expirationDate,
-            lote: med.lote,
-          })),
-          type: donation.type,
-          date: donation.date,
-          observations: '',
-        };
-
-        const result = await this.inventoryService.processInventory(
-          inventoryDto,
-          tx,
-        );
-        if (!result.success) throw new Error(result.message);
-
-        return {
-          success: true,
-          message:
-            'Donación creada exitosamente y acción de inventario procesada.',
-          data: donationCreated,
-        };
-      },
-      { timeout: 30000, maxWait: 20000 },
-    );
+          return {
+            success: true,
+            message:
+              'Donación creada exitosamente y acción de inventario procesada.',
+            data: donationCreated,
+          };
+        },
+        { timeout: 30000, maxWait: 20000 },
+      );
 
       return {
         donation: newDonation,
         message: 'Donación registrada exitosamente.'
       }
     } catch (error) {
-      console.log(error)
-      return {
-        success: false,
-        message:
-          'Error al crear la donación: ' +
+      if (error instanceof HttpException) throw error;
+      throw new BadRequestException(
+        'Error al crear la donación: ' +
           (error instanceof Error ? error.message : String(error)),
-      };
+      );
     }
   }
 
@@ -271,6 +361,13 @@ export class DonationsService {
         });
 
         if (!originalDonation) throw new Error('Donación no encontrada');
+
+        await this.validateControlNumberUnique(
+          tx,
+          donation.controlNumber,
+          id,
+        );
+        this.validateBenefitedForType(donation);
 
         const medicinesResolved: (DetDonationDTO & { medicineId: number })[] =
           await this.resolveMedicines(tx, donation.medicines);
@@ -318,6 +415,7 @@ export class DonationsService {
           institutionId: donation.institutionId,
           providerId: donation.providerId,
           date: donation.date,
+          controlNumber: donation.controlNumber,
           benefited: donation.benefited ?? undefined,
           updateAt: new Date(),
         };
@@ -335,7 +433,7 @@ export class DonationsService {
             donationId: id,
             medicineId: m.medicineId,
             amount: m.amount,
-            benefited: m.benefited ?? 1,
+            benefited: m.benefited ?? 0,
             lote: m.lote || donation.lote || '',
           }));
           await tx.detDonation.createMany({ data: newDetails });
@@ -360,7 +458,7 @@ export class DonationsService {
             inventoryDto,
             tx,
           );
-          if (!result.success) throw new Error(result.message);
+          if (!result.success) throw new BadRequestException(result.message);
         }
 
         return {
@@ -369,16 +467,15 @@ export class DonationsService {
           data: updatedDonation,
         };
       },
-      { timeout: 30000, maxWait: 20000 },
-    );
+        { timeout: 30000, maxWait: 20000 },
+      );
     } catch (error) {
-      return {
-        success: false,
-        message:
-          error instanceof Error
-            ? error.message
-            : 'Error desconocido en actualización de donación.',
-      };
+      if (error instanceof HttpException) throw error;
+      throw new BadRequestException(
+        error instanceof Error
+          ? error.message
+          : 'Error desconocido en actualización de donación.',
+      );
     }
   }
 
@@ -395,7 +492,7 @@ export class DonationsService {
         });
 
         if (!donation) {
-          throw new Error('Donación no encontrada');
+          throw new BadRequestException('Donación no encontrada');
         }
 
         // Revertir inventario usando datos históricos
@@ -426,15 +523,14 @@ export class DonationsService {
           data: deletedDonation,
         };
       },
-      { timeout: 30000, maxWait: 20000 },
-    );
+        { timeout: 30000, maxWait: 20000 },
+      );
     } catch (error) {
-      return {
-        success: false,
-        message:
-          'Error al eliminar la donación: ' +
+      if (error instanceof HttpException) throw error;
+      throw new BadRequestException(
+        'Error al eliminar la donación: ' +
           (error instanceof Error ? error.message : String(error)),
-      };
+      );
     }
   }
 

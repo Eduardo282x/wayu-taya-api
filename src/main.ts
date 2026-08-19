@@ -5,6 +5,7 @@ import { BadRequestException, ValidationPipe } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthGuard } from './auth/auth.guard';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import { buildValidationDetails } from './common/utils/validation-errors.util';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -25,13 +26,14 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
       transform: true,
       exceptionFactory: (errors) => {
-        const message = errors
-          .map(
-            (error) => `${Object.values(error.constraints ?? {}).join(', ')}`,
-          )
+        const details = buildValidationDetails(errors);
+        const summary = details
+          .map((detail) => `${detail.field}: ${detail.messages.join(', ')}`)
           .join('; ');
-
-        return new BadRequestException(`${message}`);
+        return new BadRequestException({
+          message: summary || 'Datos de entrada inválidos',
+          errors: details,
+        });
       },
     }),
   );

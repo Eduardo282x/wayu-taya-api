@@ -224,6 +224,7 @@ model Donation {
   providerId       Int?
   type             String
   date             DateTime
+  controlNumber    String             
   lote             String
   benefited        Int                @default(1)
   deleted          Boolean            @default(false)

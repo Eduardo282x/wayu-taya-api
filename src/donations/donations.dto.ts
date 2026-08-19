@@ -3,10 +3,13 @@ import {
   IsArray,
   IsDate,
   ValidateNested,
+  ValidateIf,
   IsNumber,
   IsOptional,
   IsString,
   IsBoolean,
+  IsIn,
+  Min,
 } from 'class-validator';
 
 export class DonationsDTO {
@@ -17,15 +20,19 @@ export class DonationsDTO {
   @IsNumber()
   providerId: number;
   @IsString()
+  @IsIn(['Entrada', 'Salida'])
   type: string;
   @IsDate()
   @Transform(({ value }) => new Date(value))
   date: Date;
   @IsString()
+  controlNumber: string;
+  @IsString()
   lote: string;
 
-  @IsOptional()
+  @ValidateIf((o) => o.type === 'Salida')
   @IsNumber()
+  @Min(1)
   benefited: number;
 
   @IsOptional()
@@ -36,6 +43,53 @@ export class DonationsDTO {
   @ValidateNested({ each: true })
   @Type(() => DetDonationDTO)
   medicines: DetDonationDTO[];
+}
+
+export class GetDonationsQueryDTO {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  page: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  size: number;
+
+  @IsOptional()
+  @IsString()
+  lote: string;
+
+  @IsOptional()
+  @IsString()
+  controlNumber: string;
+
+  @IsOptional()
+  @IsString()
+  @IsIn(['Entrada', 'Salida'])
+  type: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  providerId: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  institutionId: number;
+
+  @IsOptional()
+  @IsDate()
+  @Transform(({ value }) => new Date(value))
+  startDate: Date;
+
+  @IsOptional()
+  @IsDate()
+  @Transform(({ value }) => new Date(value))
+  endDate: Date;
 }
 
 export class MedicineMinDTO {
@@ -97,6 +151,7 @@ export class DetDonationDTO {
   amount: number;
   @IsOptional()
   @IsNumber()
+  @Min(0)
   benefited: number;
   @IsNumber()
   storageId: number;
