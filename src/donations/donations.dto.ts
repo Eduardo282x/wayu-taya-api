@@ -3,7 +3,6 @@ import {
   IsArray,
   IsDate,
   ValidateNested,
-  ValidateIf,
   IsNumber,
   IsOptional,
   IsString,
@@ -29,11 +28,6 @@ export class DonationsDTO {
   controlNumber: string;
   @IsString()
   lote: string;
-
-  @ValidateIf((o) => o.type === 'Salida')
-  @IsNumber()
-  @Min(1)
-  benefited: number;
 
   @IsOptional()
   @IsBoolean()

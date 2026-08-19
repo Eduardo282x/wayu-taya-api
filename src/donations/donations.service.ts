@@ -53,16 +53,6 @@ export class DonationsService {
 
   private validateBenefitedForType(donation: DonationsDTO): void {
     if (donation.type === 'Salida') {
-      if (
-        donation.benefited == null ||
-        typeof donation.benefited !== 'number' ||
-        donation.benefited < 1
-      ) {
-        throw new BadRequestException(
-          'Las donaciones de salida requieren el campo "benefited" con un valor mayor o igual a 1.',
-        );
-      }
-
       for (const [index, det] of donation.medicines.entries()) {
         if (
           det.benefited == null ||
@@ -75,6 +65,10 @@ export class DonationsService {
         }
       }
     }
+  }
+
+  private sumBenefited(dets: DetDonationDTO[]): number {
+    return dets.reduce((sum, det) => sum + (det.benefited ?? 0), 0);
   }
 
   private async resolveMedicines(
@@ -280,6 +274,9 @@ export class DonationsService {
           await this.validateControlNumberUnique(tx, donation.controlNumber);
           this.validateBenefitedForType(donation);
 
+          const medicinesResolved: (DetDonationDTO & { medicineId: number })[] =
+            await this.resolveMedicines(tx, donation.medicines);
+
           const donationCreated = await tx.donation.create({
             data: {
               institutionId: donation.institutionId,
@@ -288,12 +285,9 @@ export class DonationsService {
               date: donation.date,
               controlNumber: donation.controlNumber,
               lote: donation.lote,
-              benefited: donation.benefited ?? 0,
+              benefited: this.sumBenefited(medicinesResolved),
             },
           });
-
-          const medicinesResolved: (DetDonationDTO & { medicineId: number })[] =
-            await this.resolveMedicines(tx, donation.medicines);
 
           const dataDetDonation = medicinesResolved.map((pro) => ({
             donationId: donationCreated.id,
@@ -416,7 +410,7 @@ export class DonationsService {
           providerId: donation.providerId,
           date: donation.date,
           controlNumber: donation.controlNumber,
-          benefited: donation.benefited ?? undefined,
+          benefited: this.sumBenefited(medicinesResolved),
           updateAt: new Date(),
         };
         if (donation.changeDonDetails) updateData.lote = donation.lote;
