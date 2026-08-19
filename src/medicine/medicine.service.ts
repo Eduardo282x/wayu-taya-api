@@ -3,6 +3,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import {
   MedicineDTO,
   MedicineFormatExcel,
+  GetMedicineQueryDTO,
   CategoryDTO,
   FormsDTO,
 } from './medicine.dto';
@@ -12,15 +13,38 @@ import { Response } from 'express';
 @Injectable()
 export class MedicineService {
   constructor(private prismaService: PrismaService) { }
-  async getMedicine() {
-    const medicines = await this.prismaService.medicine.findMany({
-      include: {
-        category: true,
-        form: true,
-      },
-    });
+  async getMedicine(query?: GetMedicineQueryDTO) {
+    const page = query?.page ?? 1;
+    const size = query?.size ?? 100;
 
-    return { medicines };
+    const where: any = {};
+    if (query?.name) {
+      where.name = { contains: query.name, mode: 'insensitive' };
+    }
+
+    const [medicines, total] = await Promise.all([
+      this.prismaService.medicine.findMany({
+        where,
+        include: {
+          category: true,
+          form: true,
+        },
+        orderBy: { id: 'asc' },
+        skip: (page - 1) * size,
+        take: size,
+      }),
+      this.prismaService.medicine.count({ where }),
+    ]);
+
+    return {
+      medicines,
+      pagination: {
+        total,
+        page,
+        size,
+        totalPages: Math.ceil(total / size),
+      },
+    };
   }
   async getCategory() {
     const categories = await this.prismaService.category.findMany();

@@ -6,12 +6,13 @@ import {
   Param,
   Post,
   Put,
+  Query,
   Res,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { MedicineService } from './medicine.service';
-import { CategoryDTO, FormsDTO, MedicineDTO } from './medicine.dto';
+import { CategoryDTO, FormsDTO, GetMedicineQueryDTO, MedicineDTO } from './medicine.dto';
 import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 
@@ -20,8 +21,8 @@ export class MedicineController {
   constructor(private medicineService: MedicineService) {}
 
   @Get()
-  async getMedicine() {
-    return await this.medicineService.getMedicine();
+  async getMedicine(@Query() query: GetMedicineQueryDTO) {
+    return await this.medicineService.getMedicine(query);
   }
   //categoria
   @Get('/category')

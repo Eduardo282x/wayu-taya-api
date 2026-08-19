@@ -1,4 +1,11 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import {
+  IsBoolean,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 export class MedicineDTO {
   @IsString()
@@ -37,6 +44,24 @@ export class MedicineDTO {
   @IsOptional()
   @IsString()
   countryOfOrigin: string;
+}
+
+export class GetMedicineQueryDTO {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  page: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  size: number;
+
+  @IsOptional()
+  @IsString()
+  name: string;
 }
 
 export interface MedicineFormatExcel {
