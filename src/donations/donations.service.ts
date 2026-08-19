@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DonationsDTO, DetDonationDTO } from './donations.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
-import * as PDFDocument from 'pdfkit';
+import PDFDocument from 'pdfkit';
 
 @Injectable()
 export class DonationsService {
@@ -644,7 +644,9 @@ export class DonationsService {
         const startX = doc.page.margins.left + (pageWidth - tableWidth) / 2;
 
         let startY = doc.y;
-        const rowHeight = 20;
+        const verticalPadding = 8;
+        const minRowHeight = 20;
+        const pageBottomMargin = 40;
 
         // Función para dibujar bordes
         function drawCellBorder(
@@ -656,25 +658,41 @@ export class DonationsService {
           doc.lineWidth(0.5).rect(x, y, width, height).stroke();
         }
 
-        // Dibujar encabezados
-        let x = startX;
-        doc.font('Helvetica-Bold').fontSize(8).fillColor('#1997B1');
-        for (const col of columns) {
-          doc.text(col.header, x + 2, startY + 5, {
-            width: col.width - 4,
-            align: 'center',
-          });
-          drawCellBorder(x, startY, col.width, rowHeight);
-          x += col.width;
+        // Dibujar encabezados de la tabla (se repite en cada página nueva)
+        function renderTableHeader() {
+          let hx = startX;
+          doc.font('Helvetica-Bold').fontSize(8).fillColor('#1997B1');
+          for (const col of columns) {
+            doc.text(col.header, hx + 2, startY + 5, {
+              width: col.width - 4,
+              align: 'center',
+            });
+            drawCellBorder(hx, startY, col.width, minRowHeight);
+            hx += col.width;
+          }
+          startY += minRowHeight;
         }
-        startY += rowHeight;
 
-        doc.font('Helvetica').fontSize(8).fillColor('black');
+        // Salto de página automático si la fila no cabe en la página actual
+        function ensureTableSpace(needed: number) {
+          const pageBottom =
+            doc.page.height - doc.page.margins.bottom - pageBottomMargin;
+          if (startY + needed > pageBottom) {
+            doc.addPage();
+            try {
+              doc.image('src/assets/logo.png', 30, 0, { width: 150 });
+            } catch (err) {
+              console.warn('No se pudo cargar el logotipo:', err);
+            }
+            startY = doc.page.margins.top + 20;
+            renderTableHeader();
+          }
+        }
+
+        renderTableHeader();
 
         // Dibujar filas
         donation.detDonation.forEach((det, idx) => {
-          x = startX;
-
           const inventory = inventories.find(
             (inv) => inv.medicineId === det.medicineId,
           );
@@ -701,8 +719,26 @@ export class DonationsService {
             '0,00',
           ];
 
+          doc.font('Helvetica').fontSize(8).fillColor('black');
+
+          const textHeights = row.map((cell, i) =>
+            doc.heightOfString(cell, {
+              width: columns[i].width - 4,
+              align: 'center',
+            }),
+          );
+          const rowHeight = Math.max(
+            minRowHeight,
+            Math.max(...textHeights) + verticalPadding,
+          );
+
+          ensureTableSpace(rowHeight);
+
+          doc.font('Helvetica').fontSize(8).fillColor('black');
+
+          let x = startX;
           for (let i = 0; i < columns.length; i++) {
-            doc.text(row[i], x + 2, startY + 5, {
+            doc.text(row[i], x + 2, startY + verticalPadding / 2, {
               width: columns[i].width - 4,
               align: 'center',
             });

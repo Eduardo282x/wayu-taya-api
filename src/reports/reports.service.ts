@@ -28,7 +28,7 @@ import {
   SummaryReportResponse,
 } from './reports.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
-import * as PDFDocument from 'pdfkit';
+import PDFDocument from 'pdfkit';
 
 @Injectable()
 export class ReportsService {
