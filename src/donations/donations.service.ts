@@ -719,15 +719,15 @@ export class DonationsService {
         // Definir columnas con anchos
         const columns = [
           { header: 'N°', width: 25 },
-          { header: 'CÓDIGO', width: 35 },
-          { header: 'PRODUCTO', width: 130 },
-          { header: 'CANTIDAD', width: 55 },
-          { header: 'UNIDAD', width: 35 },
-          { header: 'LOTE', width: 55 },
-          { header: 'ORIGEN', width: 45 },
-          { header: 'FABRICANTE', width: 70 },
-          { header: 'F. VENCE', width: 70 },
-          { header: 'VALOR', width: 50 },
+          { header: 'CÓDIGO', width: 40 },
+          { header: 'PRODUCTO', width: 115 },
+          { header: 'CANTIDAD', width: 50 },
+          { header: 'UNIDAD', width: 50 },
+          { header: 'LOTE', width: 40 },
+          { header: 'ORIGEN', width: 40 },
+          { header: 'FABRICANTE', width: 80 },
+          { header: 'F. VENCE', width: 60 },
+          { header: 'VALOR', width: 35 },
         ];
 
         // Ajustar el ancho total y posición (startX) según columnas
@@ -801,13 +801,13 @@ export class DonationsService {
 
           const row = [
             (idx + 1).toString(),
-            det.medicine.code.toString(),
+            det.medicine.code || 'S/N',
             `${det.medicine.name} ${det.amount.toString()} ${det.medicine.presentation}`,
             det.amount.toString(),
             det.medicine.form ? det.medicine.form.forms : 'S/N',
             det.lote || donation.lote || '',
-            det.medicine.manufacturer || det.medicine.manufacturer || 'S/N',
-            admissionDate,
+            det.medicine.countryOfOrigin || 'S/N',
+            det.medicine.manufacturer || 'S/N',
             expirationDate,
             '0,00',
           ];
