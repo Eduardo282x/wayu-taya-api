@@ -118,6 +118,9 @@ export class InventoryOutDTO {
   medicineId: number;
   @IsNumber()
   storeId: number;
+  @IsOptional()
+  @IsString()
+  lote?: string;
   @IsNumber()
   amount: number;
   @IsString()

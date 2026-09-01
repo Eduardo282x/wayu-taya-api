@@ -122,7 +122,10 @@ export class InventoryService {
         }
 
         if (
-          !acc[medicineId].lotes.some((lote) => lote.name === item.lote)
+          !acc[medicineId].lotes.some(
+            (lote) =>
+              lote.name === item.lote && lote.storeId === item.store.id,
+          )
         ) {
           acc[medicineId].lotes.push({
             name: item.lote,
@@ -676,6 +679,7 @@ export class InventoryService {
         where: {
           medicineId: data.medicineId,
           storeId: data.storeId,
+          ...(data.lote ? { lote: data.lote } : {}),
         },
       });
 
@@ -728,6 +732,7 @@ export class InventoryService {
             observations: data.observations,
             admissionDate: inventory.admissionDate,
             expirationDate: inventory.expirationDate,
+            lote: inventory.lote,
           },
         });
       });

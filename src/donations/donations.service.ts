@@ -240,7 +240,10 @@ export class DonationsService {
       const detDonationsWithDates = donation.detDonation.map((det) => {
         const inventoryRecord = inventories.find(
           (inv) =>
-            inv.donationId === donation.id && inv.medicineId === det.medicineId,
+            inv.donationId === donation.id &&
+            inv.medicineId === det.medicineId &&
+            inv.storeId === (det as any).storageId &&
+            inv.lote === (det.lote || donation.lote),
         );
 
         return {
@@ -338,7 +341,7 @@ export class DonationsService {
       if (error instanceof HttpException) throw error;
       throw new BadRequestException(
         'Error al crear la donación: ' +
-          (error instanceof Error ? error.message : String(error)),
+        (error instanceof Error ? error.message : String(error)),
       );
     }
   }
@@ -523,7 +526,7 @@ export class DonationsService {
       if (error instanceof HttpException) throw error;
       throw new BadRequestException(
         'Error al eliminar la donación: ' +
-          (error instanceof Error ? error.message : String(error)),
+        (error instanceof Error ? error.message : String(error)),
       );
     }
   }
@@ -533,7 +536,7 @@ export class DonationsService {
       const donation = await this.prismaService.donation.findUnique({
         where: { id: donationId },
         include: {
-          detDonation: { include: { medicine: true } },
+          detDonation: { include: { medicine: { include: { form: true } } } },
           provider: true,
           institution: true,
         },
@@ -716,13 +719,13 @@ export class DonationsService {
         // Definir columnas con anchos
         const columns = [
           { header: 'N°', width: 25 },
-          // { header: 'ID', width: 35 },
+          { header: 'CÓDIGO', width: 35 },
           { header: 'PRODUCTO', width: 130 },
           { header: 'CANTIDAD', width: 55 },
-          { header: 'NDC', width: 35 },
+          { header: 'UNIDAD', width: 35 },
           { header: 'LOTE', width: 55 },
           { header: 'ORIGEN', width: 45 },
-          { header: 'F. ADMISION', width: 70 },
+          { header: 'FABRICANTE', width: 70 },
           { header: 'F. VENCE', width: 70 },
           { header: 'VALOR', width: 50 },
         ];
@@ -798,12 +801,12 @@ export class DonationsService {
 
           const row = [
             (idx + 1).toString(),
-            // det.medicine.id.toString(),
+            det.medicine.code.toString(),
             `${det.medicine.name} ${det.amount.toString()} ${det.medicine.presentation}`,
             det.amount.toString(),
-            'NDC',
+            det.medicine.form ? det.medicine.form.forms : 'S/N',
             det.lote || donation.lote || '',
-            'S/N',
+            det.medicine.manufacturer || det.medicine.manufacturer || 'S/N',
             admissionDate,
             expirationDate,
             '0,00',

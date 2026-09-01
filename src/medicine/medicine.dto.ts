@@ -27,6 +27,10 @@ export class MedicineDTO {
 
   @IsOptional()
   @IsString()
+  provider: string;
+
+  @IsOptional()
+  @IsString()
   presentation: string;
 
   @IsOptional()
