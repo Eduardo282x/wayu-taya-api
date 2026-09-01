@@ -719,14 +719,14 @@ export class DonationsService {
         // Definir columnas con anchos
         const columns = [
           { header: 'N°', width: 25 },
-          { header: 'CÓDIGO', width: 40 },
-          { header: 'PRODUCTO', width: 115 },
+          { header: 'MATERIAL', width: 40 },
+          { header: 'PRODUCTO / DESCRIPCION', width: 115 },
           { header: 'CANTIDAD', width: 50 },
           { header: 'UNIDAD', width: 50 },
           { header: 'LOTE', width: 40 },
-          { header: 'ORIGEN', width: 40 },
+          { header: 'PAÍS DE ORIGEN', width: 40 },
           { header: 'FABRICANTE', width: 80 },
-          { header: 'F. VENCE', width: 60 },
+          { header: 'EXPIRA', width: 60 },
           { header: 'VALOR', width: 35 },
         ];
 
