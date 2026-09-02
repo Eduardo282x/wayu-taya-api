@@ -8,6 +8,7 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import { DonationsDTO, DetDonationDTO, GetDonationsQueryDTO } from './donations.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
 import PDFDocument from 'pdfkit';
+import * as ExcelJS from 'exceljs';
 
 @Injectable()
 export class DonationsService {
@@ -847,12 +848,108 @@ export class DonationsService {
 
       return filePDF;
     } catch (error) {
-      console.error('Error generando PDF de donación:', error);
+      console.error('Error generando PDF de donaciA3n:', error);
       throw new Error(
-        'Error generando PDF de donación: ' +
+        'Error generando PDF de donaciA3n: ' +
         (error instanceof Error ? error.message : String(error)),
         { cause: error },
       );
+    }
+  }
+
+  async downloadDonationExcelTemplate(res: any) {
+    try {
+      const medicines = await this.prismaService.medicine.findMany({
+        select: { name: true, presentation: true },
+        orderBy: { name: 'asc' },
+      });
+
+      const workbook = new ExcelJS.Workbook();
+      workbook.creator = 'Wayu Taya';
+
+      const donationSheet = workbook.addWorksheet('Donacion', {
+        views: [{ state: 'frozen', ySplit: 1 }],
+      });
+
+      const headers = [
+        'Medicina',
+        'Cantidad',
+        'Lote',
+        'Fecha de Expiración',
+      ];
+      donationSheet.columns = [
+        { header: headers[0], key: 'medicina', width: 48 },
+        { header: headers[1], key: 'cantidad', width: 14 },
+        { header: headers[2], key: 'lote', width: 18 },
+        { header: headers[3], key: 'fechaExpiracion', width: 22 },
+      ];
+
+      donationSheet.getColumn(2).numFmt = '0';
+      donationSheet.getColumn(4).numFmt = 'yyyy-mm-dd';
+
+      donationSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      donationSheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF0250B0' },
+      };
+
+      const exampleRows: any[] = [
+        ['Acetaminofén', 100, 'LOTE-001', new Date('2027-12-31')],
+        ['', '', '', ''],
+      ];
+      exampleRows.forEach((row) => donationSheet.addRow(row));
+
+      const medicinesSheet = workbook.addWorksheet('Medicinas', {
+        state: 'visible',
+        views: [{ state: 'frozen', ySplit: 1 }],
+      });
+      medicinesSheet.columns = [
+        { header: 'Medicina', key: 'medicine', width: 42 },
+        { header: 'Presentación', key: 'presentation', width: 32 },
+      ];
+      medicinesSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      medicinesSheet.getRow(1).fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FF0250B0' },
+      };
+
+      medicines.forEach((med) => {
+        medicinesSheet.addRow({
+          medicine: med.name,
+          presentation: med.presentation || '',
+        });
+      });
+
+      if (medicines.length > 0) {
+        const optionCount = medicines.length;
+        const lastMedicineRow = optionCount + 1;
+        const formula = `Medicinas!$A$2:$A$${lastMedicineRow}`;
+        (donationSheet as any).dataValidations.add(`A2:A500`, {
+          type: 'list',
+          formulae: [formula],
+          allowBlank: true,
+          showErrorMessage: true,
+          error: 'Selecciona una medicina de la lista o escribe una nueva.',
+          errorTitle: 'Medicina no válida',
+        });
+      }
+
+      (workbook as any).views = [{ activeTab: 0 }];
+
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
+      res.setHeader(
+        'Content-Disposition',
+        'attachment; filename="donacion_plantilla.xlsx"',
+      );
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      throw error;
     }
   }
 }

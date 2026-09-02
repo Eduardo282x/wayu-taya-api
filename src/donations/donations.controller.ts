@@ -32,6 +32,11 @@ export class DonationsController {
     return await this.reportService.getLotes();
   }
 
+  @Get('/template')
+  async downloadDonationTemplate(@Res() res: Response) {
+    return await this.donationsService.downloadDonationExcelTemplate(res);
+  }
+
   @Get('/download/:id')
   async downloadDonationPDF(@Param('id') id: string, @Res() res: Response) {
     const donationId = Number(id);
