@@ -76,6 +76,10 @@ export class InventoryService {
               name: string;
               address: string;
               amount: number;
+              capacity: number;
+              usedCapacity: number;
+              availableCapacity: number;
+              capacityPercentage: number;
             }[],
             datesMedicine: [],
             lotes: [] as {
@@ -99,11 +103,25 @@ export class InventoryService {
             )
             .reduce((sum, inv) => sum + inv.stock, 0);
 
+          const storeUsed = inventory
+            .filter((inv) => inv.store.id === item.store.id)
+            .reduce((sum, inv) => sum + inv.stock, 0);
+          const storeCapacity = item.store.capacity ?? 0;
+          const storeAvailable = Math.max(storeCapacity - storeUsed, 0);
+          const storePercentage =
+            storeCapacity > 0
+              ? Math.round((storeUsed / storeCapacity) * 10000) / 100
+              : 0;
+
           acc[medicineId].stores.push({
             id: item.store.id,
             name: item.store.name,
             address: item.store.address,
             amount: totalAmountStore,
+            capacity: storeCapacity,
+            usedCapacity: storeUsed,
+            availableCapacity: storeAvailable,
+            capacityPercentage: storePercentage,
           });
         }
 
@@ -149,6 +167,10 @@ export class InventoryService {
             name: string;
             address: string;
             amount: number;
+            capacity: number;
+            usedCapacity: number;
+            availableCapacity: number;
+            capacityPercentage: number;
           }[];
           datesMedicine: any[];
           lotes: {

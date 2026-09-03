@@ -125,12 +125,16 @@ export class ReportsService {
     inventoryData: IInventory[],
     storeId: number,
   ): Promise<Buffer> {
-    const filtered = inventoryData
-      .filter((item) => item.stores.some((store) => store.id === storeId))
-      .map((item) => ({
-        ...item,
-        stores: item.stores.filter((store) => store.id === storeId),
-      }));
+      const filtered = inventoryData
+        .filter((item) => item.stores.some((store) => store.id === storeId))
+        .map((item) => ({
+          ...item,
+          stores: item.stores.filter((store) => store.id === storeId),
+        }));
+
+      const storeInfo = filtered
+        .flatMap((item) => item.stores)
+        .find((store) => store.id === storeId);
 
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 30, size: 'A4' });
@@ -144,6 +148,15 @@ export class ReportsService {
       doc.fontSize(16).text(`REPORTE DE INVENTARIO - Almacén ${storeId} `, {
         align: 'center',
       });
+      if (storeInfo) {
+        doc
+          .font('Helvetica')
+          .fontSize(10)
+          .text(
+            `Capacidad: ${storeInfo.usedCapacity} / ${storeInfo.capacity} usados (disponible: ${storeInfo.availableCapacity})`,
+            { align: 'center' },
+          );
+      }
       doc.moveDown();
 
       const columns = [
@@ -1662,10 +1675,27 @@ export class ReportsService {
       orderBy: { id: 'desc' },
     });
 
-    return stores.map((store) => ({
-      storage: store.name,
-      totalProducts: store.inventory.reduce((sum, i) => sum + i.stock, 0),
-    }));
+    return stores.map((store) => {
+      const usedCapacity = store.inventory.reduce(
+        (sum, i) => sum + i.stock,
+        0,
+      );
+      const capacity = store.capacity ?? 0;
+      const availableCapacity = Math.max(capacity - usedCapacity, 0);
+      const capacityPercentage =
+        capacity > 0
+          ? Math.round((usedCapacity / capacity) * 10000) / 100
+          : 0;
+
+      return {
+        storage: store.name,
+        totalProducts: usedCapacity,
+        capacity,
+        usedCapacity,
+        availableCapacity,
+        capacityPercentage,
+      };
+    });
   }
 
   private async getTotalInventory(): Promise<number> {

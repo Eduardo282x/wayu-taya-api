@@ -38,6 +38,10 @@ export interface ProductSummary {
 export interface StoreSummary {
   storage: string;
   totalProducts: number;
+  capacity: number;
+  usedCapacity: number;
+  availableCapacity: number;
+  capacityPercentage: number;
 }
 
 export interface SummaryReportResponse {
@@ -80,6 +84,10 @@ export interface Store {
   name: string;
   address: string;
   amount: number;
+  capacity: number;
+  usedCapacity: number;
+  availableCapacity: number;
+  capacityPercentage: number;
 }
 
 export interface IMedicine {

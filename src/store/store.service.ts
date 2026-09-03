@@ -5,16 +5,43 @@ import { StoreDTO } from './store.dto';
 @Injectable()
 export class StoreService {
   constructor(private prismaService: PrismaService) { }
+  private buildCapacityInfo(capacity: number, usedCapacity: number) {
+    const availableCapacity = Math.max(capacity - usedCapacity, 0);
+    const capacityPercentage = capacity > 0
+      ? Math.round((usedCapacity / capacity) * 10000) / 100
+      : 0;
+    return { capacity, usedCapacity, availableCapacity, capacityPercentage };
+  }
+
   async getStore() {
     const stores = await this.prismaService.store.findMany({
       orderBy: { id: 'asc' },
       where: {
         deleted: false
-      }
+      },
+      include: {
+        inventory: {
+          select: { stock: true },
+        },
+      },
+    });
+
+    const storesWithCapacity = stores.map((store) => {
+      const usedCapacity = store.inventory.reduce(
+        (sum, item) => sum + item.stock,
+        0,
+      );
+      return {
+        id: store.id,
+        name: store.name,
+        address: store.address,
+        deleted: store.deleted,
+        ...this.buildCapacityInfo(store.capacity, usedCapacity),
+      };
     });
 
     return {
-      stores
+      stores: storesWithCapacity
     }
   }
 
@@ -24,6 +51,7 @@ export class StoreService {
         data: {
           name: store.name,
           address: store.address,
+          capacity: store.capacity ?? 0,
         },
       });
       return { store: newStore, message: 'Almacén creado exitosamente.' };
@@ -38,6 +66,7 @@ export class StoreService {
         data: {
           name: store.name,
           address: store.address,
+          capacity: store.capacity,
         },
         where: { id: id },
       });
