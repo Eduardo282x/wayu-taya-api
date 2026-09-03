@@ -214,6 +214,7 @@ model Store {
   id               Int                @id @default(autoincrement())
   name             String
   address          String
+  capacity         Int                @default(0)
   deleted          Boolean            @default(false)
   inventory        Inventory[]
   historyInventory HistoryInventory[]
