@@ -57,6 +57,8 @@ export class InstitutionsService {
           name: institutions.name,
           rif: institutions.rif,
           address: institutions.address,
+          responsible: institutions.responsible,
+          phone: institutions.phone,
           country: institutions.country,
           email: institutions.email,
           type: institutions.type,
@@ -88,6 +90,8 @@ export class InstitutionsService {
           rif: institutions.rif,
           address: institutions.address,
           country: institutions.country,
+          responsible: institutions.responsible,
+          phone: institutions.phone,
           email: institutions.email,
           type: institutions.type,
           parishId: institutions.parishId,
@@ -106,7 +110,7 @@ export class InstitutionsService {
         where: { id: id_institution },
         data: { deleted: true },
       });
-      return { institution: institutionDeleted, message: 'Institucion marcada como eliminada exitosamente.' };
+      return { institution: institutionDeleted, message: 'Institución marcada como eliminada exitosamente.' };
     } catch (error) {
       throw error;
     }

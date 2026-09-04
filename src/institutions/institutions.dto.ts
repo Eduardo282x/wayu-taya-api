@@ -10,6 +10,10 @@ export class InstitutionsDTO {
   @IsString()
   address: string;
   @IsString()
+  responsible: string;
+  @IsString()
+  phone: string;
+  @IsString()
   country: string;
   @IsString()
   @IsOptional()
