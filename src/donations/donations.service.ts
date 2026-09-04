@@ -543,13 +543,16 @@ export class DonationsService {
         },
       });
 
+      if (!donation) {
+        throw new Error('Donación no encontrada');
+      }
+
       const inventories = await this.prismaService.inventory.findMany({
         where: { donationId },
       });
 
       const filePDF = await new Promise((resolve, reject) => {
-        // 5. Crear el documento PDF
-        const doc = new PDFDocument({ margin: 30, size: 'A4' });
+        const doc = new PDFDocument({ margin: 50, size: 'LETTER' });
 
         const buffers: Uint8Array[] = [];
         doc.on('data', (chunk) => buffers.push(chunk));
@@ -557,300 +560,251 @@ export class DonationsService {
         doc.on('error', (err) =>
           reject(err instanceof Error ? err : new Error(String(err))),
         );
-        // --- PAGINA 1: CERTIFICADO DE DONACIÓN ---
-        // Logo
+
+        // Colores de la referencia
+        const NAVY = '#1B365D';
+        const TEAL = '#2E7B88';
+        const LIGHT = '#F4F7F9';
+        const GRAY_TEXT = '#545454';
+        const LINE = '#D9D9D9';
+        const EMAIL_BLUE = '#0000FF';
+
+        // Dimensiones de la tabla
+        const TABLE_X = 50;
+        const TABLE_W = 500;
+        const LOGO_W = 159;
+
+        const columns = [
+          { header: 'Material', width: 45 },
+          { header: 'Producto / Descripción', width: 160 },
+          { header: 'Cant.', width: 30},
+          { header: 'Unid', width: 40 },
+          { header: 'Lote', width: 56 },
+          { header: 'País de Origen', width: 45 },
+          { header: 'Fabricante', width: 60 },
+          { header: 'Expira', width: 50 },
+          { header: 'Valor', width: 30 },
+        ];
+
+        const title =
+          type === 'normal' ? 'FACTURA NO COMERCIAL' : 'NOTA DE ENTREGA';
+        const subtitle =
+          'Asistencia de Salud — No para reventa o fines comerciales';
+
+        const formatExpiration = (date: Date): string => {
+          const d = new Date(date);
+          const month = String(d.getMonth() + 1).padStart(2, '0');
+          const day = String(d.getDate()).padStart(2, '0');
+          return `${month}/${day}/${d.getFullYear()}`;
+        };
+
+        // Logo a la derecha
         try {
-          doc.image('src/assets/logo.png', 40, 0, { width: 150 });
+          doc.image('src/assets/logo.png', TABLE_X + TABLE_W - LOGO_W, 60, {
+            width: LOGO_W,
+          });
         } catch (err) {
           console.warn('No se pudo cargar el logotipo:', err);
         }
 
-        // Fecha arriba a la derecha
-        const fechaActual = new Date().toLocaleDateString('es-VE', {
-          weekday: 'long',
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        });
-        doc.fontSize(10).text(fechaActual, 0, 40, { align: 'right' });
-
-        // Nombre y RIF de la fundación
+        // Título y subtítulo
         doc
           .font('Helvetica-Bold')
-          .fontSize(11)
-          .text('Fundación Wayuu Taya', 40, 90);
-        doc.font('Helvetica-Bold').fontSize(10).text('J-309554050', 40, 105);
-
-        // Título centrado
-        doc.moveDown(2);
-        doc
-          .font('Helvetica-Bold')
-          .fontSize(13)
-          .text('CERTIFICADO DE DONACIÓN', { align: 'center' });
-        doc.moveDown(1);
-
-        // Datos principales
-        doc.font('Helvetica').fontSize(10);
-        doc.text(`NUMERO DE DONACION: D-${donation.id}`, 40, 160);
-        doc.text(`CONSIGNATARIO: ${donation.institution?.name || ''}`, 40, 175);
-        doc.text(`RIF.: ${donation.institution?.rif || ''}`, 40, 190);
-        doc.text(
-          `FECHA: ${donation.date.toLocaleDateString('es-VE', { year: 'numeric', month: '2-digit', day: '2-digit' })}`,
-          40,
-          205,
-        );
-
-        // Texto principal
-        doc.moveDown(8);
-        doc.font('Helvetica').fontSize(10);
-        doc.text(
-          'Este documento certifica que La Fundación Wayuu Taya ha donado provisiones médicas al consignatario mencionado arriba. Este envío es un regalo de buena fe sin ninguna consideración de valor monetario de parte del que lo reciba con respecto al valor comercial de las provisiones médicas.',
-          { align: 'justify', width: 500 },
-        );
-
-        // Espacio para firma y sellos
-        doc.moveDown(8);
-        doc.text('Atentamente,', 40);
-
-        // Definir altura y márgenes para los cuadros y texto al final de la página
-        const bottomMargin = 250;
-        const pageHeight = doc.page.height;
-        const cuadroFirmaWidth = 250;
-        const cuadroFirmaHeight = 0;
-        const cuadroSelloWidth = 120;
-        const cuadroSelloHeight = 120;
-        const espacioEntreCuadros = 40;
-
-        // Posiciones Y para los cuadros y texto (cerca del pie)
-        const cuadrosY = pageHeight - bottomMargin - cuadroFirmaHeight;
-        const firmaX = 100;
-        const selloX = firmaX + cuadroFirmaWidth + espacioEntreCuadros;
-
-        // Dibujar rectángulos para firma y sello
-        doc
-          .rect(firmaX, cuadrosY, cuadroFirmaWidth, cuadroFirmaHeight)
-          .stroke();
-        doc.text('Sello:', selloX, cuadrosY - 20);
-        doc
-          .rect(selloX, cuadrosY, cuadroSelloWidth, cuadroSelloHeight)
-          .strokeOpacity(0.2)
-          .stroke();
-
-        // Información de Roger centrada dentro del cuadro de firma, justo debajo del rectángulo
-        const infoRoger = [
-          'FUNDACIÓN WAYUU TAYA',
-          'RIF J-30955405-0',
-          'Roger Ibarra',
-          'Gerente Regional Zulia',
-          'roger@wayuutaya.org / www.wayuutaya.org',
-        ];
-
-        const infoYStart = cuadrosY + cuadroFirmaHeight + 5; // 5 pts debajo del cuadro firma
-
-        infoRoger.forEach((line, index) => {
-          doc
-            .font('Helvetica')
-            .fontSize(9)
-            .text(line, firmaX, infoYStart + index * 12, {
-              width: cuadroFirmaWidth,
-              align: 'center',
-            });
-        });
-        // Pie de página
+          .fontSize(15)
+          .fillColor(NAVY)
+          .text(title, TABLE_X, 58, { width: TABLE_W - LOGO_W - 30 });
         doc
           .font('Helvetica')
-          .fontSize(8)
-          .text(
-            'AV 13A ENTRE CALLES 75 Y 76 EDIF BELEN PISO PRIMER 1-C SECTOR TIERRA NEGRA MARACAIBO ZULIA',
-            40,
-            doc.page.height - 60,
-            { align: 'center' },
-          );
-
-        // --- PAGINA 2: TABLA DE MEDICAMENTOS ---
-        doc.addPage();
-
-        // 4. Insertar el logotipo (ajusta la ruta)
-        try {
-          doc.image('src/assets/logo.png', 30, 0, { width: 150 });
-        } catch (err) {
-          console.warn('No se pudo cargar el logotipo:', err);
-        }
-
-        const title = type == 'normal' ? 'FACTURA NO COMERCIAL' : 'NOTA DE ENTREGA'
-
-        // 5. Encabezado y datos principales
-        doc
           .fontSize(10)
-          .text(title, 45, 30, { align: 'center' });
-        doc
-          .fontSize(8)
-          .text(
-            'ASISTENCIA DE SALUD\nNO PARA RE-VENTA O FINES COMERCIALES',
-            45,
-            45,
-            { align: 'center' },
-          );
-        doc.moveDown();
+          .fillColor(GRAY_TEXT)
+          .text(subtitle, TABLE_X, 84, { width: TABLE_W - LOGO_W - 30 });
 
-        doc.fontSize(9);
-        doc.text(`NUMERO DE DONACION: D-${donation.id}`, 30, 80);
-        doc.text(
-          `FECHA: ${donation.date.toLocaleDateString('es-VE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}`,
-          350,
-          80,
-        );
-        doc.text(`PROVEEDOR: ${donation.provider?.name || '---'}`, 30, 100);
-        doc.text(`NOMBRE: ${donation.institution?.name || ''}`, 30, 115);
-        doc.text(`RIF.: ${donation.institution?.rif || 'SIN INF.'}`, 350, 115);
-        doc.text(`DIRECCION: ${donation.institution?.address || ''}`, 30, 130);
-        doc.text(`PAIS: ${donation.institution?.country || ''}`, 30, 145);
-        doc.text(`CORREO-E: ${donation.institution?.email || ''}`, 350, 145);
-
-        doc.moveDown(2);
-
-        // 6. Título de la tabla
+        // Línea de datos
+        const fechaStr = donation.date.toLocaleDateString('es-VE');
         doc
           .font('Helvetica-Bold')
           .fontSize(10)
-          .fillColor('#1997B1')
-          .text('LISTA DE MEDICAMENTOS', 45, 175, { align: 'center' });
-        doc.moveDown(0.5);
+          .fillColor('black')
+          .text('Número de Donación: ', TABLE_X, 116, { continued: true });
+        doc.font('Helvetica').text(donation.controlNumber);
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(10)
+          .text('Fecha: ', TABLE_X + 400, 116, {
+            width: 100,
+            align: 'right',
+            continued: true,
+          });
+        doc.font('Helvetica').text(fechaStr);
 
-        // Definir columnas con anchos
-        const columns = [
-          { header: 'N°', width: 25 },
-          { header: 'MATERIAL', width: 40 },
-          { header: 'PRODUCTO / DESCRIPCION', width: 115 },
-          { header: 'CANTIDAD', width: 50 },
-          { header: 'UNIDAD', width: 50 },
-          { header: 'LOTE', width: 40 },
-          { header: 'PAÍS DE ORIGEN', width: 40 },
-          { header: 'FABRICANTE', width: 80 },
-          { header: 'EXPIRA', width: 60 },
-          { header: 'VALOR', width: 35 },
+        // Banda teal "DATOS DEL CONSIGNATARIO"
+        let y = 142;
+        doc.fillColor(TEAL).rect(TABLE_X, y, TABLE_W, 18).fill();
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(10)
+          .fillColor('white')
+          .text('DATOS DEL CONSIGNATARIO', TABLE_X + 8, y + 5, {
+            width: TABLE_W - 16,
+          });
+        y += 18;
+
+        // Caja gris con los datos del consignatario
+        const inst = donation.institution;
+        const rowsData = [
+          { label: 'Nombre', value: inst?.name || '', bold: true },
+          { label: 'Dirección:', value: inst?.address || '', bold: false },
+          { label: 'Atención:', value: inst?.responsible || '', bold: true },
+          { label: 'Email:', value: inst?.email || '', bold: false, email: true },
         ];
 
-        // Ajustar el ancho total y posición (startX) según columnas
-        const pageWidth =
-          doc.page.width - doc.page.margins.left - doc.page.margins.right;
-        const tableWidth = columns.reduce((sum, col) => sum + col.width, 0);
-        const startX = doc.page.margins.left + (pageWidth - tableWidth) / 2;
+        const boxHeight = rowsData.length * 17 + 4;
+        doc.fillColor(LIGHT).rect(TABLE_X, y, TABLE_W, boxHeight).fill();
 
-        let startY = doc.y;
-        const verticalPadding = 8;
-        const minRowHeight = 20;
-        const pageBottomMargin = 40;
+        rowsData.forEach((row, i) => {
+          const rowY = y + 4 + i * 17;
+          doc
+            .font('Helvetica')
+            .fontSize(9.5)
+            .fillColor('black')
+            .text(row.label, TABLE_X + 8, rowY, { width: 80 });
+          doc
+            .font(row.bold ? 'Helvetica-Bold' : 'Helvetica')
+            .fontSize(9.5)
+            .fillColor(row.email ? EMAIL_BLUE : 'black')
+            .text(row.value, TABLE_X + 80, rowY, {
+              width: 240,
+              underline: !!row.email,
+            });
+        });
 
-        // Función para dibujar bordes
-        function drawCellBorder(
-          x: number,
-          y: number,
-          width: number,
-          height: number,
-        ) {
-          doc.lineWidth(0.5).rect(x, y, width, height).stroke();
-        }
+        // R.I.F. y Teléfono a la derecha
+        doc
+          .font('Helvetica')
+          .fontSize(9.5)
+          .fillColor('black')
+          .text(`R.I.F.: ${inst?.rif || 'Sin registro'}`, TABLE_X + 320, y + 4, {
+            width: 172,
+            align: 'right',
+          });
+        doc.text(`Teléfono: ${inst?.phone || ''}`, TABLE_X + 320, y + 21, {
+          width: 172,
+          align: 'right',
+        });
+        y += boxHeight + 8;
 
-        // Dibujar encabezados de la tabla (se repite en cada página nueva)
-        function renderTableHeader() {
-          let hx = startX;
-          doc.font('Helvetica-Bold').fontSize(8).fillColor('#1997B1');
+        // Línea divisoria
+        doc.fillColor(LINE).rect(TABLE_X, y, TABLE_W, 1).fill();
+        y += 6;
+
+        // Encabezado de la tabla
+        let startY = y;
+        const headerHeight = 28;
+        const pageBottomMargin = 60;
+
+        function drawTableHeader() {
+          doc.fillColor(NAVY).rect(TABLE_X, startY, TABLE_W, headerHeight).fill();
+          let hx = TABLE_X;
+          doc.font('Helvetica-Bold').fontSize(10).fillColor('white');
           for (const col of columns) {
-            doc.text(col.header, hx + 2, startY + 5, {
+            doc.text(col.header, hx + 2, startY + 3, {
               width: col.width - 4,
               align: 'center',
             });
-            drawCellBorder(hx, startY, col.width, minRowHeight);
             hx += col.width;
           }
-          startY += minRowHeight;
+          startY += headerHeight;
         }
 
-        // Salto de página automático si la fila no cabe en la página actual
         function ensureTableSpace(needed: number) {
           const pageBottom =
             doc.page.height - doc.page.margins.bottom - pageBottomMargin;
           if (startY + needed > pageBottom) {
             doc.addPage();
-            try {
-              doc.image('src/assets/logo.png', 30, 0, { width: 150 });
-            } catch (err) {
-              console.warn('No se pudo cargar el logotipo:', err);
-            }
             startY = doc.page.margins.top + 20;
-            renderTableHeader();
+            drawTableHeader();
           }
         }
 
-        renderTableHeader();
+        drawTableHeader();
 
-        // Dibujar filas
-        donation.detDonation.forEach((det, idx) => {
-          const inventory = inventories.find(
+        const cellFontSizes = [8.2, 7.3, 9.2, 9.2, 8.2, 8.2, 8.2, 7.3, 9.2];
+
+        // Filas
+        donation.detDonation.forEach((det) => {
+          const candidates = inventories.filter(
             (inv) => inv.medicineId === det.medicineId,
           );
-
-          // Formatear fechas
-          const admissionDate = inventory?.admissionDate
-            ? new Date(inventory.admissionDate).toLocaleDateString('es-VE')
-            : 'S/D';
+          const inventory =
+            candidates.find((inv) => inv.lote === (det.lote || donation.lote)) ||
+            candidates[0];
 
           const expirationDate = inventory?.expirationDate
-            ? new Date(inventory.expirationDate).toLocaleDateString('es-VE')
-            : 'S/D';
+            ? formatExpiration(inventory.expirationDate)
+            : '';
 
-          const row = [
-            (idx + 1).toString(),
-            det.medicine.code || 'S/N',
-            `${det.medicine.name} ${det.amount.toString()} ${det.medicine.presentation}`,
+          const productDesc = `${det.medicine.name}${
+            det.medicine.presentation ? ' ' + det.medicine.presentation : ''
+          }`;
+
+          const rowCells = [
+            det.medicine.code !== '' ? det.medicine.code : 'Sin código',
+            productDesc,
             det.amount.toString(),
-            det.medicine.form ? det.medicine.form.forms : 'S/N',
+            det.medicine.form?.forms || '',
             det.lote || donation.lote || '',
-            det.medicine.countryOfOrigin || 'S/N',
-            det.medicine.manufacturer || 'S/N',
-            expirationDate,
-            '0,00',
+            det.medicine.countryOfOrigin !== '' ? det.medicine.countryOfOrigin : '-',
+            det.medicine.manufacturer || '',
+            expirationDate !== '' ? expirationDate : 'Sin fecha',
+            '0.00',
           ];
 
-          doc.font('Helvetica').fontSize(8).fillColor('black');
-
-          const textHeights = row.map((cell, i) =>
-            doc.heightOfString(cell, {
-              width: columns[i].width - 4,
-              align: 'center',
-            }),
-          );
-          const rowHeight = Math.max(
-            minRowHeight,
-            Math.max(...textHeights) + verticalPadding,
-          );
+          const textHeights = rowCells.map((cell, i) => {
+            doc.font('Helvetica').fontSize(cellFontSizes[i]);
+            return doc.heightOfString(cell, {
+              width: columns[i].width - 6,
+            });
+          });
+          const rowHeight = Math.max(...textHeights) + 8;
 
           ensureTableSpace(rowHeight);
 
-          doc.font('Helvetica').fontSize(8).fillColor('black');
-
-          let x = startX;
+          let x = TABLE_X;
           for (let i = 0; i < columns.length; i++) {
-            doc.text(row[i], x + 2, startY + verticalPadding / 2, {
-              width: columns[i].width - 4,
-              align: 'center',
-            });
-            drawCellBorder(x, startY, columns[i].width, rowHeight);
+            doc
+              .font('Helvetica')
+              .fontSize(cellFontSizes[i])
+              .fillColor('black')
+              .text(rowCells[i], x + 3, startY + 3, {
+                width: columns[i].width - 6,
+                align: i === 2 || i === 3 || i === 8 ? 'center' : 'left',
+              });
             x += columns[i].width;
           }
 
           startY += rowHeight;
         });
 
+        // Pie de página
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(9)
+          .fillColor('black')
+          .text(
+            '- SIN VALOR COMERCIAL -',
+            TABLE_X,
+            Math.max(startY + 20, doc.page.height - 60),
+            { width: TABLE_W, align: 'center' },
+          );
+
         doc.end();
       });
 
       return filePDF;
     } catch (error) {
-      console.error('Error generando PDF de donaciA3n:', error);
+      console.error('Error generando PDF de donación:', error);
       throw new Error(
-        'Error generando PDF de donaciA3n: ' +
+        'Error generando PDF de donación: ' +
         (error instanceof Error ? error.message : String(error)),
         { cause: error },
       );

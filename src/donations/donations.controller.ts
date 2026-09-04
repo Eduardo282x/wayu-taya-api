@@ -55,7 +55,7 @@ export class DonationsController {
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition':
-          'attachment; filename=autorizacion_usodeimagen.pdf',
+          `attachment; filename=factura_no_comercial_${donationId}.pdf`,
         'Content-Length': pdfBuffer.length,
       });
 
@@ -84,7 +84,7 @@ export class DonationsController {
       res.set({
         'Content-Type': 'application/pdf',
         'Content-Disposition':
-          'attachment; filename=autorizacion_usodeimagen.pdf',
+          `attachment; filename=nota_de_entrega_${donationId}.pdf`,
         'Content-Length': pdfBuffer.length,
       });
 
