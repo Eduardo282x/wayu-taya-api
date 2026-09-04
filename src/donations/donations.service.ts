@@ -572,18 +572,18 @@ export class DonationsService {
         // Dimensiones de la tabla
         const TABLE_X = 50;
         const TABLE_W = 500;
-        const LOGO_W = 159;
+        const LOGO_W = 170;
 
         const columns = [
-          { header: 'Material', width: 45 },
-          { header: 'Producto / Descripción', width: 160 },
-          { header: 'Cant.', width: 30},
-          { header: 'Unid', width: 40 },
-          { header: 'Lote', width: 56 },
+          { header: 'Material', width: 57 },
+          { header: 'Producto / Descripción', width: 150 }, // Ajustado (-30)
+          { header: 'Cant.', width: 29 },                   // Ajustado (-2)
+          { header: 'Unid', width: 39 },                   // Ajustado (-8)
+          { header: 'Lote', width: 45 },                   // Ajustado (-11)
           { header: 'País de Origen', width: 45 },
-          { header: 'Fabricante', width: 60 },
-          { header: 'Expira', width: 50 },
-          { header: 'Valor', width: 30 },
+          { header: 'Fabricante', width: 55 },             // Ajustado (-12)
+          { header: 'Expira', width: 45 },                 // Ajustado (-7)
+          { header: 'Valor', width: 35 },                  // Ajustado (+5 para dar más espacio al precio)
         ];
 
         const title =
@@ -600,7 +600,7 @@ export class DonationsService {
 
         // Logo a la derecha
         try {
-          doc.image('src/assets/logo.png', TABLE_X + TABLE_W - LOGO_W, 60, {
+          doc.image('src/assets/logo.png', TABLE_X + TABLE_W - LOGO_W, 10, {
             width: LOGO_W,
           });
         } catch (err) {
@@ -617,7 +617,7 @@ export class DonationsService {
           .font('Helvetica')
           .fontSize(10)
           .fillColor(GRAY_TEXT)
-          .text(subtitle, TABLE_X, 84, { width: TABLE_W - LOGO_W - 30 });
+          .text(subtitle, TABLE_X, 77, { width: TABLE_W - LOGO_W - 30 });
 
         // Línea de datos
         const fechaStr = donation.date.toLocaleDateString('es-VE');
@@ -625,20 +625,19 @@ export class DonationsService {
           .font('Helvetica-Bold')
           .fontSize(10)
           .fillColor('black')
-          .text('Número de Donación: ', TABLE_X, 116, { continued: true });
-        doc.font('Helvetica').text(donation.controlNumber);
+          .text(`Número de Donación: ${donation.controlNumber}`, TABLE_X, 92, { continued: true });
         doc
           .font('Helvetica-Bold')
           .fontSize(10)
-          .text('Fecha: ', TABLE_X + 400, 116, {
+          .text('Fecha: ', TABLE_X + 260, 92, {
             width: 100,
-            align: 'right',
+            align: 'left',
             continued: true,
           });
         doc.font('Helvetica').text(fechaStr);
 
         // Banda teal "DATOS DEL CONSIGNATARIO"
-        let y = 142;
+        let y = 122;
         doc.fillColor(TEAL).rect(TABLE_X, y, TABLE_W, 18).fill();
         doc
           .font('Helvetica-Bold')
@@ -654,7 +653,7 @@ export class DonationsService {
         const rowsData = [
           { label: 'Nombre', value: inst?.name || '', bold: true },
           { label: 'Dirección:', value: inst?.address || '', bold: false },
-          { label: 'Atención:', value: inst?.responsible || '', bold: true },
+          { label: 'Atención:', value: inst?.responsible || '', bold: false },
           { label: 'Email:', value: inst?.email || '', bold: false, email: true },
         ];
 
@@ -662,17 +661,17 @@ export class DonationsService {
         doc.fillColor(LIGHT).rect(TABLE_X, y, TABLE_W, boxHeight).fill();
 
         rowsData.forEach((row, i) => {
-          const rowY = y + 4 + i * 17;
+          const rowY = y + 4 + i * 13;
           doc
-            .font('Helvetica')
-            .fontSize(9.5)
+            .font('Helvetica-Bold')
+            .fontSize(8.5)
             .fillColor('black')
             .text(row.label, TABLE_X + 8, rowY, { width: 80 });
           doc
             .font(row.bold ? 'Helvetica-Bold' : 'Helvetica')
-            .fontSize(9.5)
+            .fontSize(8.5)
             .fillColor(row.email ? EMAIL_BLUE : 'black')
-            .text(row.value, TABLE_X + 80, rowY, {
+            .text(row.value, TABLE_X + 60, rowY, {
               width: 240,
               underline: !!row.email,
             });
@@ -680,16 +679,16 @@ export class DonationsService {
 
         // R.I.F. y Teléfono a la derecha
         doc
-          .font('Helvetica')
-          .fontSize(9.5)
+          .font('Helvetica-Bold')
+          .fontSize(8.5)
           .fillColor('black')
-          .text(`R.I.F.: ${inst?.rif || 'Sin registro'}`, TABLE_X + 320, y + 4, {
+          .text(`R.I.F.: ${inst?.rif || 'Sin registro'}`, TABLE_X + 380, y + 4, {
             width: 172,
-            align: 'right',
+            align: 'left',
           });
-        doc.text(`Teléfono: ${inst?.phone || ''}`, TABLE_X + 320, y + 21, {
+        doc.text(`Teléfono: ${inst?.phone || ''}`, TABLE_X + 380, y + 17, {
           width: 172,
-          align: 'right',
+          align: 'left',
         });
         y += boxHeight + 8;
 
@@ -728,7 +727,7 @@ export class DonationsService {
 
         drawTableHeader();
 
-        const cellFontSizes = [8.2, 7.3, 9.2, 9.2, 8.2, 8.2, 8.2, 7.3, 9.2];
+        const cellFontSizes = [7.5, 7.5, 9, 8, 8, 8, 8, 8, 9.2];
 
         // Filas
         donation.detDonation.forEach((det) => {
@@ -743,9 +742,8 @@ export class DonationsService {
             ? formatExpiration(inventory.expirationDate)
             : '';
 
-          const productDesc = `${det.medicine.name}${
-            det.medicine.presentation ? ' ' + det.medicine.presentation : ''
-          }`;
+          const productDesc = `${det.medicine.name}${det.medicine.presentation ? ' ' + det.medicine.presentation : ''
+            }`;
 
           const rowCells = [
             det.medicine.code !== '' ? det.medicine.code : 'Sin código',
@@ -762,7 +760,7 @@ export class DonationsService {
           const textHeights = rowCells.map((cell, i) => {
             doc.font('Helvetica').fontSize(cellFontSizes[i]);
             return doc.heightOfString(cell, {
-              width: columns[i].width - 6,
+              width: columns[i].width - 3,
             });
           });
           const rowHeight = Math.max(...textHeights) + 8;
@@ -771,12 +769,20 @@ export class DonationsService {
 
           let x = TABLE_X;
           for (let i = 0; i < columns.length; i++) {
+            // 1. Dibujar el borde de la celda
+            doc
+              .lineWidth(1)           // Ancho de la línea en puntos (opcional)
+              .strokeColor('#000000') // Color negro para el borde
+              .rect(x, startY, columns[i].width, rowHeight) // Reemplaza rowHeight por la altura de tu celda
+              .stroke();              // Renderiza el contorno
+
+            // 2. Renderizar el texto dentro de la celda
             doc
               .font('Helvetica')
               .fontSize(cellFontSizes[i])
               .fillColor('black')
               .text(rowCells[i], x + 3, startY + 3, {
-                width: columns[i].width - 6,
+                width: columns[i].width - 3,
                 align: i === 2 || i === 3 || i === 8 ? 'center' : 'left',
               });
             x += columns[i].width;
