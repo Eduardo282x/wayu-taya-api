@@ -95,6 +95,34 @@ export class DonationsController {
     }
   }
 
+  @Get('/certificate/:id')
+  async downloadCertificateDonationPDF(@Param('id') id: string, @Res() res: Response) {
+    const donationId = Number(id);
+    if (isNaN(donationId)) {
+      throw new HttpException('Invalid donation ID', HttpStatus.BAD_REQUEST);
+    }
+
+    try {
+      // Llama al servicio que genera el PDF y guarda en archivo temporal o buffer
+      const pdfBuffer = (await this.donationsService.downloadCertificateDonationPDF(
+        donationId,
+      )) as Buffer;
+
+      // Envía el archivo generado como descarga
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition':
+          `attachment; filename=certificado_de_donacion_${donationId}.pdf`,
+        'Content-Length': pdfBuffer.length,
+      });
+
+      res.end(pdfBuffer);
+    } catch (error) {
+      console.error('Error generando PDF:', error);
+      res.status(500).send('Error generando PDF');
+    }
+  }
+
   @Post()
   async createDonations(@Body() data: DonationsDTO) {
     return await this.donationsService.createDonation(data);

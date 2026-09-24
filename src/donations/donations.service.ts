@@ -817,6 +817,178 @@ export class DonationsService {
     }
   }
 
+  async downloadCertificateDonationPDF(donationId: number) {
+    try {
+      const donation = await this.prismaService.donation.findUnique({
+        where: { id: donationId },
+        include: {
+          institution: true,
+          provider: true,
+        },
+      });
+
+      if (!donation) {
+        throw new Error('Donación no encontrada');
+      }
+
+      const filePDF = await new Promise((resolve, reject) => {
+        const doc = new PDFDocument({ margin: 50, size: 'LETTER' });
+
+        const buffers: Uint8Array[] = [];
+        doc.on('data', (chunk) => buffers.push(chunk));
+        doc.on('end', () => resolve(Buffer.concat(buffers)));
+        doc.on('error', (err) =>
+          reject(err instanceof Error ? err : new Error(String(err))),
+        );
+
+        const NAVY = '#1B365D';
+        const LIGHT = '#F4F7F9';
+        const GRAY_TEXT = '#545454';
+
+        const MONTHS = [
+          'Enero',
+          'Febrero',
+          'Marzo',
+          'Abril',
+          'Mayo',
+          'Junio',
+          'Julio',
+          'Agosto',
+          'Septiembre',
+          'Octubre',
+          'Noviembre',
+          'Diciembre',
+        ];
+
+        const date = donation.date;
+        const fechaCorta = `${MONTHS[date.getMonth()]}, ${date.getFullYear()}`;
+        const fechaLarga = `${date.getDate()} de ${MONTHS[date.getMonth()]} de ${date.getFullYear()}`;
+
+        const consignatario =
+          donation.institution?.name || donation.provider?.name || '—';
+
+        const FRAME_X = 51.36;
+        const FRAME_Y = 54.98;
+        const FRAME_W = 494.04;
+        const FRAME_H = 447.05;
+        const X_LEFT = 52.68;
+        const X_CENTER = 220;
+        const RIGHT_X = 348.67;
+
+        // Logo a la izquierda, arriba del marco
+        try {
+          doc.image('src/assets/logo.png', 54.02, 10, { width: 200 });
+        } catch (err) {
+          console.warn('No se pudo cargar el logotipo:', err);
+        }
+
+        // Banda con el título
+        doc.fillColor(NAVY).rect(50.88, 127.1, 494.16, 14.64).fill();
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(11)
+          .fillColor('white')
+          .text('CERTIFICADO DE DONACIÓN DE SALUD', 50.88, 129.5, {
+            width: 494.16,
+            align: 'center',
+          });
+
+        // Caja con los datos de la donación
+        doc.fillColor(LIGHT).rect(50.88, 141.62, 494.16, 58.2).fill();
+
+        doc
+          .font('Helvetica')
+          .fontSize(9.5)
+          .fillColor('black')
+          .text('Fundación Wayuu Taya', X_LEFT, 146, {
+            width: 280,
+          });
+
+        doc
+          .font('Helvetica')
+          .fontSize(11)
+          .fillColor('black')
+          .text(fechaCorta, RIGHT_X, 144, { width: 190 });
+
+        doc
+          .font('Helvetica')
+          .fontSize(9.5)
+          .fillColor('black')
+          .text('Número de Donación: ', X_LEFT, 160, { continued: true });
+        doc.font('Helvetica-Bold').text(donation.controlNumber);
+
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(9.5)
+          .fillColor('black')
+          .text('Fecha: ', RIGHT_X, 160, { width: 180, continued: true });
+        doc.font('Helvetica').text(fechaLarga, { width: 150 });
+
+        doc
+          .font('Helvetica')
+          .fontSize(9.5)
+          .fillColor('black')
+          .text('Consignatario: ', X_LEFT, 174, { continued: true });
+        doc.font('Helvetica-Bold').text(consignatario);
+
+        // Párrafo de certificación
+        doc
+          .font('Helvetica')
+          .fontSize(11.5)
+          .fillColor('black')
+          .text(
+            'Este documento certifica que La Fundación Wayuu Taya ha donado provisiones médicas al consignatario mencionado arriba. Este envío es un regalo de buena fé sin ninguna consideración de valor monetario de parte del que lo reciba con respecto al valor comercial de las provisiones médicas.',
+            X_LEFT,
+            266,
+            { width: FRAME_W - 8, lineGap: 4, align: 'justify' },
+          );
+
+        // Firma
+        doc
+          .font('Helvetica')
+          .fontSize(9.5)
+          .fillColor('black')
+          .text('Atentamente,', X_LEFT, 410);
+
+        doc
+          .font('Helvetica-Bold')
+          .fontSize(10)
+          .fillColor('black')
+          .text('Roger Ibarra', FRAME_X, 444, { width: FRAME_W, align: 'center'  });
+        doc
+          .font('Helvetica')
+          .fontSize(10)
+          .fillColor('black')
+          .text('Gerente Regional Zulia', FRAME_X, 459, { width: FRAME_W, align: 'center'  })
+          .text('0412-5677012', FRAME_X, 474, { width: FRAME_W, align: 'center'  })
+          .text('roger@wayuutaya.org', FRAME_X, 489, { width: FRAME_W, align: 'center'  });
+
+        // Pie de página
+        doc
+          .font('Helvetica-Oblique')
+          .fontSize(9)
+          .fillColor(GRAY_TEXT)
+          .text(
+            'FUNDACIÓN WAYUU TAYA  |  RIF J-30955405-0',
+            FRAME_X,
+            511,
+            { width: FRAME_W, align: 'center' },
+          );
+
+        doc.end();
+      });
+
+      return filePDF;
+    } catch (error) {
+      console.error('Error generando certificado de donación:', error);
+      throw new Error(
+        'Error generando certificado de donación: ' +
+          (error instanceof Error ? error.message : String(error)),
+        { cause: error },
+      );
+    }
+  }
+
   async downloadDonationExcelTemplate(res: any) {
     try {
       const medicines = await this.prismaService.medicine.findMany({
