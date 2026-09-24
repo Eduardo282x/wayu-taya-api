@@ -657,11 +657,19 @@ export class DonationsService {
           { label: 'Email:', value: inst?.email || '', bold: false, email: true },
         ];
 
-        const boxHeight = rowsData.length * 17 + 4;
+        const valueWidth = 240;
+        const rowHeights = rowsData.map((row) => {
+          doc
+            .font(row.bold ? 'Helvetica-Bold' : 'Helvetica')
+            .fontSize(8.5);
+          const textHeight = doc.heightOfString(row.value, { width: valueWidth });
+          return Math.max(13, textHeight + 4);
+        });
+        const boxHeight = rowHeights.reduce((acc, h) => acc + h, 0) + 4;
         doc.fillColor(LIGHT).rect(TABLE_X, y, TABLE_W, boxHeight).fill();
 
+        let rowY = y + 4;
         rowsData.forEach((row, i) => {
-          const rowY = y + 4 + i * 13;
           doc
             .font('Helvetica-Bold')
             .fontSize(8.5)
@@ -672,9 +680,10 @@ export class DonationsService {
             .fontSize(8.5)
             .fillColor(row.email ? EMAIL_BLUE : 'black')
             .text(row.value, TABLE_X + 60, rowY, {
-              width: 240,
+              width: valueWidth,
               underline: !!row.email,
             });
+          rowY += rowHeights[i];
         });
 
         // R.I.F. y Teléfono a la derecha
