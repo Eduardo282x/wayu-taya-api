@@ -98,7 +98,10 @@ export class EventsService {
         });
       }
 
-      return { event: eventUpdated, message: 'Evento actualizado exitosamente.' };
+      return {
+        event: eventUpdated,
+        message: 'Evento actualizado exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -110,7 +113,10 @@ export class EventsService {
         where: { id },
         data: { deleted: true },
       });
-      return { event: eventDeleted, message: 'Evento marcado como eliminado exitosamente.' };
+      return {
+        event: eventDeleted,
+        message: 'Evento marcado como eliminado exitosamente.',
+      };
     } catch (error) {
       throw error;
     }

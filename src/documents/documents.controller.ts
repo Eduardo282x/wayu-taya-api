@@ -1,89 +1,164 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
+  ForbiddenException,
   Get,
+  NotFoundException,
   Param,
+  ParseIntPipe,
   Post,
   Put,
+  Res,
   UploadedFile,
   UseInterceptors,
-  Res,
-  HttpStatus,
-  HttpException,
 } from '@nestjs/common';
-import { DocumentsService } from './documents.service';
-import { DocumentDTO, NewDocumentDTO } from './documents.dto';
+import { Throttle } from '@nestjs/throttler';
+import { randomUUID } from 'crypto';
+import { existsSync } from 'fs';
+import { basename, extname, isAbsolute, resolve, sep } from 'path';
+import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
-import { extname } from 'path';
-import { Response } from 'express';
-import { join } from 'path';
-import { existsSync } from 'fs';
+
+import { DocumentsService } from './documents.service';
+import { DocumentDTO, NewDocumentDTO } from './documents.dto';
+
+/** Raíz de los ficheros subidos. Toda ruta de descarga se valida contra ella. */
+const UPLOADS_ROOT = resolve(process.cwd(), 'uploads');
+
+/** Tipos y extensiones permitidos. Se valida el MIME, no solo la extensión. */
+const ALLOWED_MIME = new Set([
+  'application/pdf',
+  'image/png',
+  'image/jpeg',
+  'image/webp',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
+
+const ALLOWED_EXT = new Set([
+  '.pdf',
+  '.png',
+  '.jpg',
+  '.jpeg',
+  '.webp',
+  '.doc',
+  '.docx',
+  '.xlsx',
+]);
+
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024; // 10 MB
+
+/**
+ * Resuelve `filePath` (viniendo de la BD) dentro de uploads/ y garantiza que
+ * no escapa del directorio. `filePath` proviene de una columna que en versiones
+ * anteriores guardaba la ruta ABSOLUTA del servidor, y ahora se guarda relativa,
+ * así que se aceptan ambos formatos.
+ */
+export function resolveWithinUploads(filePath: string): string {
+  const candidate = isAbsolute(filePath)
+    ? resolve(filePath)
+    : resolve(UPLOADS_ROOT, filePath);
+
+  if (candidate !== UPLOADS_ROOT && !candidate.startsWith(UPLOADS_ROOT + sep)) {
+    throw new ForbiddenException('Ruta de archivo no permitida');
+  }
+
+  return candidate;
+}
 
 @Controller('documents')
 export class DocumentsController {
-  constructor(private documentService: DocumentsService) {}
+  constructor(private readonly documentService: DocumentsService) {}
 
   @Get()
   async getDocuments() {
-    return await this.documentService.getDocuments();
+    return this.documentService.getDocuments();
   }
 
   @Get('/fixed')
   async getDocumentsFixed() {
-    return await this.documentService.getDocumentsFixed();
+    return this.documentService.getDocumentsFixed();
   }
 
   @Get('/download/:id')
-  async downloadDocument(@Param('id') id: string, @Res() res: Response) {
-    const document = await this.documentService.findDocument(Number(id));
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async downloadDocument(
+    @Param('id', ParseIntPipe) id: number,
+    @Res() res: Response,
+  ) {
+    const document = await this.documentService.findDocument(id);
 
     if (!document) {
-      return res.status(404).json({ message: 'Documento no encontrado' });
+      throw new NotFoundException('Documento no encontrado');
+    }
+    if (!document.filePath) {
+      throw new NotFoundException('El documento no tiene fichero asociado');
     }
 
-    const filePath = join(process.cwd(), document.filePath);
+    // Antes: join(process.cwd(), document.filePath). Con '../' en la columna
+    // se podía leer cualquier fichero del servidor.
+    const filePath = resolveWithinUploads(document.filePath);
 
     if (!existsSync(filePath)) {
-      return res
-        .status(404)
-        .json({ message: 'Archivo no encontrado en el servidor' });
+      throw new NotFoundException('Archivo no encontrado en el servidor');
     }
 
-    return res.download(filePath, document.name);
+    // basename evita separadores de ruta en el nombre de descarga.
+    return res.download(filePath, basename(document.name));
   }
 
   @Post()
   async createDocument(@Body() data: DocumentDTO) {
-    return await this.documentService.createDocument(data);
+    return this.documentService.createDocument(data);
   }
 
   @Put('/:id')
   async updateDocument(
-    @Param('id') id_document: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() data: DocumentDTO,
   ) {
-    return await this.documentService.updateDocument(Number(id_document), data);
+    return this.documentService.updateDocument(id, data);
   }
 
   @Delete('/:id')
-  async deleteDocument(@Param('id') id_document: string) {
-    return await this.documentService.deleteDocument(Number(id_document));
+  async deleteDocument(@Param('id', ParseIntPipe) id: number) {
+    return this.documentService.deleteDocument(id);
   }
 
   @Post('/upload')
+  @Throttle({ default: { limit: 20, ttl: 60_000 } })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: diskStorage({
-        destination: './uploads/documents',
-        filename: (req, file, cb) => {
-          const uniqueSuffix =
-            Date.now() + '-' + Math.round(Math.random() * 1e9);
-          const ext = extname(file.originalname);
-          cb(null, `${file.fieldname}-${uniqueSuffix}${ext}`);
+        destination: resolve(UPLOADS_ROOT, 'documents'),
+        // Nombre generado por el servidor con randomUUID. Nunca se usa
+        // `originalname`, que está controlado por el cliente.
+        filename: (_req, file, cb) => {
+          const ext = extname(file.originalname).toLowerCase();
+          if (!ALLOWED_EXT.has(ext)) {
+            return cb(
+              new BadRequestException('Extensión de archivo no permitida'),
+              '',
+            );
+          }
+          cb(null, `${randomUUID()}${ext}`);
         },
       }),
+      // Sin esto no hay techo de memoria ni de disco: DoS por relleno.
+      limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
+      fileFilter: (_req, file, cb) => {
+        if (!ALLOWED_MIME.has(file.mimetype)) {
+          return cb(
+            new BadRequestException('Tipo de archivo no permitido'),
+            false,
+          );
+        }
+        cb(null, true);
+      },
     }),
   )
   uploadFile(
@@ -94,46 +169,32 @@ export class DocumentsController {
   }
 
   @Get('/pdf/adulto')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async generateAdultPDF(@Res() res: Response) {
-    try {
-      const pdfBuffer = await this.documentService.generateAdultPDF();
+    const pdfBuffer = await this.documentService.generateAdultPDF();
 
-      res.set({
-        'Content-Type': 'application/pdf',
-        'Content-Disposition':
-          'attachment; filename=autorizacion_usodeimagen.pdf',
-        'Content-Length': pdfBuffer.length,
-      });
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition':
+        'attachment; filename=autorizacion_usodeimagen.pdf',
+      'Content-Length': String(pdfBuffer.length),
+    });
 
-      res.end(pdfBuffer);
-    } catch (error) {
-      console.error('Error generando PDF:', error);
-      throw new HttpException(
-        'Error generando PDF',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
+    return res.end(pdfBuffer);
   }
 
   @Get('/pdf/representante-legal')
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async generateMinorPDF(@Res() res: Response) {
-    try {
-      const pdfBuffer = await this.documentService.generateMinorPDF();
+    const pdfBuffer = await this.documentService.generateMinorPDF();
 
-      res.set({
-        'Content-Type': 'application/pdf',
-        'Content-Disposition':
-          'attachment; filename=autorizacion_usodeimagen_representantelegal.pdf',
-        'Content-Length': pdfBuffer.length,
-      });
+    res.set({
+      'Content-Type': 'application/pdf',
+      'Content-Disposition':
+        'attachment; filename=autorizacion_usodeimagen_representantelegal.pdf',
+      'Content-Length': String(pdfBuffer.length),
+    });
 
-      res.end(pdfBuffer);
-    } catch (error) {
-      console.error('Error generando PDF:', error);
-      throw new HttpException(
-        'Error generando PDF',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
+    return res.end(pdfBuffer);
   }
 }

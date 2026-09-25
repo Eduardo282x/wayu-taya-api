@@ -125,16 +125,16 @@ export class ReportsService {
     inventoryData: IInventory[],
     storeId: number,
   ): Promise<Buffer> {
-      const filtered = inventoryData
-        .filter((item) => item.stores.some((store) => store.id === storeId))
-        .map((item) => ({
-          ...item,
-          stores: item.stores.filter((store) => store.id === storeId),
-        }));
+    const filtered = inventoryData
+      .filter((item) => item.stores.some((store) => store.id === storeId))
+      .map((item) => ({
+        ...item,
+        stores: item.stores.filter((store) => store.id === storeId),
+      }));
 
-      const storeInfo = filtered
-        .flatMap((item) => item.stores)
-        .find((store) => store.id === storeId);
+    const storeInfo = filtered
+      .flatMap((item) => item.stores)
+      .find((store) => store.id === storeId);
 
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({ margin: 30, size: 'A4' });
@@ -1597,7 +1597,7 @@ export class ReportsService {
     });
     return parseProvidersDuplicate;
   }
-  
+
   async getLotes(): Promise<{ lotes: string[] }> {
     const donations = await this.prisma.donation.findMany();
     const onlyLotes = donations.map((item) => item.lote);
@@ -1676,16 +1676,11 @@ export class ReportsService {
     });
 
     return stores.map((store) => {
-      const usedCapacity = store.inventory.reduce(
-        (sum, i) => sum + i.stock,
-        0,
-      );
+      const usedCapacity = store.inventory.reduce((sum, i) => sum + i.stock, 0);
       const capacity = store.capacity ?? 0;
       const availableCapacity = Math.max(capacity - usedCapacity, 0);
       const capacityPercentage =
-        capacity > 0
-          ? Math.round((usedCapacity / capacity) * 10000) / 100
-          : 0;
+        capacity > 0 ? Math.round((usedCapacity / capacity) * 10000) / 100 : 0;
 
       return {
         storage: store.name,

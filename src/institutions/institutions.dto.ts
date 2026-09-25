@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsString, ValidateNested, IsArray, IsNumber, IsOptional, Min } from 'class-validator';
+import {
+  IsString,
+  ValidateNested,
+  IsArray,
+  IsNumber,
+  IsOptional,
+  Min,
+} from 'class-validator';
 
 export class InstitutionsDTO {
   @IsString()

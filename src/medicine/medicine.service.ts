@@ -12,7 +12,7 @@ import { Response } from 'express';
 
 @Injectable()
 export class MedicineService {
-  constructor(private prismaService: PrismaService) { }
+  constructor(private prismaService: PrismaService) {}
   async getMedicine(query?: GetMedicineQueryDTO) {
     const page = query?.page ?? 1;
     const size = query?.size ?? 100;
@@ -124,7 +124,10 @@ export class MedicineService {
           formId,
         },
       });
-      return { medicine: medicineCreated, message: 'Medicina creada exitosamente.' };
+      return {
+        medicine: medicineCreated,
+        message: 'Medicina creada exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -148,14 +151,21 @@ export class MedicineService {
           presentation: medicine.presentation ? medicine.presentation : '',
           temperate: medicine.temperate ? medicine.temperate : '',
           manufacturer: medicine.manufacturer ? medicine.manufacturer : '',
-          activeIngredient: medicine.activeIngredient ? medicine.activeIngredient : '',
-          countryOfOrigin: medicine.countryOfOrigin ? medicine.countryOfOrigin : '',
+          activeIngredient: medicine.activeIngredient
+            ? medicine.activeIngredient
+            : '',
+          countryOfOrigin: medicine.countryOfOrigin
+            ? medicine.countryOfOrigin
+            : '',
           formId,
         },
         where: { id: id },
       });
 
-      return { medicine: medicineUpdated, message: 'Medicina actualizada exitosamente.' };
+      return {
+        medicine: medicineUpdated,
+        message: 'Medicina actualizada exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -170,7 +180,10 @@ export class MedicineService {
         where: { id: id },
       });
 
-      return { category: categoryUpdated, message: 'Categoría actualizada exitosamente' };
+      return {
+        category: categoryUpdated,
+        message: 'Categoría actualizada exitosamente',
+      };
     } catch (error) {
       throw error;
     }
@@ -196,7 +209,10 @@ export class MedicineService {
         where: { id: id },
       });
 
-      return { medicine: medicineDeleted, message: 'Medicina/Producto eliminado exitosamente' };
+      return {
+        medicine: medicineDeleted,
+        message: 'Medicina/Producto eliminado exitosamente',
+      };
     } catch (error) {
       throw error;
     }
@@ -209,7 +225,10 @@ export class MedicineService {
         where: { id: id },
       });
 
-      return { category: categoryDeleted, message: 'Categoría eliminado exitosamente' };
+      return {
+        category: categoryDeleted,
+        message: 'Categoría eliminado exitosamente',
+      };
     } catch (error) {
       throw error;
     }

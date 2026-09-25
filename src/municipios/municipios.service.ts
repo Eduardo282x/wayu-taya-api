@@ -34,7 +34,10 @@ export class MunicipiosService {
         data: { name: municipio.municipio },
         where: { id: id_municipio },
       });
-      return { city: cityUpdated, message: 'Municipio actualizado exitosamente.' };
+      return {
+        city: cityUpdated,
+        message: 'Municipio actualizado exitosamente.',
+      };
     } catch (error) {
       throw error;
     }

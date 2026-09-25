@@ -5,7 +5,11 @@ import {
   Injectable,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
-import { DonationsDTO, DetDonationDTO, GetDonationsQueryDTO } from './donations.dto';
+import {
+  DonationsDTO,
+  DetDonationDTO,
+  GetDonationsQueryDTO,
+} from './donations.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
 import PDFDocument from 'pdfkit';
 import * as ExcelJS from 'exceljs';
@@ -15,7 +19,7 @@ export class DonationsService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly inventoryService: InventoryService,
-  ) { }
+  ) {}
 
   normalizeText(text: string): string {
     return text
@@ -191,7 +195,10 @@ export class DonationsService {
       where.lote = { contains: query.lote, mode: 'insensitive' };
     }
     if (query?.controlNumber) {
-      where.controlNumber = { contains: query.controlNumber, mode: 'insensitive' };
+      where.controlNumber = {
+        contains: query.controlNumber,
+        mode: 'insensitive',
+      };
     }
     if (query?.type) {
       where.type = query.type;
@@ -267,7 +274,7 @@ export class DonationsService {
         page,
         size,
         totalPages: Math.ceil(total / size),
-      }
+      },
     };
   }
 
@@ -336,135 +343,137 @@ export class DonationsService {
 
       return {
         donation: newDonation,
-        message: 'Donación registrada exitosamente.'
-      }
+        message: 'Donación registrada exitosamente.',
+      };
     } catch (error) {
       if (error instanceof HttpException) throw error;
       throw new BadRequestException(
         'Error al crear la donación: ' +
-        (error instanceof Error ? error.message : String(error)),
+          (error instanceof Error ? error.message : String(error)),
       );
     }
   }
 
   async updateDonation(id: number, donation: DonationsDTO) {
     try {
-      return await this.prismaService.$transaction(async (tx) => {
-        const originalDonation = await tx.donation.findUnique({
-          where: { id },
-          include: {
-            detDonation: true,
-            historyInventory: true,
-          },
-        });
+      return await this.prismaService.$transaction(
+        async (tx) => {
+          const originalDonation = await tx.donation.findUnique({
+            where: { id },
+            include: {
+              detDonation: true,
+              historyInventory: true,
+            },
+          });
 
-        if (!originalDonation) throw new Error('Donación no encontrada');
+          if (!originalDonation) throw new Error('Donación no encontrada');
 
-        await this.validateControlNumberUnique(
-          tx,
-          donation.controlNumber,
-          id,
-        );
-        this.validateBenefitedForType(donation);
-
-        const medicinesResolved: (DetDonationDTO & { medicineId: number })[] =
-          await this.resolveMedicines(tx, donation.medicines);
-
-        if (donation.changeDonDetails === true) {
-          await this.inventoryService.revertInventoryWithHistory(
+          await this.validateControlNumberUnique(
             tx,
-            originalDonation,
+            donation.controlNumber,
+            id,
           );
-        }
+          this.validateBenefitedForType(donation);
 
-        const posteriores = await tx.historyInventory.findMany({
-          where: {
-            medicineId: { in: medicinesResolved.map((m) => m.medicineId) },
-            storeId: { in: medicinesResolved.map((m) => m.storageId) },
-            donationId: { not: id },
-            createAt: { gt: originalDonation.updateAt },
-          },
-        });
+          const medicinesResolved: (DetDonationDTO & { medicineId: number })[] =
+            await this.resolveMedicines(tx, donation.medicines);
 
-        const updatedDonationType = donation.type || originalDonation.type;
-
-        for (const med of medicinesResolved) {
-          const consumoPosterior = posteriores
-            .filter(
-              (h) =>
-                h.medicineId === med.medicineId && h.storeId === med.storageId,
-            )
-            .reduce(
-              (acc, h) => acc + (h.type === 'Salida' ? h.amount : -h.amount),
-              0,
-            );
-
-          if (
-            updatedDonationType === 'Entrada' &&
-            med.amount < consumoPosterior
-          ) {
-            throw new Error(
-              `No se puede reducir la cantidad de medicina ${med.medicineId} a ${med.amount} porque se usaron ${consumoPosterior} unidades en salidas posteriores.`,
+          if (donation.changeDonDetails === true) {
+            await this.inventoryService.revertInventoryWithHistory(
+              tx,
+              originalDonation,
             );
           }
-        }
 
-        const updateData: any = {
-          institutionId: donation.institutionId,
-          providerId: donation.providerId,
-          date: donation.date,
-          controlNumber: donation.controlNumber,
-          benefited: this.sumBenefited(medicinesResolved),
-          updateAt: new Date(),
-        };
-        if (donation.changeDonDetails) updateData.lote = donation.lote;
+          const posteriores = await tx.historyInventory.findMany({
+            where: {
+              medicineId: { in: medicinesResolved.map((m) => m.medicineId) },
+              storeId: { in: medicinesResolved.map((m) => m.storageId) },
+              donationId: { not: id },
+              createAt: { gt: originalDonation.updateAt },
+            },
+          });
 
-        const updatedDonation = await tx.donation.update({
-          where: { id },
-          data: updateData,
-        });
+          const updatedDonationType = donation.type || originalDonation.type;
 
-        if (donation.changeDonDetails) {
-          await tx.detDonation.deleteMany({ where: { donationId: id } });
+          for (const med of medicinesResolved) {
+            const consumoPosterior = posteriores
+              .filter(
+                (h) =>
+                  h.medicineId === med.medicineId &&
+                  h.storeId === med.storageId,
+              )
+              .reduce(
+                (acc, h) => acc + (h.type === 'Salida' ? h.amount : -h.amount),
+                0,
+              );
 
-          const newDetails = medicinesResolved.map((m) => ({
-            donationId: id,
-            medicineId: m.medicineId,
-            amount: m.amount,
-            benefited: m.benefited ?? 0,
-            lote: m.lote || donation.lote || '',
-          }));
-          await tx.detDonation.createMany({ data: newDetails });
+            if (
+              updatedDonationType === 'Entrada' &&
+              med.amount < consumoPosterior
+            ) {
+              throw new Error(
+                `No se puede reducir la cantidad de medicina ${med.medicineId} a ${med.amount} porque se usaron ${consumoPosterior} unidades en salidas posteriores.`,
+              );
+            }
+          }
 
-          const inventoryDto = {
-            donationId: updatedDonation.id,
-            lote: updatedDonation.lote,
-            medicines: medicinesResolved.map((med) => ({
-              medicineId: med.medicineId,
-              storeId: med.storageId,
-              stock: med.amount,
-              admissionDate: donation.date,
-              expirationDate: med.expirationDate,
-              lote: med.lote,
-            })),
-            type: updatedDonation.type,
-            date: updatedDonation.date,
-            observations: 'Actualización con dependencias posteriores',
+          const updateData: any = {
+            institutionId: donation.institutionId,
+            providerId: donation.providerId,
+            date: donation.date,
+            controlNumber: donation.controlNumber,
+            benefited: this.sumBenefited(medicinesResolved),
+            updateAt: new Date(),
           };
+          if (donation.changeDonDetails) updateData.lote = donation.lote;
 
-          const result = await this.inventoryService.processInventory(
-            inventoryDto,
-            tx,
-          );
-          if (!result.success) throw new BadRequestException(result.message);
-        }
+          const updatedDonation = await tx.donation.update({
+            where: { id },
+            data: updateData,
+          });
 
-        return {
-          success: true,
-          message: 'Donación actualizada correctamente.',
-          data: updatedDonation,
-        };
-      },
+          if (donation.changeDonDetails) {
+            await tx.detDonation.deleteMany({ where: { donationId: id } });
+
+            const newDetails = medicinesResolved.map((m) => ({
+              donationId: id,
+              medicineId: m.medicineId,
+              amount: m.amount,
+              benefited: m.benefited ?? 0,
+              lote: m.lote || donation.lote || '',
+            }));
+            await tx.detDonation.createMany({ data: newDetails });
+
+            const inventoryDto = {
+              donationId: updatedDonation.id,
+              lote: updatedDonation.lote,
+              medicines: medicinesResolved.map((med) => ({
+                medicineId: med.medicineId,
+                storeId: med.storageId,
+                stock: med.amount,
+                admissionDate: donation.date,
+                expirationDate: med.expirationDate,
+                lote: med.lote,
+              })),
+              type: updatedDonation.type,
+              date: updatedDonation.date,
+              observations: 'Actualización con dependencias posteriores',
+            };
+
+            const result = await this.inventoryService.processInventory(
+              inventoryDto,
+              tx,
+            );
+            if (!result.success) throw new BadRequestException(result.message);
+          }
+
+          return {
+            success: true,
+            message: 'Donación actualizada correctamente.',
+            data: updatedDonation,
+          };
+        },
         { timeout: 30000, maxWait: 20000 },
       );
     } catch (error) {
@@ -479,55 +488,56 @@ export class DonationsService {
 
   async deleteDonation(id: number) {
     try {
-      return await this.prismaService.$transaction(async (tx) => {
-        // Obtener la donación con todos sus datos relacionados
-        const donation = await tx.donation.findUnique({
-          where: { id },
-          include: {
-            detDonation: true,
-            historyInventory: true, // Asegurarnos de tener datos históricos
-          },
-        });
+      return await this.prismaService.$transaction(
+        async (tx) => {
+          // Obtener la donación con todos sus datos relacionados
+          const donation = await tx.donation.findUnique({
+            where: { id },
+            include: {
+              detDonation: true,
+              historyInventory: true, // Asegurarnos de tener datos históricos
+            },
+          });
 
-        if (!donation) {
-          throw new BadRequestException('Donación no encontrada');
-        }
+          if (!donation) {
+            throw new BadRequestException('Donación no encontrada');
+          }
 
-        // Revertir inventario usando datos históricos
-        await this.inventoryService.revertInventoryWithHistory(tx, donation);
+          // Revertir inventario usando datos históricos
+          await this.inventoryService.revertInventoryWithHistory(tx, donation);
 
-        // Eliminar registros relacionados en orden seguro
-        await tx.historyInventory.deleteMany({
-          where: { donationId: id },
-        });
+          // Eliminar registros relacionados en orden seguro
+          await tx.historyInventory.deleteMany({
+            where: { donationId: id },
+          });
 
-        await tx.detDonation.deleteMany({
-          where: { donationId: id },
-        });
+          await tx.detDonation.deleteMany({
+            where: { donationId: id },
+          });
 
-        await tx.inventory.deleteMany({
-          where: { donationId: id },
-        });
+          await tx.inventory.deleteMany({
+            where: { donationId: id },
+          });
 
-        // Finalmente borrar la donación principal
-        const deletedDonation = await tx.donation.delete({
-          where: { id },
-        });
+          // Finalmente borrar la donación principal
+          const deletedDonation = await tx.donation.delete({
+            where: { id },
+          });
 
-        return {
-          success: true,
-          message:
-            'Donación eliminada y cambios en inventario revertidos correctamente.',
-          data: deletedDonation,
-        };
-      },
+          return {
+            success: true,
+            message:
+              'Donación eliminada y cambios en inventario revertidos correctamente.',
+            data: deletedDonation,
+          };
+        },
         { timeout: 30000, maxWait: 20000 },
       );
     } catch (error) {
       if (error instanceof HttpException) throw error;
       throw new BadRequestException(
         'Error al eliminar la donación: ' +
-        (error instanceof Error ? error.message : String(error)),
+          (error instanceof Error ? error.message : String(error)),
       );
     }
   }
@@ -577,13 +587,13 @@ export class DonationsService {
         const columns = [
           { header: 'Material', width: 57 },
           { header: 'Producto / Descripción', width: 150 }, // Ajustado (-30)
-          { header: 'Cant.', width: 29 },                   // Ajustado (-2)
-          { header: 'Unid', width: 39 },                   // Ajustado (-8)
-          { header: 'Lote', width: 45 },                   // Ajustado (-11)
+          { header: 'Cant.', width: 29 }, // Ajustado (-2)
+          { header: 'Unid', width: 39 }, // Ajustado (-8)
+          { header: 'Lote', width: 45 }, // Ajustado (-11)
           { header: 'País de Origen', width: 45 },
-          { header: 'Fabricante', width: 55 },             // Ajustado (-12)
-          { header: 'Expira', width: 45 },                 // Ajustado (-7)
-          { header: 'Valor', width: 35 },                  // Ajustado (+5 para dar más espacio al precio)
+          { header: 'Fabricante', width: 55 }, // Ajustado (-12)
+          { header: 'Expira', width: 45 }, // Ajustado (-7)
+          { header: 'Valor', width: 35 }, // Ajustado (+5 para dar más espacio al precio)
         ];
 
         const title =
@@ -625,7 +635,9 @@ export class DonationsService {
           .font('Helvetica-Bold')
           .fontSize(10)
           .fillColor('black')
-          .text(`Número de Donación: ${donation.controlNumber}`, TABLE_X, 92, { continued: true });
+          .text(`Número de Donación: ${donation.controlNumber}`, TABLE_X, 92, {
+            continued: true,
+          });
         doc
           .font('Helvetica-Bold')
           .fontSize(10)
@@ -654,15 +666,20 @@ export class DonationsService {
           { label: 'Nombre', value: inst?.name || '', bold: true },
           { label: 'Dirección:', value: inst?.address || '', bold: false },
           { label: 'Atención:', value: inst?.responsible || '', bold: false },
-          { label: 'Email:', value: inst?.email || '', bold: false, email: true },
+          {
+            label: 'Email:',
+            value: inst?.email || '',
+            bold: false,
+            email: true,
+          },
         ];
 
         const valueWidth = 240;
         const rowHeights = rowsData.map((row) => {
-          doc
-            .font(row.bold ? 'Helvetica-Bold' : 'Helvetica')
-            .fontSize(8.5);
-          const textHeight = doc.heightOfString(row.value, { width: valueWidth });
+          doc.font(row.bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(8.5);
+          const textHeight = doc.heightOfString(row.value, {
+            width: valueWidth,
+          });
           return Math.max(13, textHeight + 4);
         });
         const boxHeight = rowHeights.reduce((acc, h) => acc + h, 0) + 4;
@@ -691,10 +708,15 @@ export class DonationsService {
           .font('Helvetica-Bold')
           .fontSize(8.5)
           .fillColor('black')
-          .text(`R.I.F.: ${inst?.rif || 'Sin registro'}`, TABLE_X + 380, y + 4, {
-            width: 172,
-            align: 'left',
-          });
+          .text(
+            `R.I.F.: ${inst?.rif || 'Sin registro'}`,
+            TABLE_X + 380,
+            y + 4,
+            {
+              width: 172,
+              align: 'left',
+            },
+          );
         doc.text(`Teléfono: ${inst?.phone || ''}`, TABLE_X + 380, y + 17, {
           width: 172,
           align: 'left',
@@ -711,7 +733,10 @@ export class DonationsService {
         const pageBottomMargin = 60;
 
         function drawTableHeader() {
-          doc.fillColor(NAVY).rect(TABLE_X, startY, TABLE_W, headerHeight).fill();
+          doc
+            .fillColor(NAVY)
+            .rect(TABLE_X, startY, TABLE_W, headerHeight)
+            .fill();
           let hx = TABLE_X;
           doc.font('Helvetica-Bold').fontSize(10).fillColor('white');
           for (const col of columns) {
@@ -744,15 +769,17 @@ export class DonationsService {
             (inv) => inv.medicineId === det.medicineId,
           );
           const inventory =
-            candidates.find((inv) => inv.lote === (det.lote || donation.lote)) ||
-            candidates[0];
+            candidates.find(
+              (inv) => inv.lote === (det.lote || donation.lote),
+            ) || candidates[0];
 
           const expirationDate = inventory?.expirationDate
             ? formatExpiration(inventory.expirationDate)
             : '';
 
-          const productDesc = `${det.medicine.name}${det.medicine.presentation ? ' ' + det.medicine.presentation : ''
-            }`;
+          const productDesc = `${det.medicine.name}${
+            det.medicine.presentation ? ' ' + det.medicine.presentation : ''
+          }`;
 
           const rowCells = [
             det.medicine.code !== '' ? det.medicine.code : 'Sin código',
@@ -760,7 +787,9 @@ export class DonationsService {
             det.amount.toString(),
             det.medicine.form?.forms || '',
             det.lote || donation.lote || '',
-            det.medicine.countryOfOrigin !== '' ? det.medicine.countryOfOrigin : '-',
+            det.medicine.countryOfOrigin !== ''
+              ? det.medicine.countryOfOrigin
+              : '-',
             det.medicine.manufacturer || '',
             expirationDate !== '' ? expirationDate : 'Sin fecha',
             '0.00',
@@ -780,10 +809,10 @@ export class DonationsService {
           for (let i = 0; i < columns.length; i++) {
             // 1. Dibujar el borde de la celda
             doc
-              .lineWidth(1)           // Ancho de la línea en puntos (opcional)
+              .lineWidth(1) // Ancho de la línea en puntos (opcional)
               .strokeColor('#000000') // Color negro para el borde
               .rect(x, startY, columns[i].width, rowHeight) // Reemplaza rowHeight por la altura de tu celda
-              .stroke();              // Renderiza el contorno
+              .stroke(); // Renderiza el contorno
 
             // 2. Renderizar el texto dentro de la celda
             doc
@@ -820,7 +849,7 @@ export class DonationsService {
       console.error('Error generando PDF de donación:', error);
       throw new Error(
         'Error generando PDF de donación: ' +
-        (error instanceof Error ? error.message : String(error)),
+          (error instanceof Error ? error.message : String(error)),
         { cause: error },
       );
     }
@@ -877,11 +906,8 @@ export class DonationsService {
           donation.institution?.name || donation.provider?.name || '—';
 
         const FRAME_X = 51.36;
-        const FRAME_Y = 54.98;
         const FRAME_W = 494.04;
-        const FRAME_H = 447.05;
         const X_LEFT = 52.68;
-        const X_CENTER = 220;
         const RIGHT_X = 348.67;
 
         // Logo a la izquierda, arriba del marco
@@ -963,26 +989,36 @@ export class DonationsService {
           .font('Helvetica-Bold')
           .fontSize(10)
           .fillColor('black')
-          .text('Roger Ibarra', FRAME_X, 444, { width: FRAME_W, align: 'center'  });
+          .text('Roger Ibarra', FRAME_X, 444, {
+            width: FRAME_W,
+            align: 'center',
+          });
         doc
           .font('Helvetica')
           .fontSize(10)
           .fillColor('black')
-          .text('Gerente Regional Zulia', FRAME_X, 459, { width: FRAME_W, align: 'center'  })
-          .text('0412-5677012', FRAME_X, 474, { width: FRAME_W, align: 'center'  })
-          .text('roger@wayuutaya.org', FRAME_X, 489, { width: FRAME_W, align: 'center'  });
+          .text('Gerente Regional Zulia', FRAME_X, 459, {
+            width: FRAME_W,
+            align: 'center',
+          })
+          .text('0412-5677012', FRAME_X, 474, {
+            width: FRAME_W,
+            align: 'center',
+          })
+          .text('roger@wayuutaya.org', FRAME_X, 489, {
+            width: FRAME_W,
+            align: 'center',
+          });
 
         // Pie de página
         doc
           .font('Helvetica-Oblique')
           .fontSize(9)
           .fillColor(GRAY_TEXT)
-          .text(
-            'FUNDACIÓN WAYUU TAYA  |  RIF J-30955405-0',
-            FRAME_X,
-            511,
-            { width: FRAME_W, align: 'center' },
-          );
+          .text('FUNDACIÓN WAYUU TAYA  |  RIF J-30955405-0', FRAME_X, 511, {
+            width: FRAME_W,
+            align: 'center',
+          });
 
         doc.end();
       });
@@ -1012,12 +1048,7 @@ export class DonationsService {
         views: [{ state: 'frozen', ySplit: 1 }],
       });
 
-      const headers = [
-        'Medicina',
-        'Cantidad',
-        'Lote',
-        'Fecha de Expiración',
-      ];
+      const headers = ['Medicina', 'Cantidad', 'Lote', 'Fecha de Expiración'];
       donationSheet.columns = [
         { header: headers[0], key: 'medicina', width: 48 },
         { header: headers[1], key: 'cantidad', width: 14 },
@@ -1028,7 +1059,10 @@ export class DonationsService {
       donationSheet.getColumn(2).numFmt = '0';
       donationSheet.getColumn(4).numFmt = 'yyyy-mm-dd';
 
-      donationSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      donationSheet.getRow(1).font = {
+        bold: true,
+        color: { argb: 'FFFFFFFF' },
+      };
       donationSheet.getRow(1).fill = {
         type: 'pattern',
         pattern: 'solid',
@@ -1049,7 +1083,10 @@ export class DonationsService {
         { header: 'Medicina', key: 'medicine', width: 42 },
         { header: 'Presentación', key: 'presentation', width: 32 },
       ];
-      medicinesSheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+      medicinesSheet.getRow(1).font = {
+        bold: true,
+        color: { argb: 'FFFFFFFF' },
+      };
       medicinesSheet.getRow(1).fill = {
         type: 'pattern',
         pattern: 'solid',

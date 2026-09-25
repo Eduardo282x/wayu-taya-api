@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ReportsService } from './reports.service';
 import { Response } from 'express';
+import { Throttle } from '@nestjs/throttler';
 import {
   IInventory,
   ReportsDTO,
@@ -30,6 +31,12 @@ export class ReportsController {
     return 'Well done';
   }
 
+  /**
+   * Los reportes generan PDF/DOCX/Excel de forma SÍNCRONA: consumen CPU y
+   * memoria. Sin límite, unas pocas peticiones bloquean el event loop
+   * entero -> DoS de cómputo.
+   */
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Get('/report-inventory')
   async downloadInventory(@Res() res: Response) {
     const inventory = await this.inventoryService.getInventory();
@@ -45,6 +52,7 @@ export class ReportsController {
     res.end(buffer);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Get('/report-inventory/:storeId')
   async downloadInventoryByStore(
     @Param('storeId') storeId: string,
@@ -64,6 +72,7 @@ export class ReportsController {
     res.end(buffer);
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('/by-provider-and-lots')
   async generateCustomReport(
     @Body() body: { provider: string; lotes: string[] },
@@ -91,6 +100,7 @@ export class ReportsController {
     }
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('/sample-doc')
   async downloadSampleDoc(
     @Body() body: { provider: string; lotes: string[] },
@@ -126,6 +136,7 @@ export class ReportsController {
     }
   }
 
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('/unified-by-provider-and-lots')
   async generateUnifiedReport(@Body() dto: ReportsDTO, @Res() res: Response) {
     try {
@@ -146,6 +157,7 @@ export class ReportsController {
     }
   }
 
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @Post('/summary-report')
   async getSummaryReport(
     @Body() dto: SummaryReportDto,

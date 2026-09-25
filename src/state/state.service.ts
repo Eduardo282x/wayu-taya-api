@@ -31,7 +31,10 @@ export class StateService {
         data: { name: state.name },
         where: { id },
       });
-      return { state: stateUpdated, message: 'Estado actualizado exitosamente.' };
+      return {
+        state: stateUpdated,
+        message: 'Estado actualizado exitosamente.',
+      };
     } catch (err) {
       throw err;
     }

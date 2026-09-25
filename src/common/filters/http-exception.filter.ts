@@ -27,11 +27,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     let statusCode: number;
     let message: string;
+    // Detalle técnico SOLO para el log del servidor, nunca para el cliente.
+    let internalDetail: string | undefined;
 
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       const prismaResult = this.handlePrismaError(exception);
       statusCode = prismaResult.statusCode;
       message = prismaResult.message;
+      internalDetail = `prisma ${exception.code}: ${exception.message}`;
     } else if (exception instanceof HttpException) {
       statusCode = exception.getStatus();
       const httpResponse = exception.getResponse();
@@ -42,6 +45,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
     } else {
       statusCode = HttpStatus.INTERNAL_SERVER_ERROR;
       message = 'Error interno del servidor';
+      internalDetail = exception?.message;
     }
 
     this.logger.error({
@@ -53,20 +57,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
       ip: ip || request.socket?.remoteAddress || 'N/A',
       userAgent,
       message: Array.isArray(message) ? message[0] : message,
+      // El stack se registra en el log, no se devuelve en la respuesta.
+      stack: exception instanceof HttpException ? undefined : exception?.stack,
+      internalDetail,
       requestBody: undefined,
     });
 
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
-      const { statusCode: prismaStatus, message: prismaMessage } =
-        this.handlePrismaError(exception);
-      response.status(prismaStatus).json({
+      // NO se envían `code` ni `exception.message` de Prisma: revelan nombres
+      // de tabla, columna y restricciones.
+      response.status(statusCode).json({
         success: false,
-        statusCode: prismaStatus,
-        message: prismaMessage,
-        data: {
-          code: exception.code,
-          exceptionMessage: exception.message,
-        },
+        statusCode,
+        message,
+        data: null,
       });
       return;
     }
@@ -74,30 +78,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const httpResponse =
       exception instanceof HttpException ? exception.getResponse() : null;
 
-    const errorMessage =
-      exception instanceof HttpException
-        ? typeof httpResponse === 'string'
-          ? httpResponse
-          : httpResponse?.['message'] || exception.message
-        : 'Error interno del servidor';
-
+    // FUGA CORREGIDA: antes se devolvía `exception.stack` al cliente en
+    // cualquier error 500, exponiendo rutas del servidor y estructura interna.
     const data =
       exception instanceof HttpException
         ? typeof httpResponse === 'string'
           ? { detail: httpResponse }
-          : {
-              ...httpResponse,
-              exceptionMessage: exception.message,
-            }
-        : {
-            exceptionMessage: exception?.message,
-            stack: exception?.stack,
-          };
+          : { ...httpResponse }
+        : { detail: 'Error interno del servidor' };
 
     response.status(statusCode).json({
       success: false,
       statusCode,
-      message: Array.isArray(errorMessage) ? errorMessage[0] : errorMessage,
+      message: Array.isArray(message) ? message[0] : message,
       data,
     });
   }
@@ -235,9 +228,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
           message: `Se produjo un error de precisión decimal en la base de datos`,
         };
       default:
+        this.logger.error(
+          `Prisma error no mapeado ${exception.code}: ${exception.message}`,
+        );
+        // Antes devolvía `Error de base de datos: ${exception.message}`, que
+        // filtraba nombres de tabla, columna y restricciones al cliente.
         return {
           statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-          message: `Error de base de datos: ${exception.message}`,
+          message: 'Error interno de la base de datos',
         };
     }
   }

@@ -12,7 +12,7 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { MedicineService } from './medicine.service';
-import { CategoryDTO, FormsDTO, GetMedicineQueryDTO, MedicineDTO } from './medicine.dto';
+import { GetMedicineQueryDTO, MedicineDTO } from './medicine.dto';
 import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 

@@ -16,6 +16,9 @@ export interface LogEntry {
   message: string;
   requestBody?: any;
   responseSize?: number;
+  /** Detalle técnico interno. Se escribe en el log, NUNCA se devuelve al cliente. */
+  stack?: string;
+  internalDetail?: string;
 }
 
 @Injectable()
@@ -107,6 +110,15 @@ export class FileLoggerService {
       line += ` | ${entry.message}`;
     }
 
+    // Detalle técnico: solo al log, nunca en la respuesta HTTP.
+    if (entry.internalDetail) {
+      line += `\n                    Detail: ${entry.internalDetail}`;
+    }
+
+    if (entry.stack) {
+      line += `\n${entry.stack}`;
+    }
+
     if (entry.userAgent) {
       line += `\n                    User-Agent: ${entry.userAgent}`;
     }
@@ -162,7 +174,13 @@ export class FileLoggerService {
     console.log(formatted.trim());
   }
 
-  error(entry: LogEntry): void {
+  /** Acepta tanto un LogEntry completo como un mensaje suelto. */
+  error(messageOrEntry: string | LogEntry): void {
+    const entry: LogEntry =
+      typeof messageOrEntry === 'string'
+        ? { timestamp: new Date(), level: 'ERROR', message: messageOrEntry }
+        : messageOrEntry;
+
     const formatted = this.formatLogEntry(entry);
     this.writeToFile(this.combinedFile, formatted);
     this.writeToFile(this.errorFile, formatted);

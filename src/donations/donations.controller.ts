@@ -48,14 +48,13 @@ export class DonationsController {
       // Llama al servicio que genera el PDF y guarda en archivo temporal o buffer
       const pdfBuffer = (await this.donationsService.generateDonationPDF(
         donationId,
-        'normal'
+        'normal',
       )) as Buffer;
 
       // Envía el archivo generado como descarga
       res.set({
         'Content-Type': 'application/pdf',
-        'Content-Disposition':
-          `attachment; filename=factura_no_comercial_${donationId}.pdf`,
+        'Content-Disposition': `attachment; filename=factura_no_comercial_${donationId}.pdf`,
         'Content-Length': pdfBuffer.length,
       });
 
@@ -67,7 +66,10 @@ export class DonationsController {
   }
 
   @Get('/note-delivery/:id')
-  async downloadNoteDeliveryDonationPDF(@Param('id') id: string, @Res() res: Response) {
+  async downloadNoteDeliveryDonationPDF(
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
     const donationId = Number(id);
     if (isNaN(donationId)) {
       throw new HttpException('Invalid donation ID', HttpStatus.BAD_REQUEST);
@@ -77,14 +79,13 @@ export class DonationsController {
       // Llama al servicio que genera el PDF y guarda en archivo temporal o buffer
       const pdfBuffer = (await this.donationsService.generateDonationPDF(
         donationId,
-        'delivery'
+        'delivery',
       )) as Buffer;
 
       // Envía el archivo generado como descarga
       res.set({
         'Content-Type': 'application/pdf',
-        'Content-Disposition':
-          `attachment; filename=nota_de_entrega_${donationId}.pdf`,
+        'Content-Disposition': `attachment; filename=nota_de_entrega_${donationId}.pdf`,
         'Content-Length': pdfBuffer.length,
       });
 
@@ -96,7 +97,10 @@ export class DonationsController {
   }
 
   @Get('/certificate/:id')
-  async downloadCertificateDonationPDF(@Param('id') id: string, @Res() res: Response) {
+  async downloadCertificateDonationPDF(
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
     const donationId = Number(id);
     if (isNaN(donationId)) {
       throw new HttpException('Invalid donation ID', HttpStatus.BAD_REQUEST);
@@ -104,15 +108,15 @@ export class DonationsController {
 
     try {
       // Llama al servicio que genera el PDF y guarda en archivo temporal o buffer
-      const pdfBuffer = (await this.donationsService.downloadCertificateDonationPDF(
-        donationId,
-      )) as Buffer;
+      const pdfBuffer =
+        (await this.donationsService.downloadCertificateDonationPDF(
+          donationId,
+        )) as Buffer;
 
       // Envía el archivo generado como descarga
       res.set({
         'Content-Type': 'application/pdf',
-        'Content-Disposition':
-          `attachment; filename=certificado_de_donacion_${donationId}.pdf`,
+        'Content-Disposition': `attachment; filename=certificado_de_donacion_${donationId}.pdf`,
         'Content-Length': pdfBuffer.length,
       });
 

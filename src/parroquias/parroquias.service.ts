@@ -22,7 +22,10 @@ export class ParroquiasService {
           townId: parroquia.id_ciudad,
         },
       });
-      return { parish: parishCreated, message: 'Parroquia creada exitosamente.' };
+      return {
+        parish: parishCreated,
+        message: 'Parroquia creada exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -34,7 +37,10 @@ export class ParroquiasService {
         data: { name: parroquia.parroquia },
         where: { id: id_parroquia },
       });
-      return { parish: parishUpdated, message: 'Parroquia actualizada exitosamente.' };
+      return {
+        parish: parishUpdated,
+        message: 'Parroquia actualizada exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -45,7 +51,10 @@ export class ParroquiasService {
       const parishDeleted = await this.prismaService.parish.delete({
         where: { id: id_parroquia },
       });
-      return { parish: parishDeleted, message: 'Parroquia eliminada exitosamente.' };
+      return {
+        parish: parishDeleted,
+        message: 'Parroquia eliminada exitosamente.',
+      };
     } catch (error) {
       throw error;
     }

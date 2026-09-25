@@ -23,7 +23,10 @@ export class ProgramsService {
           type: program.type,
         },
       });
-      return { program: programCreated, message: 'Programa creado exitosamente.' };
+      return {
+        program: programCreated,
+        message: 'Programa creado exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -38,7 +41,10 @@ export class ProgramsService {
         },
         where: { id: programId },
       });
-      return { program: programUpdated, message: 'Programa actualizado exitosamente.' };
+      return {
+        program: programUpdated,
+        message: 'Programa actualizado exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -51,7 +57,10 @@ export class ProgramsService {
         data: { deleted: true },
       });
 
-      return { program: programDeleted, message: 'Programa eliminado exitosamente.' };
+      return {
+        program: programDeleted,
+        message: 'Programa eliminado exitosamente.',
+      };
     } catch (error) {
       throw error;
     }

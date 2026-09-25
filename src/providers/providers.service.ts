@@ -54,7 +54,10 @@ export class ProvidersService {
           responsible: providers.responsible,
         },
       });
-      return { provider: providerCreated, message: 'Proveedor creado exitosamente.' };
+      return {
+        provider: providerCreated,
+        message: 'Proveedor creado exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -74,7 +77,10 @@ export class ProvidersService {
         },
         where: { id: providerId },
       });
-      return { provider: providerUpdated, message: 'Proveedor actualizado exitosamente.' };
+      return {
+        provider: providerUpdated,
+        message: 'Proveedor actualizado exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -86,7 +92,10 @@ export class ProvidersService {
         where: { id: providerId },
         data: { deleted: true },
       });
-      return { provider: providerDeleted, message: 'Proveedor marcado como eliminado exitosamente.' };
+      return {
+        provider: providerDeleted,
+        message: 'Proveedor marcado como eliminado exitosamente.',
+      };
     } catch (error) {
       throw error;
     }

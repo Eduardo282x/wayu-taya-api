@@ -1,8 +1,22 @@
 import { Injectable } from '@nestjs/common';
+import { relative, resolve, sep } from 'path';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { DocumentDTO, NewDocumentDTO } from './documents.dto';
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- plugin CJS sin tipos ESM
 const PDFDocument = require('pdfkit-table');
+
+const UPLOADS_ROOT = resolve(process.cwd(), 'uploads');
+
+/**
+ * Convierte la ruta absoluta que devuelve multer en una relativa a uploads/
+ * (p.ej. `documents/abc.pdf`). Así la BD no expone la estructura del host.
+ */
+function toUploadsRelative(absolutePath: string): string {
+  const rel = relative(UPLOADS_ROOT, resolve(absolutePath));
+  // Si somehow quedara fuera de uploads/, se marca para que la descarga la
+  // rechace en vez de servir un fichero arbitrario.
+  return rel.startsWith('..') ? rel : rel.split(sep).join('/');
+}
 
 @Injectable()
 export class DocumentsService {
@@ -12,6 +26,7 @@ export class DocumentsService {
     const documents = await this.prismaService.documents.findMany({
       orderBy: { id: 'desc' },
       where: { deleted: false },
+      take: 100, // evita agotar memoria con la tabla completa
       include: {
         collaborators: {
           include: {
@@ -45,25 +60,34 @@ export class DocumentsService {
 
   async createDocument(document: DocumentDTO) {
     try {
-      const documentCreated = await this.prismaService.documents.create({
-        data: {
-          name: document.name,
-          date: document.date,
+      // Antes: `documents.create` seguido de `collaborators.createMany` sin
+      // transacción. Si el segundo fallaba, quedaba un documento huérfano.
+      const documentCreated = await this.prismaService.$transaction(
+        async (tx) => {
+          const created = await tx.documents.create({
+            data: {
+              name: document.name,
+              date: document.date,
+            },
+          });
+
+          if (document.peopleId?.length) {
+            await tx.collaborators.createMany({
+              data: document.peopleId.map((peopleId) => ({
+                documentId: created.id,
+                peopleId,
+              })),
+            });
+          }
+
+          return created;
         },
-      });
+      );
 
-      const dataCollaborators = document.peopleId.map((idp) => {
-        return {
-          documentId: documentCreated.id,
-          peopleId: idp,
-        };
-      });
-
-      await this.prismaService.collaborators.createMany({
-        data: dataCollaborators,
-      });
-
-      return { document: documentCreated, message: 'Documento creado exitosamente.' };
+      return {
+        document: documentCreated,
+        message: 'Documento creado exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -71,30 +95,38 @@ export class DocumentsService {
 
   async updateDocument(id: number, document: DocumentDTO) {
     try {
-      const documentUpdated = await this.prismaService.documents.update({
-        data: {
-          name: document.name,
-          date: document.date,
+      const documentUpdated = await this.prismaService.$transaction(
+        async (tx) => {
+          const updated = await tx.documents.update({
+            data: {
+              name: document.name,
+              date: document.date,
+            },
+            where: { id },
+          });
+
+          // BUG CORREGIDO: filtraba por `id`, que es la PK de Collaborators, no
+          // el id del documento. Borrava un colaborador ajeno y dejaba los del
+          // documento intactos, que luego se duplicaban en el createMany.
+          await tx.collaborators.deleteMany({ where: { documentId: id } });
+
+          if (document.peopleId?.length) {
+            await tx.collaborators.createMany({
+              data: document.peopleId.map((peopleId) => ({
+                documentId: id,
+                peopleId,
+              })),
+            });
+          }
+
+          return updated;
         },
-        where: { id },
-      });
+      );
 
-      await this.prismaService.collaborators.deleteMany({
-        where: { id },
-      });
-
-      const dataCollaborators = document.peopleId.map((idp) => {
-        return {
-          documentId: id,
-          peopleId: idp,
-        };
-      });
-
-      await this.prismaService.collaborators.createMany({
-        data: dataCollaborators,
-      });
-
-      return { document: documentUpdated, message: 'Documento actualizado exitosamente.' };
+      return {
+        document: documentUpdated,
+        message: 'Documento actualizado exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -107,7 +139,10 @@ export class DocumentsService {
         data: { deleted: true },
       });
 
-      return { document: documentDeleted, message: 'Documento eliminado exitosamente.' };
+      return {
+        document: documentDeleted,
+        message: 'Documento eliminado exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -123,12 +158,18 @@ export class DocumentsService {
           content: data.content,
           date: new Date(data.date),
           fileName: file.filename,
-          filePath: file.path,
+          // Antes se guardaba `file.path`, la ruta ABSOLUTA del servidor.
+          // Se guarda relativa a uploads/ para no filtrar la estructura de
+          // ficheros del host en la base de datos.
+          filePath: toUploadsRelative(file.path),
           mimeType: file.mimetype,
         },
       });
 
-      return { document: documentCreated, message: 'Documento guardado exitosamente.' };
+      return {
+        document: documentCreated,
+        message: 'Documento guardado exitosamente.',
+      };
     } catch (error) {
       throw error;
     }

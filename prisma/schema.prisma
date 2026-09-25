@@ -18,7 +18,7 @@ model City {
   id      Int    @id @default(autoincrement())
   name    String
   stateId Int
-  state   State  @relation(fields: [stateId], references: [id])
+  state   State  @relation(fields: [stateId], references: [id], onDelete: Restrict)
   towns   Town[]
 }
 
@@ -26,7 +26,7 @@ model Town {
   id       Int      @id @default(autoincrement())
   name     String
   cityId   Int
-  city     City     @relation(fields: [cityId], references: [id])
+  city     City     @relation(fields: [cityId], references: [id], onDelete: Restrict)
   parishes Parish[]
 }
 
@@ -34,7 +34,7 @@ model Parish {
   id           Int            @id @default(autoincrement())
   name         String
   townId       Int
-  town         Town           @relation(fields: [townId], references: [id])
+  town         Town           @relation(fields: [townId], references: [id], onDelete: Restrict)
   people       People[]
   events       Events[]
   institutions Institutions[]
@@ -46,7 +46,7 @@ model People {
   lastName       String
   address        String
   parishId       Int
-  parish         Parish   @relation(fields: [parishId], references: [id])
+  parish         Parish   @relation(fields: [parishId], references: [id], onDelete: Restrict)
   email          String
   phone          String
   identification String
@@ -54,10 +54,13 @@ model People {
   birthdate      DateTime
 
   createAt       DateTime         @default(now())
-  updateAt       DateTime         @default(now())
+  updateAt       DateTime         @updatedAt
   peoplePrograms PeoplePrograms[]
   collaborators  Collaborators[]
   deleted        Boolean          @default(false)
+
+  @@index([identification])
+  @@index([parishId])
 }
 
 model Institutions {
@@ -74,7 +77,9 @@ model Institutions {
   Donation    Donation[]
 
   parishId Int    @default(1)
-  parish   Parish @relation(fields: [parishId], references: [id])
+  parish   Parish @relation(fields: [parishId], references: [id], onDelete: Restrict)
+
+  @@index([rif])
 }
 
 // -------------------------------------------
@@ -90,9 +95,12 @@ model Programs {
 model PeoplePrograms {
   id        Int      @id @default(autoincrement())
   peopleId  Int
-  people    People   @relation(fields: [peopleId], references: [id])
+  people    People   @relation(fields: [peopleId], references: [id], onDelete: Cascade)
   programId Int
-  program   Programs @relation(fields: [programId], references: [id])
+  program   Programs @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@unique([peopleId, programId])
+  @@index([programId])
 }
 
 // --------------------------------------------
@@ -113,9 +121,12 @@ model Documents {
 model Collaborators {
   id         Int       @id @default(autoincrement())
   documentId Int
-  documento  Documents @relation(fields: [documentId], references: [id])
+  documento  Documents @relation(fields: [documentId], references: [id], onDelete: Cascade)
   peopleId   Int
-  people     People    @relation(fields: [peopleId], references: [id])
+  people     People    @relation(fields: [peopleId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, peopleId])
+  @@index([peopleId])
 }
 
 // ---------------------------------------------------
@@ -126,13 +137,13 @@ model Events {
   description     String
   address         String
   parishId        Int
-  parish          Parish            @relation(fields: [parishId], references: [id])
+  parish          Parish            @relation(fields: [parishId], references: [id], onDelete: Restrict)
   startDate       DateTime
   endDate         DateTime
   providersEvents ProvidersEvents[]
   deleted         Boolean           @default(false)
   createAt        DateTime          @default(now())
-  updateAt        DateTime          @default(now())
+  updateAt        DateTime          @updatedAt
 }
 
 model Providers {
@@ -149,32 +160,78 @@ model Providers {
   providersEvents ProvidersEvents[]
   deleted         Boolean           @default(false)
   Donation        Donation[]
+
+  @@index([rif])
 }
 
 model ProvidersEvents {
   id         Int       @id @default(autoincrement())
   eventId    Int
-  events     Events    @relation(fields: [eventId], references: [id])
+  events     Events    @relation(fields: [eventId], references: [id], onDelete: Cascade)
   providerId Int
-  providers  Providers @relation(fields: [providerId], references: [id])
+  providers  Providers @relation(fields: [providerId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, providerId])
+  @@index([providerId])
 }
 
 model Users {
   id       Int     @id @default(autoincrement())
   name     String
   lastName String
-  correo   String
-  username String
+  /// Clave de login: unique es OBLIGATORIO. Sin él, `findFirst` en el login
+  /// podía devolver una fila arbitraria ante duplicados (login ambiguo).
+  correo   String  @unique
+  username String  @unique
+  /// Hash bcrypt. Antes era `String`, lo que permitía guardar texto plano.
+  /// La migración a Bytes la hace `scripts/migrate-passwords-to-bytes.ts`.
   password String
   rolId    Int
-  rol      Role    @relation(fields: [rolId], references: [id])
-  deleted  Boolean @default(false)
+  rol      Role     @relation(fields: [rolId], references: [id], onDelete: Restrict)
+  deleted  Boolean  @default(false)
+
+  /// Hash de la contraseña anterior, para invalidar tokens emitidos antes del cambio.
+  passwordChangedAt DateTime?
+
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+
+  @@index([rolId])
 }
 
 model Role {
   id    Int     @id @default(autoincrement())
-  rol   String
+  rol   String  @unique
   Users Users[]
+}
+
+/// Tokens de refresco: permiten revocar sesiones (logout, reset de contraseña).
+/// Guardamos un SHA-256 del token, nunca el token en claro.
+model RefreshToken {
+  id        Int       @id @default(autoincrement())
+  tokenHash String    @unique
+  userId    Int
+  user      Users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+/// Tokens de un solo uso para restablecer la contraseña sin conocer la actual.
+model PasswordResetToken {
+  id        Int       @id @default(autoincrement())
+  tokenHash String    @unique
+  userId    Int
+  user      Users     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // ---------------------------------------
@@ -197,7 +254,7 @@ model Medicine {
   description      String
   code             String?
   categoryId       Int
-  category         Category           @relation(fields: [categoryId], references: [id])
+  category         Category           @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   medicine         Boolean
   presentation     String             @default("")
   temperate        String
@@ -206,10 +263,20 @@ model Medicine {
   countryOfOrigin  String             @default("VE")
   provider         String             @default("")
   formId           Int
-  form             Forms              @relation(fields: [formId], references: [id])
+  form             Forms              @relation(fields: [formId], references: [id], onDelete: Restrict)
   detDonation      DetDonation[]
   inventory        Inventory[]
   historyInventory HistoryInventory[]
+
+  // SIN @unique a propósito: un mismo medicamento tiene varias presentaciones
+  // y Tacke (p.ej. "Amoxicillin 200mg/5mL" 100 mL vs 75 mL) y laboratorios
+  // distintos. La clave natural real incluye `presentation` y `manufacturer`.
+  // La BD ya tenía 5 grupos con name+categoryId+formId repetidos, así que
+  // imponer unicidad aquí rompe la migración y obligaría a borrar datos reales.
+  @@index([name])
+  @@index([code])
+  @@index([categoryId])
+  @@index([formId])
 }
 
 model Store {
@@ -233,56 +300,75 @@ model Donation {
   benefited        Int                @default(1)
   deleted          Boolean            @default(false)
   createAt         DateTime           @default(now())
-  updateAt         DateTime           @default(now())
-  institution      Institutions?      @relation(fields: [institutionId], references: [id])
-  provider         Providers?         @relation(fields: [providerId], references: [id])
+  updateAt         DateTime           @updatedAt
+  institution      Institutions?      @relation(fields: [institutionId], references: [id], onDelete: SetNull)
+  provider         Providers?         @relation(fields: [providerId], references: [id], onDelete: SetNull)
   detDonation      DetDonation[]
   inventory        Inventory[]
   historyInventory HistoryInventory[]
+
+  /// Número de control de negocio: único para evitar colisiones de inventario
+  @@unique([controlNumber])
+  @@index([date])
+  @@index([providerId])
+  @@index([institutionId])
 }
 
 model DetDonation {
   id         Int      @id @default(autoincrement())
   donationId Int
-  donation   Donation @relation(fields: [donationId], references: [id])
+  donation   Donation @relation(fields: [donationId], references: [id], onDelete: Cascade)
   medicineId Int
-  medicine   Medicine @relation(fields: [medicineId], references: [id])
+  medicine   Medicine @relation(fields: [medicineId], references: [id], onDelete: Restrict)
   amount     Int
   benefited  Int      @default(1)
   lote       String   @default("")
+
+  @@index([medicineId])
+  @@index([lote])
 }
 
 model Inventory {
   id             Int      @id @default(autoincrement())
   donationId     Int
-  donation       Donation @relation(fields: [donationId], references: [id])
+  donation       Donation @relation(fields: [donationId], references: [id], onDelete: Restrict)
   medicineId     Int
-  medicine       Medicine @relation(fields: [medicineId], references: [id])
+  medicine       Medicine @relation(fields: [medicineId], references: [id], onDelete: Restrict)
   storeId        Int
-  store          Store    @relation(fields: [storeId], references: [id])
+  store          Store    @relation(fields: [storeId], references: [id], onDelete: Restrict)
   stock          Int
   admissionDate  DateTime
   expirationDate DateTime
   createAt       DateTime @default(now())
-  updateAt       DateTime @default(now())
+  updateAt       DateTime @updatedAt
   lote           String   @default("")
+
+  /// Localización de stock por medicina/almacén/lote: se consulta en cada
+  /// entrada, salida y transferencia. Índice compuesto en vez de N+1.
+  @@index([medicineId, storeId, lote])
+  @@index([storeId])
+  @@index([donationId])
 }
 
 model HistoryInventory {
   id             Int      @id @default(autoincrement())
   medicineId     Int
-  medicine       Medicine @relation(fields: [medicineId], references: [id])
+  medicine       Medicine @relation(fields: [medicineId], references: [id], onDelete: Restrict)
   storeId        Int
-  store          Store    @relation(fields: [storeId], references: [id])
+  store          Store    @relation(fields: [storeId], references: [id], onDelete: Restrict)
   type           String
   amount         Int
   date           DateTime
   donationId     Int
-  donation       Donation @relation(fields: [donationId], references: [id])
+  donation       Donation @relation(fields: [donationId], references: [id], onDelete: Restrict)
   observations   String
   admissionDate  DateTime
   expirationDate DateTime
   createAt       DateTime @default(now())
-  updateAt       DateTime @default(now())
+  updateAt       DateTime @updatedAt
   lote           String   @default("")
+
+  @@index([medicineId, storeId])
+  @@index([date])
+  @@index([donationId])
 }

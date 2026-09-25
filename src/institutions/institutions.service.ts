@@ -65,7 +65,10 @@ export class InstitutionsService {
           parishId: institutions.parishId,
         },
       });
-      return { institution: institutionCreated, message: 'Institución creada exitosamente.' };
+      return {
+        institution: institutionCreated,
+        message: 'Institución creada exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -98,7 +101,10 @@ export class InstitutionsService {
         },
         where: { id },
       });
-      return { institution: institutionUpdated, message: 'Institución actualizada exitosamente.' };
+      return {
+        institution: institutionUpdated,
+        message: 'Institución actualizada exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -110,7 +116,10 @@ export class InstitutionsService {
         where: { id: id_institution },
         data: { deleted: true },
       });
-      return { institution: institutionDeleted, message: 'Institución marcada como eliminada exitosamente.' };
+      return {
+        institution: institutionDeleted,
+        message: 'Institución marcada como eliminada exitosamente.',
+      };
     } catch (error) {
       throw error;
     }

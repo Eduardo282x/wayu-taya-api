@@ -53,7 +53,9 @@ export class InventoryService {
         medicineId: { in: medicineIds },
         ...(query?.storeId ? { storeId: query.storeId } : {}),
         ...(query?.name
-          ? { medicine: { name: { contains: query.name, mode: 'insensitive' } } }
+          ? {
+              medicine: { name: { contains: query.name, mode: 'insensitive' } },
+            }
           : {}),
       },
       include: {
@@ -141,8 +143,7 @@ export class InventoryService {
 
         if (
           !acc[medicineId].lotes.some(
-            (lote) =>
-              lote.name === item.lote && lote.storeId === item.store.id,
+            (lote) => lote.name === item.lote && lote.storeId === item.store.id,
           )
         ) {
           acc[medicineId].lotes.push({

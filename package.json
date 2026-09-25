@@ -17,7 +17,9 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "migrate:passwords": "tsx scripts/migrate-passwords.ts",
+    "verify:password-migration": "tsx scripts/verify-password-migration.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.28",
@@ -25,6 +27,7 @@
     "@nestjs/core": "^11.1.28",
     "@nestjs/jwt": "^11.0.2",
     "@nestjs/platform-express": "^11.1.28",
+    "@nestjs/throttler": "^6.7.1",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
     "bcrypt": "^6.0.0",
@@ -35,8 +38,12 @@
     "docx": "^9.7.1",
     "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
+    "helmet": "^8.3.0",
+    "joi": "^18.2.9",
+    "multer": "^2.4.0",
     "pdfkit": "^0.19.1",
     "pdfkit-table": "^0.2.11",
+    "pg": "^8.23.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1"
   },
@@ -53,6 +60,7 @@
     "@types/jest": "^29.5.14",
     "@types/multer": "^2.2.0",
     "@types/node": "^26.2.0",
+    "@types/pg": "^8.23.1",
     "@types/supertest": "^7.2.1",
     "eslint": "^10.8.1",
     "eslint-config-prettier": "^10.1.8",
@@ -67,6 +75,7 @@
     "ts-loader": "^9.6.2",
     "ts-node": "^10.9.2",
     "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.23.15",
     "typescript": "~5.9.0",
     "typescript-eslint": "^8.64.0"
   },

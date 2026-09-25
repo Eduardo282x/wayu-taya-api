@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
   categories,
@@ -13,9 +13,12 @@ import {
   store,
 } from './main-load.data';
 import * as bcrypt from 'bcrypt';
+import { randomBytes } from 'crypto';
 
 @Injectable()
 export class MainLoadService {
+  private readonly logger = new Logger(MainLoadService.name);
+
   constructor(private readonly prismaService: PrismaService) {}
 
   async seedLocations() {
@@ -83,39 +86,43 @@ export class MainLoadService {
       ],
     });
 
-    const salt = await bcrypt.genSalt(12);
-    const hashedAdminPassword = await bcrypt.hash('admin', salt);
-    const hashedRogerPassword = await bcrypt.hash('admin', salt);
-    const hashedAndreinaPassword = await bcrypt.hash('admin', salt);
+    // Passwords aleatorias por usuario: antes eran 'admin' hardcodeado y
+    // además compartían UN único salt, lo que anulaba el efecto de la sal.
+    // Se registran en el log para poder recuperarlas en desarrollo.
+    const seeds = [
+      {
+        username: 'admin',
+        correo: 'admin@wayutaya.local',
+        name: 'admin',
+        lastName: 'admin',
+        rolId: 1,
+      },
+      {
+        username: 'Roger',
+        correo: 'roger@gmail.com',
+        name: 'Roger',
+        lastName: 'Roger',
+        rolId: 2,
+      },
+      {
+        username: 'Andreina',
+        correo: 'andreina@gmail.com',
+        name: 'Andreina',
+        lastName: 'Andreina',
+        rolId: 2,
+      },
+    ];
 
-    await this.prismaService.users.createMany({
-      data: [
-        {
-          username: 'admin',
-          password: hashedAdminPassword,
-          correo: 'admin',
-          lastName: 'admin',
-          name: 'admin',
-          rolId: 1,
-        },
-        {
-          username: 'Roger',
-          password: hashedRogerPassword,
-          correo: 'roger@gmail.com',
-          lastName: 'Roger',
-          name: 'Roger',
-          rolId: 2,
-        },
-        {
-          username: 'Andreina',
-          password: hashedAndreinaPassword,
-          correo: 'andreina@gmail.com',
-          lastName: 'Andreina',
-          name: 'Andreina',
-          rolId: 2,
-        },
-      ],
-    });
+    for (const seed of seeds) {
+      const plain = randomSeedPassword();
+      const password = Buffer.from(await bcrypt.hash(plain, 12));
+      this.logger.warn(
+        `Usuario seed "${seed.username}" creado. Contraseña temporal: ${plain}`,
+      );
+      await this.prismaService.users.create({
+        data: { ...seed, password },
+      });
+    }
     await this.prismaService.people.createMany({
       data: people,
     });
@@ -144,4 +151,10 @@ export class MainLoadService {
 
     return { message: 'Datos cargadas correctamente.' };
   }
+}
+
+/** Contraseña temporal aleatoria para los usuarios seed. */
+function randomSeedPassword(): string {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
+  return Array.from(randomBytes(12), (b) => chars[b % chars.length]).join('');
 }

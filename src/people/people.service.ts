@@ -87,7 +87,10 @@ export class PeopleService {
         },
       });
 
-      return { person: personCreate, message: 'Persona guardada exitosamente.' };
+      return {
+        person: personCreate,
+        message: 'Persona guardada exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -135,10 +138,7 @@ export class PeopleService {
     }
   }
 
-  async updatePersonWithoutProgram(
-    personId: number,
-    people: PeopleDTO,
-  ) {
+  async updatePersonWithoutProgram(personId: number, people: PeopleDTO) {
     try {
       const personUpdated = await this.prismaService.people.update({
         data: {
@@ -155,7 +155,10 @@ export class PeopleService {
         where: { id: personId },
       });
 
-      return { person: personUpdated, message: 'Persona actualizada exitosamente.' };
+      return {
+        person: personUpdated,
+        message: 'Persona actualizada exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
@@ -168,7 +171,10 @@ export class PeopleService {
         data: { deleted: true },
       });
 
-      return { person: personDeleted, message: 'Persona eliminada exitosamente.' };
+      return {
+        person: personDeleted,
+        message: 'Persona eliminada exitosamente.',
+      };
     } catch (error) {
       throw error;
     }
