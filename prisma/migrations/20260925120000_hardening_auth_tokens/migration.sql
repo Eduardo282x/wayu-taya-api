@@ -1,11 +1,11 @@
 -- ============================================================================
--- Hardening: refresh/reset tokens, password BYTEA, unicidad e índices.
+-- Hardening: refresh/reset tokens, unicidad e índices.
 --
--- IMPORTANTE: esta migración NO borra datos.
+-- IMPORTANTE: esta migración NO borra datos y NO altera tipos de columna.
 --  - No hay DROP TABLE.
---  - No hay DROP COLUMN. `password` se convierte TEXT -> BYTEA EN SITU con
---    USING convert_to(...), por lo que los hashes bcrypt existentes se
---    conservan byte a byte.
+--  - No hay DROP COLUMN.
+--  - No hay ALTER COLUMN ... TYPE: `Users.password` sigue siendo TEXT con el
+--    hash bcrypt en cadena. La columna ya existía con ese tipo.
 --  - Las tablas nuevas nacen vacías.
 --
 -- Si una de las validaciones PREVIO falla, la migración se aborta con un
@@ -99,34 +99,13 @@ BEGIN
 END $$;
 
 -- ---------------------------------------------------------------------------
--- Users: password TEXT -> BYTEA preservando los hashes existentes.
+-- Users: marca de cambio de contrasena.
 --
--- convert_to() devuelve BYTEA con los bytes UTF-8 exactos del string, asi que
--- un hash bcrypt " $2b$12$..." se recupera identico con Buffer.toString().
--- convert_to tambien lanza error si algum valor no fuera UTF-8 valido.
---
--- NO usar `ALTER COLUMN password TYPE BYTEA USING password::bytea` a secas:
--- segun la codificacion de la BD puede reinterpretar los bytes.
+-- `password` se deja INTACTA. Sigue siendo TEXT con el hash bcrypt en
+-- cadena: 60 caracteres ASCII, y `TEXT` no tiene el limite de bytes que
+-- imposed BYTEA. No hay conversiones de tipo en esta migracion.
 -- ---------------------------------------------------------------------------
 ALTER TABLE "Users" ADD COLUMN "passwordChangedAt" TIMESTAMP(3);
-
-ALTER TABLE "Users"
-    ALTER COLUMN "password" TYPE BYTEA
-    USING convert_to("password", 'UTF8');
-
--- Verificacion post-conversion: los bytes deben volver a ser el string original.
-DO $$
-DECLARE
-    n BIGINT;
-BEGIN
-    SELECT COUNT(*) INTO n
-      FROM "Users"
-     WHERE convert_from("password", 'UTF8') IS NULL;
-    IF n > 0 THEN
-        RAISE EXCEPTION 'MIGRACION ABORTADA: % password(s) no convertibles a UTF-8.', n;
-    END IF;
-    RAISE NOTICE 'OK: % password(s) convertidos a BYTEA sin perdida.', (SELECT COUNT(*) FROM "Users");
-END $$;
 
 -- ---------------------------------------------------------------------------
 -- @updatedAt lo gestiona Prisma en el cliente; la BD no debe poner default.

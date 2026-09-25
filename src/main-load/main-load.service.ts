@@ -115,7 +115,7 @@ export class MainLoadService {
 
     for (const seed of seeds) {
       const plain = randomSeedPassword();
-      const password = Buffer.from(await bcrypt.hash(plain, 12));
+      const password = await bcrypt.hash(plain, 12);
       this.logger.warn(
         `Usuario seed "${seed.username}" creado. Contraseña temporal: ${plain}`,
       );

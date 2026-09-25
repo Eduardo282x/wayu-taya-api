@@ -42,9 +42,8 @@ const USER_PUBLIC_SELECT = {
  * el usuario no existe, para que el tiempo de respuesta del login sea idéntico
  * exista o no la cuenta (evita enumeración de usuarios).
  */
-const DUMMY_BCRYPT_HASH = Buffer.from(
-  '$2b$12$ofJgUoBCm05KnvHSfohH4.P3bxQQbFW0KIcWiGmXXDLAx2jIg8f7u',
-);
+const DUMMY_BCRYPT_HASH =
+  '$2b$12$ofJgUoBCm05KnvHSfohH4.P3bxQQbFW0KIcWiGmXXDLAx2jIg8f7u';
 
 @Injectable()
 export class AuthService {
@@ -84,10 +83,7 @@ export class AuthService {
     // Se compara siempre, exista o no el usuario: mantiene constante el tiempo
     // de respuesta y evita revelar qué usernames están registrados.
     const hash = user?.password ?? DUMMY_BCRYPT_HASH;
-    const isValid = await bcrypt.compare(
-      login.password,
-      Buffer.from(hash).toString(),
-    );
+    const isValid = await bcrypt.compare(login.password, hash);
 
     if (!user || !isValid) {
       this.loginAttempts.registerFailure(login.username, ip);
@@ -241,8 +237,7 @@ export class AuthService {
     await this.prisma.$transaction([
       this.prisma.users.update({
         where: { id: record.userId },
-        // data: { password: Buffer.from(password), passwordChangedAt: now },
-        data: { password: password, passwordChangedAt: now },
+        data: { password, passwordChangedAt: now },
       }),
       this.prisma.passwordResetToken.update({
         where: { id: record.id },
@@ -271,10 +266,7 @@ export class AuthService {
 
     if (!user) throw new NotFoundException('Usuario no encontrado');
 
-    const isValid = await bcrypt.compare(
-      currentPassword,
-      Buffer.from(user.password).toString(),
-    );
+    const isValid = await bcrypt.compare(currentPassword, user.password);
     if (!isValid) {
       throw new UnauthorizedException('La contraseña actual es incorrecta');
     }
@@ -285,8 +277,7 @@ export class AuthService {
     await this.prisma.$transaction([
       this.prisma.users.update({
         where: { id: userId },
-        // data: { password: Buffer.from(password), passwordChangedAt: now },
-        data: { password: password, passwordChangedAt: now },
+        data: { password, passwordChangedAt: now },
       }),
       this.prisma.refreshToken.updateMany({
         where: { userId, revokedAt: null },

@@ -71,7 +71,7 @@ export class UsersService {
         lastName: dto.lastName,
         correo: dto.correo,
         rolId: dto.rolId,
-        password: Buffer.from(await bcrypt.hash(plaintext, BCRYPT_ROUNDS)),
+        password: await bcrypt.hash(plaintext, BCRYPT_ROUNDS),
       },
       select: USER_PUBLIC_SELECT,
     });
@@ -87,9 +87,7 @@ export class UsersService {
 
   async updateUserPassword(id: number, dto: UserPasswordDTO) {
     // Antes: `data: { password: dto.newPassword }` -> TEXTO PLANO en la BD.
-    const password = Buffer.from(
-      await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS),
-    );
+    const password = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
 
     const user = await this.prisma.users.update({
       where: { id },

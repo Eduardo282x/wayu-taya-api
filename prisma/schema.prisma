@@ -183,8 +183,11 @@ model Users {
   /// podía devolver una fila arbitraria ante duplicados (login ambiguo).
   correo   String  @unique
   username String  @unique
-  /// Hash bcrypt. Antes era `String`, lo que permitía guardar texto plano.
-  /// La migración a Bytes la hace `scripts/migrate-passwords-to-bytes.ts`.
+  /// Hash bcrypt (SIEMPRE hasheado, nunca texto plano).
+  /// Se mantiene `String` y por tanto una columna `TEXT`: es lo que ya tiene la
+  /// base de datos y evita convertir la columna. Un hash bcrypt son 60
+  /// caracteres ASCII, así que el tipo de columna no aporta nada y `TEXT` no
+  /// tiene el límite de bytes de `BYTEA`.
   password String
   rolId    Int
   rol      Role     @relation(fields: [rolId], references: [id], onDelete: Restrict)
