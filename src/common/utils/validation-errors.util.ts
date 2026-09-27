@@ -28,6 +28,10 @@ const FIELD_LABELS: Record<string, string> = {
   size: 'Tamaño',
   startDate: 'Fecha inicial',
   endDate: 'Fecha final',
+  location: 'Ubicación',
+  state: 'Estado',
+  town: 'Municipio',
+  parish: 'Parroquia',
 };
 
 const CONSTRAINT_MESSAGES: Record<string, string> = {

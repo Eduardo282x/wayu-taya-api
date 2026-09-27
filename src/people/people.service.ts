@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { PeopleDTO, PersonProgramDTO } from './people.dto';
+import { toLocationInput } from 'src/common/dto/location.dto';
 
 @Injectable()
 export class PeopleService {
@@ -8,7 +9,6 @@ export class PeopleService {
 
   async getPeople() {
     const people = await this.prismaService.people.findMany({
-      include: { parish: true },
       where: { deleted: false },
       orderBy: { id: 'desc' },
     });
@@ -50,7 +50,7 @@ export class PeopleService {
           identification: people.identification,
           sex: people.sex,
           birthdate: people.birthdate,
-          parishId: people.id_parroquia,
+          location: toLocationInput(people.location),
         },
       });
 
@@ -83,7 +83,7 @@ export class PeopleService {
           identification: people.identification,
           sex: people.sex,
           birthdate: people.birthdate,
-          parishId: people.id_parroquia,
+          location: toLocationInput(people.location),
         },
       });
 
@@ -100,7 +100,7 @@ export class PeopleService {
     try {
       const personUpdated = await this.prismaService.people.update({
         data: {
-          parishId: people.id_parroquia,
+          location: toLocationInput(people.location),
           name: people.name,
           lastName: people.lastName,
           address: people.address,
@@ -142,7 +142,7 @@ export class PeopleService {
     try {
       const personUpdated = await this.prismaService.people.update({
         data: {
-          parishId: people.id_parroquia,
+          location: toLocationInput(people.location),
           name: people.name,
           lastName: people.lastName,
           address: people.address,

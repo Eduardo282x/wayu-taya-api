@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { EventsDTO } from './events.dto';
+import { toLocationInput } from 'src/common/dto/location.dto';
 
 @Injectable()
 export class EventsService {
@@ -11,7 +12,6 @@ export class EventsService {
       orderBy: { id: 'desc' },
       where: { deleted: false },
       include: {
-        parish: true,
         providersEvents: { include: { providers: true } },
       },
     });
@@ -25,7 +25,6 @@ export class EventsService {
         orderBy: { id: 'desc' },
         where: { deleted: false },
         include: {
-          parish: true,
           providersEvents: { include: { providers: true } },
         },
       })
@@ -48,7 +47,7 @@ export class EventsService {
           name: event.name,
           description: event.description,
           address: event.address,
-          parishId: event.parishId,
+          location: toLocationInput(event.location),
           startDate: event.startDate,
           endDate: event.endDate,
         },
@@ -76,7 +75,7 @@ export class EventsService {
           name: event.name,
           description: event.description,
           address: event.address,
-          parishId: event.parishId,
+          location: toLocationInput(event.location),
           startDate: event.startDate,
           endDate: event.endDate,
         },

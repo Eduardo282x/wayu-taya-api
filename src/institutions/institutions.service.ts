@@ -6,6 +6,8 @@ import {
   InstitutionsManyDTO,
 } from './institutions.dto';
 
+import { toLocationInput } from 'src/common/dto/location.dto';
+
 @Injectable()
 export class InstitutionsService {
   constructor(private prismaService: PrismaService) {}
@@ -28,11 +30,6 @@ export class InstitutionsService {
       this.prismaService.institutions.findMany({
         orderBy: { id: 'asc' },
         where,
-        include: {
-          parish: {
-            select: { name: true },
-          },
-        },
         skip: (page - 1) * size,
         take: size,
       }),
@@ -62,7 +59,7 @@ export class InstitutionsService {
           country: institutions.country,
           email: institutions.email,
           type: institutions.type,
-          parishId: institutions.parishId,
+          location: toLocationInput(institutions.location),
         },
       });
       return {
@@ -77,7 +74,17 @@ export class InstitutionsService {
   async createManyInstitutions(institutions: InstitutionsManyDTO) {
     try {
       await this.prismaService.institutions.createMany({
-        data: institutions.institutions,
+        data: institutions.institutions.map((institution) => ({
+          name: institution.name,
+          rif: institution.rif,
+          address: institution.address,
+          responsible: institution.responsible,
+          phone: institution.phone,
+          country: institution.country,
+          email: institution.email,
+          type: institution.type,
+          location: toLocationInput(institution.location),
+        })),
       });
       return { message: 'Instituciones creadas exitosamente.' };
     } catch (error) {
@@ -97,7 +104,7 @@ export class InstitutionsService {
           phone: institutions.phone,
           email: institutions.email,
           type: institutions.type,
-          parishId: institutions.parishId,
+          location: toLocationInput(institutions.location),
         },
         where: { id },
       });

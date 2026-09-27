@@ -15,10 +15,6 @@ import { envValidationSchema } from './config/env.validation';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
 import { FileLoggerService } from './common/logger/file-logger.service';
 
-import { EstadosModule } from './state/state.module';
-import { CiudadesModule } from './town/town.module';
-import { ParroquiasModule } from './parroquias/parroquias.module';
-import { MunicipiosModule } from './municipios/municipios.module';
 import { EventsModule } from './events/events.module';
 import { ProvidersModule } from './providers/providers.module';
 import { DocumentsModule } from './documents/documents.module';
@@ -59,10 +55,6 @@ import { HealthModule } from './health/health.module';
 
     AuthModule,
     HealthModule,
-    EstadosModule,
-    CiudadesModule,
-    ParroquiasModule,
-    MunicipiosModule,
     EventsModule,
     ProvidersModule,
     DocumentsModule,

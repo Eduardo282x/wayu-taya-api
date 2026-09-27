@@ -7,6 +7,7 @@ import {
   IsOptional,
   Min,
 } from 'class-validator';
+import { LocationDTO } from '../common/dto/location.dto';
 
 export class InstitutionsDTO {
   @IsString()
@@ -27,9 +28,9 @@ export class InstitutionsDTO {
   email: string;
   @IsString()
   type: string;
-  @IsNumber()
-  @IsOptional()
-  parishId: number;
+  @ValidateNested()
+  @Type(() => LocationDTO)
+  location: LocationDTO;
 }
 export class InstitutionsManyDTO {
   @IsArray()

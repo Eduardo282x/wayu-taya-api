@@ -27,6 +27,7 @@ import {
   SummaryReportDto,
   SummaryReportResponse,
 } from './reports.dto';
+import { toLocation } from 'src/common/dto/location.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import PDFDocument from 'pdfkit';
 
@@ -645,15 +646,7 @@ export class ReportsService {
       const salidas = await this.prisma.donation.findMany({
         where: { type: 'Salida', lote: { in: lotesConfirmados } },
         include: {
-          institution: {
-            include: {
-              parish: {
-                include: {
-                  town: { include: { city: { include: { state: true } } } },
-                },
-              },
-            },
-          },
+          institution: true,
           detDonation: { include: { medicine: true } },
         },
       });
@@ -666,13 +659,12 @@ export class ReportsService {
       > = {};
       const locations: {
         state: string;
-        city: string;
         town: string;
         parish: string;
         institution: string;
       }[] = [];
       const uniqueStates = new Set<string>();
-      const uniqueCities = new Set<string>();
+      const uniqueTowns = new Set<string>();
       const uniqueParishes = new Set<string>();
 
       for (const lote of lotesConfirmados) {
@@ -698,16 +690,17 @@ export class ReportsService {
           if (tipo === 'Centro de Salud') centros.add(nombre);
           else instituciones.add(nombre);
 
-          const parish = salida.institution?.parish;
-          if (parish) {
-            uniqueParishes.add(parish.name);
-            uniqueStates.add(parish.town.city.state.name);
-            uniqueCities.add(parish.town.city.name);
+          const { state, town, parish } = toLocation(
+            salida.institution?.location,
+          );
+          if (state || town || parish) {
+            uniqueParishes.add(parish);
+            uniqueStates.add(state);
+            uniqueTowns.add(town);
             locations.push({
-              state: parish.town.city.state.name,
-              city: parish.town.city.name,
-              town: parish.town.name,
-              parish: parish.name,
+              state,
+              town,
+              parish,
               institution: salida.institution.name,
             });
           }
@@ -1239,7 +1232,7 @@ export class ReportsService {
             height: { value: 700, rule: HeightRule.ATLEAST },
             children: [
               uniqueStates.size,
-              uniqueCities.size,
+              uniqueTowns.size,
               uniqueParishes.size,
             ].map((val, index) => {
               const colors = ['E8F1FF', 'F0F0F0', 'E8F1FF']; // Alternancia sutil
@@ -1272,14 +1265,13 @@ export class ReportsService {
       const uniqueLocationsSet = new Set<string>();
       const uniqueLocations: {
         state: string;
-        city: string;
         town: string;
         parish: string;
         institution: string;
       }[] = [];
 
       for (const location of locations) {
-        const locationKey = `${location.state} | ${location.city} | ${location.town} | ${location.parish} | ${location.institution} `;
+        const locationKey = `${location.state} | ${location.town} | ${location.parish} | ${location.institution} `;
         if (!uniqueLocationsSet.has(locationKey)) {
           uniqueLocationsSet.add(locationKey);
           uniqueLocations.push(location);
@@ -1288,7 +1280,7 @@ export class ReportsService {
 
       const sortedLocations = [...uniqueLocations].sort((a, b) => {
         if (a.state !== b.state) return a.state.localeCompare(b.state);
-        if (a.city !== b.city) return a.city.localeCompare(b.city);
+        if (a.town !== b.town) return a.town.localeCompare(b.town);
         if (a.parish !== b.parish) return a.parish.localeCompare(b.parish);
         return a.institution.localeCompare(b.institution);
       });
@@ -1316,7 +1308,7 @@ export class ReportsService {
       }
 
       const stateSpans = getRowSpans(sortedLocations, 'state');
-      const citySpans = getRowSpans(sortedLocations, 'city');
+      const townSpans = getRowSpans(sortedLocations, 'town');
       const parishSpans = getRowSpans(sortedLocations, 'parish');
 
       // Título para ubicaciones detalladas
@@ -1366,7 +1358,7 @@ export class ReportsService {
 
       for (let i = 0; i < sortedLocations.length; i++) {
         const stateSpan = stateSpans.find((s) => s.index === i);
-        const citySpan = citySpans.find((s) => s.index === i);
+        const townSpan = townSpans.find((s) => s.index === i);
         const parishSpan = parishSpans.find((s) => s.index === i);
         const isEven = i % 2 === 0;
         const bgColor = isEven ? 'F8F9FA' : 'FFFFFF';
@@ -1397,9 +1389,9 @@ export class ReportsService {
                     ],
                   })
                 : undefined,
-              citySpan
+              townSpan
                 ? new TableCell({
-                    rowSpan: citySpan.span,
+                    rowSpan: townSpan.span,
                     shading: { fill: 'F0F0F0' },
                     verticalAlign: VerticalAlign.CENTER,
                     margins: { top: 100, bottom: 100, left: 100, right: 100 },
@@ -1408,7 +1400,7 @@ export class ReportsService {
                         alignment: AlignmentType.CENTER,
                         children: [
                           new TextRun({
-                            text: sortedLocations[i].city,
+                            text: sortedLocations[i].town,
                             font: 'Calibri',
                             size: 22,
                             bold: true,

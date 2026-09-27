@@ -5,12 +5,15 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  ValidateNested,
 } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
+import { LocationDTO } from '../common/dto/location.dto';
 
 export class PeopleDTO {
-  @IsNumber()
-  id_parroquia: number;
+  @ValidateNested()
+  @Type(() => LocationDTO)
+  location: LocationDTO;
   @IsString()
   name: string;
   @IsString()

@@ -1,4 +1,4 @@
-import { Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsArray,
   IsBoolean,
@@ -6,11 +6,14 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  ValidateNested,
 } from 'class-validator';
+import { LocationDTO } from '../common/dto/location.dto';
 
 export class EventsDTO {
-  @IsNumber()
-  parishId: number;
+  @ValidateNested()
+  @Type(() => LocationDTO)
+  location: LocationDTO;
 
   @IsString()
   name: string;
