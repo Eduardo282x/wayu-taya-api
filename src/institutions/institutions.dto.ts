@@ -1,5 +1,6 @@
 import { Type } from 'class-transformer';
 import {
+  IsDefined,
   IsString,
   ValidateNested,
   IsArray,
@@ -28,6 +29,7 @@ export class InstitutionsDTO {
   email: string;
   @IsString()
   type: string;
+  @IsDefined()
   @ValidateNested()
   @Type(() => LocationDTO)
   location: LocationDTO;

@@ -2,6 +2,7 @@ import {
   IsArray,
   IsBoolean,
   IsDate,
+  IsDefined,
   IsNumber,
   IsOptional,
   IsString,
@@ -11,6 +12,7 @@ import { Transform, Type } from 'class-transformer';
 import { LocationDTO } from '../common/dto/location.dto';
 
 export class PeopleDTO {
+  @IsDefined()
   @ValidateNested()
   @Type(() => LocationDTO)
   location: LocationDTO;

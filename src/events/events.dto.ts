@@ -3,6 +3,7 @@ import {
   IsArray,
   IsBoolean,
   IsDate,
+  IsDefined,
   IsNumber,
   IsOptional,
   IsString,
@@ -11,6 +12,7 @@ import {
 import { LocationDTO } from '../common/dto/location.dto';
 
 export class EventsDTO {
+  @IsDefined()
   @ValidateNested()
   @Type(() => LocationDTO)
   location: LocationDTO;
