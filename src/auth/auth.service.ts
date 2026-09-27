@@ -97,7 +97,7 @@ export class AuthService {
     const { token: refreshToken } = await this.issueRefreshToken(user.id);
 
     return {
-      message: `¡Bienvenido, ${user.name}!`,
+      message: `¡Bienvenido, ${user.name} ${user.lastName}!`,
       user: toPublicUser(user),
       accessToken,
       refreshToken,
