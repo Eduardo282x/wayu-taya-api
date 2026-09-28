@@ -3,7 +3,6 @@ import { PrismaService } from 'src/prisma/prisma.service';
 import {
   categories,
   forms,
-  locations,
   medicine,
   people,
   products,
@@ -21,63 +20,14 @@ export class MainLoadService {
 
   constructor(private readonly prismaService: PrismaService) {}
 
-  async seedLocations() {
-    for (const loc of locations) {
-      // Insertar estado
-      const state = await this.prismaService.state.create({
-        data: {
-          id: loc.id_estado,
-          name: loc.estado,
-        },
-      });
-
-      // Insertar ciudades del estado
-      const createdCities = [];
-      for (const cityName of loc.ciudades) {
-        const city = await this.prismaService.city.create({
-          data: {
-            name: cityName,
-            stateId: state.id,
-          },
-        });
-        createdCities.push(city);
-      }
-
-      // Insertar municipios (towns) y parroquias
-      for (const municipio of loc.municipios) {
-        // Buscar la ciudad correspondiente a este municipio
-        // Puede coincidir con el nombre de la capital del municipio
-        const matchingCity = createdCities.find(
-          (city) => city.name.toLowerCase() === municipio.capital.toLowerCase(),
-        );
-
-        if (!matchingCity) {
-          console.warn(
-            `⚠️ No se encontró ciudad para el municipio ${municipio.municipio} (${municipio.capital})`,
-          );
-          continue;
-        }
-
-        // Insertar municipio como "town"
-        const town = await this.prismaService.town.create({
-          data: {
-            name: municipio.municipio,
-            cityId: matchingCity.id,
-          },
-        });
-
-        // Insertar parroquias
-        for (const parishName of municipio.parroquias) {
-          await this.prismaService.parish.create({
-            data: {
-              name: parishName,
-              townId: town.id,
-            },
-          });
-        }
-      }
-    }
-
+  /**
+   * Seeds roles, users and catalog data.
+   *
+   * Ya no siembra el árbol geográfico: State/City/Town/Parish se eliminaron de
+   * la base y la ubicación viaja ahora dentro de cada registro como JSONB
+   * ({ state, town, parish }), con los datos de referencia del frontend.
+   */
+  async seed() {
     await this.prismaService.role.createMany({
       data: [
         { rol: 'Super Admin' },

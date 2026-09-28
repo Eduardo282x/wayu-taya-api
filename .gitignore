@@ -61,9 +61,13 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 # IA
 opencode.json
+.opencode
 
 # Ficheros subidos por usuarios (contienen PII)
 /uploads
 
 # Documentos de negocio sueltos en la raíz
 /*.pdf
+
+# Skills
+.agents

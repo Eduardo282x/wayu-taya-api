@@ -20,7 +20,7 @@ export class MainLoadController {
   @Post('/seed')
   async createData() {
     try {
-      return await this.mainLoadService.seedLocations();
+      return await this.mainLoadService.seed();
     } catch {
       // El detalle real lo registra el filtro global de excepciones; aqui solo
       // se evita filtrar el mensaje interno de Prisma al cliente.

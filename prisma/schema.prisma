@@ -8,45 +8,28 @@ datasource db {
   provider = "postgresql"
 }
 
-model State {
-  id     Int    @id @default(autoincrement())
-  name   String
-  cities City[]
-}
-
-model City {
-  id      Int    @id @default(autoincrement())
-  name    String
-  stateId Int
-  state   State  @relation(fields: [stateId], references: [id], onDelete: Restrict)
-  towns   Town[]
-}
-
-model Town {
-  id       Int      @id @default(autoincrement())
-  name     String
-  cityId   Int
-  city     City     @relation(fields: [cityId], references: [id], onDelete: Restrict)
-  parishes Parish[]
-}
-
-model Parish {
-  id           Int            @id @default(autoincrement())
-  name         String
-  townId       Int
-  town         Town           @relation(fields: [townId], references: [id], onDelete: Restrict)
-  people       People[]
-  events       Events[]
-  institutions Institutions[]
-}
+// ---------------------------------------------------------------------------
+// LOCATION
+//
+// `location Json` is used by Institutions, People and Events and holds a
+// document of the shape { state, town, parish }.
+//
+// It replaces the former State -> City -> Town -> Parish normalized tables.
+// Those tables were reference data that never changed per record, and keeping
+// them forced every read to traverse a four-level join.
+//
+// The hierarchy is still enforced at the API boundary by `LocationDTO` in
+// src/common/dto/location.dto.ts, so the object shape cannot drift even though
+// the database itself no longer constrains it.
+// ---------------------------------------------------------------------------
 
 model People {
   id             Int      @id @default(autoincrement())
   name           String
   lastName       String
   address        String
-  parishId       Int
-  parish         Parish   @relation(fields: [parishId], references: [id], onDelete: Restrict)
+  /// { state, town, parish }
+  location       Json
   email          String
   phone          String
   identification String
@@ -60,7 +43,6 @@ model People {
   deleted        Boolean          @default(false)
 
   @@index([identification])
-  @@index([parishId])
 }
 
 model Institutions {
@@ -76,8 +58,8 @@ model Institutions {
   deleted     Boolean    @default(false)
   Donation    Donation[]
 
-  parishId Int    @default(1)
-  parish   Parish @relation(fields: [parishId], references: [id], onDelete: Restrict)
+  /// { state, town, parish }
+  location Json
 
   @@index([rif])
 }
@@ -136,8 +118,8 @@ model Events {
   name            String
   description     String
   address         String
-  parishId        Int
-  parish          Parish            @relation(fields: [parishId], references: [id], onDelete: Restrict)
+  /// { state, town, parish }
+  location        Json
   startDate       DateTime
   endDate         DateTime
   providersEvents ProvidersEvents[]
@@ -190,8 +172,8 @@ model Users {
   /// tiene el límite de bytes de `BYTEA`.
   password String
   rolId    Int
-  rol      Role     @relation(fields: [rolId], references: [id], onDelete: Restrict)
-  deleted  Boolean  @default(false)
+  rol      Role    @relation(fields: [rolId], references: [id], onDelete: Restrict)
+  deleted  Boolean @default(false)
 
   /// Hash de la contraseña anterior, para invalidar tokens emitidos antes del cambio.
   passwordChangedAt DateTime?
