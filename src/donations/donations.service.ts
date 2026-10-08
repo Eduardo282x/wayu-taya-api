@@ -602,10 +602,10 @@ export class DonationsService {
           'Asistencia de Salud — No para reventa o fines comerciales';
 
         const formatExpiration = (date: Date): string => {
-          const d = new Date(date);
-          const month = String(d.getMonth() + 1).padStart(2, '0');
-          const day = String(d.getDate()).padStart(2, '0');
-          return `${month}/${day}/${d.getFullYear()}`;
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${day}/${month}/${year}`;
         };
 
         // Logo a la derecha
@@ -769,13 +769,9 @@ export class DonationsService {
             (inv) => inv.medicineId === det.medicineId,
           );
           const inventory =
-            candidates.find(
-              (inv) => inv.lote === (det.lote || donation.lote),
-            ) || candidates[0];
+            candidates.find((inv) => inv.lote === det.lote) || candidates[0];
 
-          const expirationDate = inventory?.expirationDate
-            ? formatExpiration(inventory.expirationDate)
-            : '';
+          const expirationDate = formatExpiration(inventory.expirationDate);
 
           const productDesc = `${det.medicine.name}${
             det.medicine.presentation ? ' ' + det.medicine.presentation : ''
@@ -786,12 +782,12 @@ export class DonationsService {
             productDesc,
             det.amount.toString(),
             det.medicine.form?.forms || '',
-            det.lote || donation.lote || '',
+            det.lote,
             det.medicine.countryOfOrigin !== ''
               ? det.medicine.countryOfOrigin
               : '-',
             det.medicine.manufacturer || '',
-            expirationDate !== '' ? expirationDate : 'Sin fecha',
+            expirationDate,
             '0.00',
           ];
 
