@@ -43,17 +43,22 @@ export class DonationsService {
   private async validateControlNumberUnique(
     tx: any,
     controlNumber: string,
+    type: string,
     excludeId?: number,
   ): Promise<void> {
+    // Solo se compara contra donaciones activas del mismo tipo: una donación
+    // eliminada (soft-delete) libera el número de control para reutilizarlo.
     const existing = await tx.donation.count({
       where: {
         controlNumber,
+        type,
+        deleted: false,
         ...(excludeId ? { id: { not: excludeId } } : {}),
       },
     });
     if (existing > 0) {
       throw new ConflictException(
-        `El número de control "${controlNumber}" ya existe en otra donación.`,
+        `El número de control "${controlNumber}" ya existe en otra donación de tipo "${type}".`,
       );
     }
   }
@@ -397,7 +402,11 @@ export class DonationsService {
     try {
       const newDonation = await this.prismaService.$transaction(
         async (tx) => {
-          await this.validateControlNumberUnique(tx, donation.controlNumber);
+          await this.validateControlNumberUnique(
+            tx,
+            donation.controlNumber,
+            donation.type,
+          );
           this.validateBenefitedForType(donation);
 
           const medicinesResolved: (DetDonationDTO & { medicineId: number })[] =
@@ -521,6 +530,7 @@ export class DonationsService {
           await this.validateControlNumberUnique(
             tx,
             donation.controlNumber,
+            donation.type,
             id,
           );
           this.validateBenefitedForType(donation);

@@ -293,8 +293,10 @@ model Donation {
   inventory        Inventory[]
   historyInventory HistoryInventory[]
 
-  /// Número de control de negocio: único para evitar colisiones de inventario
-  @@unique([controlNumber])
+  /// Número de control de negocio: único por tipo entre donaciones activas.
+  /// El soft-delete libera el número, de modo que puede reutilizarse al
+  /// crear una donación nueva con el mismo número y tipo.
+  @@unique([controlNumber, deleted, type])
   @@index([date])
   @@index([providerId])
   @@index([institutionId])
