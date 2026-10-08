@@ -1113,17 +1113,20 @@ export class DonationsService {
           startY += rowHeight;
         });
 
-        // Pie de página
+        // Pie de página: se dibuja en el pie de la última página sin crear una nueva.
+        // Al relajar temporalmente el margen inferior, PDFKit no dispara nextSection().
+        const footerY = doc.page.height - 45;
+        const originalBottomMargin = doc.page.margins.bottom;
+        doc.page.margins.bottom = 0;
         doc
           .font('Helvetica-Bold')
           .fontSize(9)
           .fillColor('black')
-          .text(
-            '- SIN VALOR COMERCIAL -',
-            TABLE_X,
-            Math.max(startY + 20, doc.page.height - 60),
-            { width: TABLE_W, align: 'center' },
-          );
+          .text('- SIN VALOR COMERCIAL -', TABLE_X, footerY, {
+            width: TABLE_W,
+            align: 'center',
+          });
+        doc.page.margins.bottom = originalBottomMargin;
 
         doc.end();
       });
