@@ -601,10 +601,17 @@ export class DonationsService {
         const subtitle =
           'Asistencia de Salud — No para reventa o fines comerciales';
 
-        const formatExpiration = (date: Date): string => {
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
+        const formatExpiration = (
+          date: Date | string | null | undefined,
+        ): string => {
+          if (!date) return 'Sin Fecha';
+          // Asegurarnos de que sea un objeto Date válido por si viene como string desde la BD
+          const parsedDate = new Date(date);
+          if (isNaN(parsedDate.getTime())) return 'Sin Fecha';
+
+          const year = parsedDate.getFullYear();
+          const month = String(parsedDate.getMonth() + 1).padStart(2, '0');
+          const day = String(parsedDate.getDate()).padStart(2, '0');
           return `${day}/${month}/${year}`;
         };
 
@@ -771,7 +778,10 @@ export class DonationsService {
           const inventory =
             candidates.find((inv) => inv.lote === det.lote) || candidates[0];
 
-          const expirationDate = formatExpiration(inventory.expirationDate);
+          // Verificamos de forma segura si el inventario y la fecha existen
+          const expirationDate = inventory?.expirationDate
+            ? formatExpiration(inventory.expirationDate)
+            : 'Sin Fecha';
 
           const productDesc = `${det.medicine.name}${
             det.medicine.presentation ? ' ' + det.medicine.presentation : ''
