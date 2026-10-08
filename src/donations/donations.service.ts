@@ -251,8 +251,36 @@ export class DonationsService {
       }),
     ]);
 
+    // Salidas y transferencias que afectaron a los lotes de estas donaciones,
+    // para avisar si editar la donación descontará unidades ya movidas.
+    const medicineIds = [
+      ...new Set(
+        donations.flatMap((d) => d.detDonation.map((det) => det.medicineId)),
+      ),
+    ];
+    const lotes = [
+      ...new Set(
+        donations.flatMap((d) =>
+          d.detDonation.map((det) => det.lote || d.lote),
+        ),
+      ),
+    ];
+    const outflowRecords =
+      medicineIds.length && lotes.length
+        ? await this.prismaService.historyInventory.findMany({
+            where: {
+              type: { in: ['Salida', 'Transferencia Salida'] },
+              medicineId: { in: medicineIds },
+              lote: { in: lotes },
+            },
+          })
+        : [];
+
     // what got from inv >tie to> donations thingamajig
     const donationsWithDates = donations.map((donation) => {
+      const batches: { medicineId: number; lote: string; storeId?: number }[] =
+        [];
+
       const detDonationsWithDates = donation.detDonation.map((det) => {
         const lote = det.lote || donation.lote;
 
@@ -287,6 +315,9 @@ export class DonationsService {
               h.donationId === donation.id && h.medicineId === det.medicineId,
           );
 
+        const storeId = inventoryRecord?.storeId ?? historyRecord?.storeId;
+        batches.push({ medicineId: det.medicineId, lote, storeId });
+
         return {
           ...det,
           admissionDate:
@@ -296,9 +327,54 @@ export class DonationsService {
         };
       });
 
+      const matchedOutflows = outflowRecords.filter(
+        (h) =>
+          h.donationId !== donation.id &&
+          h.date.getTime() >= donation.date.getTime() &&
+          batches.some(
+            (b) =>
+              b.medicineId === h.medicineId &&
+              b.lote === h.lote &&
+              (b.storeId == null || b.storeId === h.storeId),
+          ),
+      );
+
+      const outflowMap = new Map<
+        string,
+        {
+          medicineId: number;
+          lote: string;
+          storeId: number;
+          salidas: number;
+          transferencias: number;
+        }
+      >();
+      for (const h of matchedOutflows) {
+        const key = `${h.medicineId}|${h.lote}|${h.storeId}`;
+        const current = outflowMap.get(key) ?? {
+          medicineId: h.medicineId,
+          lote: h.lote,
+          storeId: h.storeId,
+          salidas: 0,
+          transferencias: 0,
+        };
+        if (h.type === 'Transferencia Salida') {
+          current.transferencias += h.amount;
+        } else {
+          current.salidas += h.amount;
+        }
+        outflowMap.set(key, current);
+      }
+      const outflows = [...outflowMap.values()].map((outflow) => ({
+        ...outflow,
+        total: outflow.salidas + outflow.transferencias,
+      }));
+
       return {
         ...donation,
         detDonation: detDonationsWithDates,
+        hasOutflows: outflows.length > 0,
+        outflows,
       };
     });
 
@@ -413,11 +489,14 @@ export class DonationsService {
           const medicinesResolved: (DetDonationDTO & { medicineId: number })[] =
             await this.resolveMedicines(tx, donation.medicines);
 
+          let revertedShortfalls: Record<number, number> = {};
           if (donation.changeDonDetails === true) {
-            await this.inventoryService.revertInventoryWithHistory(
-              tx,
-              originalDonation,
-            );
+            const revertResult =
+              await this.inventoryService.revertInventoryWithHistory(
+                tx,
+                originalDonation,
+              );
+            revertedShortfalls = revertResult.shortfalls ?? {};
           }
 
           const posteriores = await tx.historyInventory.findMany({
@@ -469,6 +548,15 @@ export class DonationsService {
           });
 
           if (donation.changeDonDetails) {
+            for (const med of medicinesResolved) {
+              const shortfall = revertedShortfalls[med.medicineId] ?? 0;
+              if (shortfall > med.amount) {
+                throw new BadRequestException(
+                  `No se puede actualizar la medicina ${med.medicineId}: ${shortfall} unidades ya fueron salidas o transferidas y la nueva cantidad (${med.amount}) es menor.`,
+                );
+              }
+            }
+
             await tx.detDonation.deleteMany({ where: { donationId: id } });
 
             const newDetails = medicinesResolved.map((m) => ({
@@ -480,27 +568,36 @@ export class DonationsService {
             }));
             await tx.detDonation.createMany({ data: newDetails });
 
-            const inventoryDto = {
-              donationId: updatedDonation.id,
-              lote: updatedDonation.lote,
-              medicines: medicinesResolved.map((med) => ({
+            // Se descuenta lo ya salido/transferido para no recrear unidades
+            // que dejaron de existir en el inventario.
+            const inventoryMedicines = medicinesResolved
+              .map((med) => ({
                 medicineId: med.medicineId,
                 storeId: med.storageId,
-                stock: med.amount,
+                stock: med.amount - (revertedShortfalls[med.medicineId] ?? 0),
                 admissionDate: donation.date,
                 expirationDate: med.expirationDate,
                 lote: med.lote,
-              })),
-              type: updatedDonation.type,
-              date: updatedDonation.date,
-              observations: 'Actualización con dependencias posteriores',
-            };
+              }))
+              .filter((med) => med.stock > 0);
 
-            const result = await this.inventoryService.processInventory(
-              inventoryDto,
-              tx,
-            );
-            if (!result.success) throw new BadRequestException(result.message);
+            if (inventoryMedicines.length > 0) {
+              const inventoryDto = {
+                donationId: updatedDonation.id,
+                lote: updatedDonation.lote,
+                medicines: inventoryMedicines,
+                type: updatedDonation.type,
+                date: updatedDonation.date,
+                observations: 'Actualización con dependencias posteriores',
+              };
+
+              const result = await this.inventoryService.processInventory(
+                inventoryDto,
+                tx,
+              );
+              if (!result.success)
+                throw new BadRequestException(result.message);
+            }
           }
 
           return {

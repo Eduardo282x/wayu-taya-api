@@ -371,7 +371,7 @@ export class InventoryService {
             historyData.push({
               medicineId: item.medicineId,
               storeId: item.storeId,
-              donationId: record.donationId,
+              donationId: inventory.donationId,
               amount: item.stock,
               type: 'Entrada',
               date: inventory.date,
@@ -516,6 +516,8 @@ export class InventoryService {
         }
       }
 
+      const shortfalls: Record<number, number> = {};
+
       for (const { medicineId, storeId, lote, records } of groups) {
         const typedRecords = records;
 
@@ -530,23 +532,31 @@ export class InventoryService {
         });
 
         const isEntry = originalDonation.type === 'Entrada';
-        let newStock = currentInventory?.stock || 0;
-        let adjustment = 0;
+        const currentStock = currentInventory?.stock ?? 0;
+        let newStock = currentStock;
+        let revertedAmount = 0;
+        let shortfall = 0;
 
         if (isEntry) {
-          newStock -= netChange;
+          // Se intenta quitar netChange, pero solo puede quitarse lo que aún
+          // existe en el almacén; el resto ya fue consumido o transferido.
+          revertedAmount = Math.min(netChange, currentStock);
+          shortfall = netChange - revertedAmount;
+          newStock = currentStock - netChange;
         } else {
-          newStock += Math.abs(netChange);
+          revertedAmount = Math.abs(netChange);
+          newStock = currentStock + revertedAmount;
         }
 
-        if (newStock < 0) {
-          adjustment = newStock;
-          newStock = 0;
+        if (newStock < 0) newStock = 0;
+
+        if (shortfall > 0) {
+          shortfalls[medicineId] = (shortfalls[medicineId] ?? 0) + shortfall;
         }
 
         const observations =
-          adjustment < 0
-            ? `Reversión ajustada (${adjustment}) por stock negativo | ${originalDonation.id}`
+          shortfall > 0
+            ? `Reversión ajustada (${shortfall} unidades ya salidas/transferidas) | donación ${originalDonation.id}`
             : `Reversión de donación ${originalDonation.id}`;
 
         if (currentInventory) {
@@ -586,7 +596,7 @@ export class InventoryService {
             storeId,
             donationId: originalDonation.id,
             lote,
-            amount: Math.abs(netChange),
+            amount: revertedAmount,
             type: reversionType,
             date: new Date(),
             observations,
@@ -596,7 +606,11 @@ export class InventoryService {
         });
       }
 
-      return { success: true, message: 'Reversión completada exitosamente' };
+      return {
+        success: true,
+        message: 'Reversión completada exitosamente',
+        shortfalls,
+      };
     } catch (error) {
       const message =
         error instanceof Error ? error.message : 'Error desconocido';
@@ -609,6 +623,8 @@ export class InventoryService {
   async transferMedicineBetweenStores(params: InventoryMoveDto) {
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const historyData: any[] = [];
+
         for (const movement of params.movements) {
           const { medicineId, sourceStoreId, quantity, targetStoreId } =
             movement;
@@ -679,6 +695,38 @@ export class InventoryService {
               },
             });
           }
+
+          // Registrar la transferencia en el historial: sin esto el stock
+          // se mueve pero el historial no cuadra con el inventario.
+          const transferDate = new Date();
+          historyData.push({
+            medicineId,
+            storeId: sourceStoreId,
+            donationId: sourceInventory.donationId,
+            amount: quantity,
+            type: 'Transferencia Salida',
+            date: transferDate,
+            observations: `Transferencia al almacén ${targetStoreId}`,
+            admissionDate: sourceInventory.admissionDate,
+            expirationDate: sourceInventory.expirationDate,
+            lote: sourceInventory.lote,
+          });
+          historyData.push({
+            medicineId,
+            storeId: targetStoreId,
+            donationId: sourceInventory.donationId,
+            amount: quantity,
+            type: 'Transferencia Entrada',
+            date: transferDate,
+            observations: `Transferencia desde el almacén ${sourceStoreId}`,
+            admissionDate: sourceInventory.admissionDate,
+            expirationDate: sourceInventory.expirationDate,
+            lote: sourceInventory.lote,
+          });
+        }
+
+        if (historyData.length) {
+          await tx.historyInventory.createMany({ data: historyData });
         }
 
         return {
@@ -703,12 +751,6 @@ export class InventoryService {
           medicineId: data.medicineId,
           storeId: data.storeId,
           ...(data.lote ? { lote: data.lote } : {}),
-        },
-      });
-
-      const findDonation = await this.prisma.detDonation.findFirst({
-        where: {
-          medicineId: data.medicineId,
         },
       });
 
@@ -748,7 +790,7 @@ export class InventoryService {
           data: {
             medicineId: data.medicineId,
             storeId: data.storeId,
-            donationId: findDonation.donationId,
+            donationId: inventory.donationId,
             amount: data.amount,
             type: 'Salida',
             date: new Date(),
