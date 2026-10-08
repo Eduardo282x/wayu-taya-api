@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
@@ -29,6 +29,8 @@ import { DonationsModule } from './donations/donations.module';
 import { InstitutionsModule } from './institutions/institutions.module';
 import { ReportsModule } from './reports/reports.module';
 import { HealthModule } from './health/health.module';
+import { AuditModule } from './audit/audit.module';
+import { AuditContextInterceptor } from './audit/audit-context.interceptor';
 
 @Module({
   imports: [
@@ -68,6 +70,7 @@ import { HealthModule } from './health/health.module';
     DonationsModule,
     InstitutionsModule,
     ReportsModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [
@@ -76,6 +79,12 @@ import { HealthModule } from './health/health.module';
     {
       provide: APP_FILTER,
       useClass: AllExceptionsFilter,
+    },
+    // Contexto de auditoría: establece usuario/IP/user-agent para que los
+    // servicios puedan registrar quién hizo cada acción.
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditContextInterceptor,
     },
     // ORDEN IMPORTA: se ejecutan en el orden de declaración.
     {

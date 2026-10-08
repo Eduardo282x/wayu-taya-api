@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { AuditService } from 'src/audit/audit.service';
 import {
   HistoryQueryDto,
   InventoryDto,
@@ -14,7 +15,10 @@ import {
 
 @Injectable()
 export class InventoryService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
 
   async getInventory(query?: GetInventoryQueryDto) {
     const page = query?.page ?? 1;
@@ -348,6 +352,17 @@ export class InventoryService {
 
       const historyData: any[] = [];
       const newInventoryRecords: any[] = [];
+      const inventoryAudit: {
+        action: string;
+        entityId: number | null;
+        medicineId: number;
+        storeId: number;
+        lote: string;
+        movement: string;
+        amount: number;
+        before: unknown;
+        after: unknown;
+      }[] = [];
 
       for (const item of inventory.medicines) {
         const expectedLote = item.lote || lote;
@@ -360,12 +375,25 @@ export class InventoryService {
 
         if (inventory.type === 'Entrada') {
           if (record) {
+            const beforeStock = record.stock;
             await trx.inventory.update({
               where: { id: record.id },
               data: {
                 stock: { increment: item.stock },
                 updateAt: new Date(),
               },
+            });
+
+            inventoryAudit.push({
+              action: 'UPDATE',
+              entityId: record.id,
+              medicineId: item.medicineId,
+              storeId: record.storeId,
+              lote: record.lote,
+              movement: 'Entrada',
+              amount: item.stock,
+              before: { stock: beforeStock },
+              after: { stock: beforeStock + item.stock },
             });
 
             historyData.push({
@@ -419,6 +447,17 @@ export class InventoryService {
 
           if (record.stock === item.stock) {
             await trx.inventory.delete({ where: { id: record.id } });
+            inventoryAudit.push({
+              action: 'DELETE',
+              entityId: record.id,
+              medicineId: item.medicineId,
+              storeId: record.storeId,
+              lote: record.lote,
+              movement: 'Salida',
+              amount: item.stock,
+              before: { stock: record.stock },
+              after: null,
+            });
           } else {
             await trx.inventory.update({
               where: { id: record.id },
@@ -426,6 +465,17 @@ export class InventoryService {
                 stock: { decrement: item.stock },
                 updateAt: new Date(),
               },
+            });
+            inventoryAudit.push({
+              action: 'UPDATE',
+              entityId: record.id,
+              medicineId: item.medicineId,
+              storeId: record.storeId,
+              lote: record.lote,
+              movement: 'Salida',
+              amount: item.stock,
+              before: { stock: record.stock },
+              after: { stock: record.stock - item.stock },
             });
           }
 
@@ -446,9 +496,80 @@ export class InventoryService {
 
       if (newInventoryRecords.length) {
         await trx.inventory.createMany({ data: newInventoryRecords });
+
+        const createdInventory = await trx.inventory.findMany({
+          where: {
+            donationId: inventory.donationId,
+            medicineId: { in: newInventoryRecords.map((r) => r.medicineId) },
+          },
+        });
+        for (const rec of newInventoryRecords) {
+          const createdRow = createdInventory.find(
+            (c: any) =>
+              c.medicineId === rec.medicineId &&
+              c.storeId === rec.storeId &&
+              c.lote === rec.lote,
+          );
+          inventoryAudit.push({
+            action: 'CREATE',
+            entityId: createdRow?.id ?? null,
+            medicineId: rec.medicineId,
+            storeId: rec.storeId,
+            lote: rec.lote,
+            movement: 'Entrada',
+            amount: rec.stock,
+            before: null,
+            after: createdRow ?? rec,
+          });
+        }
       }
       if (historyData.length) {
         await trx.historyInventory.createMany({ data: historyData });
+      }
+
+      for (const entry of inventoryAudit) {
+        await this.auditService.record(
+          {
+            action: entry.action,
+            entity: 'Inventory',
+            entityId: entry.entityId,
+            description: `${entry.movement} de medicina ${entry.medicineId} (lote ${entry.lote}, almacén ${entry.storeId}): ${entry.amount} unidades`,
+            metadata: {
+              movement: entry.movement,
+              amount: entry.amount,
+              medicineId: entry.medicineId,
+              storeId: entry.storeId,
+              lote: entry.lote,
+              donationId: inventory.donationId,
+              before: entry.before,
+              after: entry.after,
+            },
+          },
+          trx,
+        );
+      }
+
+      if (historyData.length) {
+        const createdHistory = await trx.historyInventory.findMany({
+          where: {
+            donationId: inventory.donationId,
+            type: inventory.type,
+            date: inventory.date,
+            observations: inventory.observations || '',
+          },
+        });
+        for (const h of createdHistory) {
+          await this.auditService.record(
+            {
+              action: 'CREATE',
+              entity: 'HistoryInventory',
+              entityId: h.id,
+              description: `Movimiento ${h.type} de medicina ${h.medicineId} (lote ${h.lote})`,
+              metadata: { before: null, after: h },
+            },
+            trx,
+          );
+        }
       }
 
       return {
@@ -590,7 +711,7 @@ export class InventoryService {
         const reversionType = isEntry
           ? 'Reversión Entrada'
           : 'Reversión Salida';
-        await tx.historyInventory.create({
+        const reversion = await tx.historyInventory.create({
           data: {
             medicineId,
             storeId,
@@ -604,6 +725,46 @@ export class InventoryService {
             expirationDate: typedRecords[0].expirationDate,
           },
         });
+
+        const inventoryAction = currentInventory
+          ? newStock === 0
+            ? 'DELETE'
+            : 'UPDATE'
+          : newStock > 0
+            ? 'CREATE'
+            : null;
+        if (inventoryAction) {
+          await this.auditService.record(
+            {
+              action: inventoryAction,
+              entity: 'Inventory',
+              entityId: currentInventory?.id ?? null,
+              description: `${reversionType} de medicina ${medicineId} (lote ${lote}, almacén ${storeId})`,
+              metadata: {
+                reversalType: reversionType,
+                revertedAmount,
+                shortfall,
+                medicineId,
+                storeId,
+                lote,
+                donationId: originalDonation.id,
+                before: currentInventory ? { stock: currentStock } : null,
+                after: { stock: newStock },
+              },
+            },
+            tx,
+          );
+        }
+        await this.auditService.record(
+          {
+            action: 'CREATE',
+            entity: 'HistoryInventory',
+            entityId: reversion.id,
+            description: `Movimiento ${reversionType} de medicina ${medicineId} (lote ${lote})`,
+            metadata: { before: null, after: reversion },
+          },
+          tx,
+        );
       }
 
       return {
@@ -623,8 +784,6 @@ export class InventoryService {
   async transferMedicineBetweenStores(params: InventoryMoveDto) {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        const historyData: any[] = [];
-
         for (const movement of params.movements) {
           const { medicineId, sourceStoreId, quantity, targetStoreId } =
             movement;
@@ -644,6 +803,7 @@ export class InventoryService {
           }
 
           // Reducir stock del almacén fuente
+          const sourceBefore = sourceInventory.stock;
           const reduceAmount = await tx.inventory.update({
             where: { id: sourceInventory.id },
             data: {
@@ -659,6 +819,26 @@ export class InventoryService {
             });
           }
 
+          await this.auditService.record(
+            {
+              action: reduceAmount.stock == 0 ? 'DELETE' : 'UPDATE',
+              entity: 'Inventory',
+              entityId: sourceInventory.id,
+              description: `Transferencia: ${quantity} unidades de medicina ${medicineId} desde almacén ${sourceStoreId}`,
+              metadata: {
+                movement: 'Transferencia Salida',
+                medicineId,
+                storeId: sourceStoreId,
+                lote: sourceInventory.lote,
+                amount: quantity,
+                targetStoreId,
+                before: { stock: sourceBefore },
+                after: { stock: reduceAmount.stock },
+              },
+            },
+            tx,
+          );
+
           // Verificar si ya existe entrada en el almacén destino con mismo lote
           const destinationInventory = await tx.inventory.findFirst({
             where: {
@@ -671,6 +851,8 @@ export class InventoryService {
             },
           });
 
+          const destinationBefore = destinationInventory?.stock ?? 0;
+          let destinationId: number | null;
           if (destinationInventory) {
             // Si existe, incrementar stock
             await tx.inventory.update({
@@ -681,9 +863,10 @@ export class InventoryService {
                 },
               },
             });
+            destinationId = destinationInventory.id;
           } else {
             // Si no existe, crear nueva entrada
-            await tx.inventory.create({
+            const createdDestination = await tx.inventory.create({
               data: {
                 medicineId,
                 storeId: targetStoreId,
@@ -694,39 +877,83 @@ export class InventoryService {
                 stock: quantity,
               },
             });
+            destinationId = createdDestination.id;
           }
+
+          await this.auditService.record(
+            {
+              action: destinationInventory ? 'UPDATE' : 'CREATE',
+              entity: 'Inventory',
+              entityId: destinationId,
+              description: `Transferencia: ${quantity} unidades de medicina ${medicineId} hacia almacén ${targetStoreId}`,
+              metadata: {
+                movement: 'Transferencia Entrada',
+                medicineId,
+                storeId: targetStoreId,
+                lote: sourceInventory.lote,
+                amount: quantity,
+                sourceStoreId,
+                before: destinationInventory
+                  ? { stock: destinationBefore }
+                  : null,
+                after: { stock: destinationBefore + quantity },
+              },
+            },
+            tx,
+          );
 
           // Registrar la transferencia en el historial: sin esto el stock
           // se mueve pero el historial no cuadra con el inventario.
           const transferDate = new Date();
-          historyData.push({
-            medicineId,
-            storeId: sourceStoreId,
-            donationId: sourceInventory.donationId,
-            amount: quantity,
-            type: 'Transferencia Salida',
-            date: transferDate,
-            observations: `Transferencia al almacén ${targetStoreId}`,
-            admissionDate: sourceInventory.admissionDate,
-            expirationDate: sourceInventory.expirationDate,
-            lote: sourceInventory.lote,
+          const transferOut = await tx.historyInventory.create({
+            data: {
+              medicineId,
+              storeId: sourceStoreId,
+              donationId: sourceInventory.donationId,
+              amount: quantity,
+              type: 'Transferencia Salida',
+              date: transferDate,
+              observations: `Transferencia al almacén ${targetStoreId}`,
+              admissionDate: sourceInventory.admissionDate,
+              expirationDate: sourceInventory.expirationDate,
+              lote: sourceInventory.lote,
+            },
           });
-          historyData.push({
-            medicineId,
-            storeId: targetStoreId,
-            donationId: sourceInventory.donationId,
-            amount: quantity,
-            type: 'Transferencia Entrada',
-            date: transferDate,
-            observations: `Transferencia desde el almacén ${sourceStoreId}`,
-            admissionDate: sourceInventory.admissionDate,
-            expirationDate: sourceInventory.expirationDate,
-            lote: sourceInventory.lote,
+          const transferIn = await tx.historyInventory.create({
+            data: {
+              medicineId,
+              storeId: targetStoreId,
+              donationId: sourceInventory.donationId,
+              amount: quantity,
+              type: 'Transferencia Entrada',
+              date: transferDate,
+              observations: `Transferencia desde el almacén ${sourceStoreId}`,
+              admissionDate: sourceInventory.admissionDate,
+              expirationDate: sourceInventory.expirationDate,
+              lote: sourceInventory.lote,
+            },
           });
-        }
 
-        if (historyData.length) {
-          await tx.historyInventory.createMany({ data: historyData });
+          await this.auditService.record(
+            {
+              action: 'CREATE',
+              entity: 'HistoryInventory',
+              entityId: transferOut.id,
+              description: `Movimiento Transferencia Salida de medicina ${medicineId} (lote ${sourceInventory.lote})`,
+              metadata: { before: null, after: transferOut },
+            },
+            tx,
+          );
+          await this.auditService.record(
+            {
+              action: 'CREATE',
+              entity: 'HistoryInventory',
+              entityId: transferIn.id,
+              description: `Movimiento Transferencia Entrada de medicina ${medicineId} (lote ${sourceInventory.lote})`,
+              metadata: { before: null, after: transferIn },
+            },
+            tx,
+          );
         }
 
         return {
@@ -769,6 +996,7 @@ export class InventoryService {
 
       //update or delete stock
       await this.prisma.$transaction(async (tx) => {
+        const beforeStock = inventory.stock;
         if (inventory.stock - amount === 0) {
           // if stock is 0, delete the record
           await tx.inventory.delete({
@@ -785,8 +1013,28 @@ export class InventoryService {
           });
         }
 
+        await this.auditService.record(
+          {
+            action: beforeStock - amount === 0 ? 'DELETE' : 'UPDATE',
+            entity: 'Inventory',
+            entityId: inventory.id,
+            description: `Salida manual: ${amount} unidades de medicina ${data.medicineId} (lote ${inventory.lote}, almacén ${data.storeId})`,
+            metadata: {
+              movement: 'Salida',
+              medicineId: data.medicineId,
+              storeId: data.storeId,
+              lote: inventory.lote,
+              amount,
+              observations: data.observations,
+              before: { stock: beforeStock },
+              after: { stock: beforeStock - amount },
+            },
+          },
+          tx,
+        );
+
         // register in history
-        await tx.historyInventory.create({
+        const history = await tx.historyInventory.create({
           data: {
             medicineId: data.medicineId,
             storeId: data.storeId,
@@ -800,6 +1048,17 @@ export class InventoryService {
             lote: inventory.lote,
           },
         });
+
+        await this.auditService.record(
+          {
+            action: 'CREATE',
+            entity: 'HistoryInventory',
+            entityId: history.id,
+            description: `Movimiento Salida de medicina ${data.medicineId} (lote ${inventory.lote})`,
+            metadata: { before: null, after: history },
+          },
+          tx,
+        );
       });
 
       return { message: 'Salida registrada correctamente del inventario.' };

@@ -11,6 +11,7 @@ import {
   GetDonationsQueryDTO,
 } from './donations.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
+import { AuditService } from 'src/audit/audit.service';
 import PDFDocument from 'pdfkit';
 import * as ExcelJS from 'exceljs';
 
@@ -19,6 +20,7 @@ export class DonationsService {
   constructor(
     private readonly prismaService: PrismaService,
     private readonly inventoryService: InventoryService,
+    private readonly auditService: AuditService,
   ) {}
 
   normalizeText(text: string): string {
@@ -442,6 +444,37 @@ export class DonationsService {
           );
           if (!result.success) throw new BadRequestException(result.message);
 
+          await this.auditService.record(
+            {
+              action: 'CREATE',
+              entity: 'Donation',
+              entityId: donationCreated.id,
+              description: `Donación ${donationCreated.controlNumber} (${donationCreated.type}) creada`,
+              metadata: {
+                before: null,
+                after: donationCreated,
+                payload: donation,
+              },
+            },
+            tx,
+          );
+
+          const createdDets = await tx.detDonation.findMany({
+            where: { donationId: donationCreated.id },
+          });
+          for (const det of createdDets) {
+            await this.auditService.record(
+              {
+                action: 'CREATE',
+                entity: 'DetDonation',
+                entityId: det.id,
+                description: `Detalle de donación ${donationCreated.id} (medicina ${det.medicineId})`,
+                metadata: { before: null, after: det },
+              },
+              tx,
+            );
+          }
+
           return {
             success: true,
             message:
@@ -600,6 +633,52 @@ export class DonationsService {
             }
           }
 
+          await this.auditService.record(
+            {
+              action: 'UPDATE',
+              entity: 'Donation',
+              entityId: updatedDonation.id,
+              description: `Donación ${updatedDonation.controlNumber} (${updatedDonation.type}) actualizada`,
+              metadata: {
+                before: originalDonation,
+                after: updatedDonation,
+                payload: donation,
+              },
+            },
+            tx,
+          );
+
+          if (donation.changeDonDetails) {
+            for (const det of originalDonation.detDonation) {
+              await this.auditService.record(
+                {
+                  action: 'DELETE',
+                  entity: 'DetDonation',
+                  entityId: det.id,
+                  description: `Detalle previo eliminado de donación ${id} (medicina ${det.medicineId})`,
+                  metadata: { before: det, after: null },
+                },
+                tx,
+              );
+            }
+
+            const newDets = await tx.detDonation.findMany({
+              where: { donationId: id },
+            });
+            for (const det of newDets) {
+              await this.auditService.record(
+                {
+                  action: 'CREATE',
+                  entity: 'DetDonation',
+                  entityId: det.id,
+                  description: `Detalle nuevo de donación ${id} (medicina ${det.medicineId})`,
+                  metadata: { before: null, after: det },
+                },
+                tx,
+              );
+            }
+          }
+
           return {
             success: true,
             message: 'Donación actualizada correctamente.',
@@ -638,6 +717,10 @@ export class DonationsService {
           // Revertir inventario usando datos históricos
           await this.inventoryService.revertInventoryWithHistory(tx, donation);
 
+          const inventoriesToDelete = await tx.inventory.findMany({
+            where: { donationId: id },
+          });
+
           // Eliminar registros relacionados en orden seguro
           await tx.historyInventory.deleteMany({
             where: { donationId: id },
@@ -655,6 +738,53 @@ export class DonationsService {
           const deletedDonation = await tx.donation.delete({
             where: { id },
           });
+
+          for (const det of donation.detDonation) {
+            await this.auditService.record(
+              {
+                action: 'DELETE',
+                entity: 'DetDonation',
+                entityId: det.id,
+                description: `Detalle eliminado de donación ${id} (medicina ${det.medicineId})`,
+                metadata: { before: det, after: null },
+              },
+              tx,
+            );
+          }
+          for (const hist of donation.historyInventory) {
+            await this.auditService.record(
+              {
+                action: 'DELETE',
+                entity: 'HistoryInventory',
+                entityId: hist.id,
+                description: `Historial de inventario eliminado de donación ${id}`,
+                metadata: { before: hist, after: null },
+              },
+              tx,
+            );
+          }
+          for (const inv of inventoriesToDelete) {
+            await this.auditService.record(
+              {
+                action: 'DELETE',
+                entity: 'Inventory',
+                entityId: inv.id,
+                description: `Inventario eliminado de donación ${id}`,
+                metadata: { before: inv, after: null },
+              },
+              tx,
+            );
+          }
+          await this.auditService.record(
+            {
+              action: 'DELETE',
+              entity: 'Donation',
+              entityId: deletedDonation.id,
+              description: `Donación ${deletedDonation.controlNumber} eliminada`,
+              metadata: { before: donation, after: null },
+            },
+            tx,
+          );
 
           return {
             success: true,

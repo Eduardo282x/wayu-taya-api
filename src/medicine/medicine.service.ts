@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { AuditService } from 'src/audit/audit.service';
 import {
   MedicineDTO,
   MedicineFormatExcel,
@@ -12,7 +13,10 @@ import { Response } from 'express';
 
 @Injectable()
 export class MedicineService {
-  constructor(private prismaService: PrismaService) {}
+  constructor(
+    private prismaService: PrismaService,
+    private readonly auditService: AuditService,
+  ) {}
   async getMedicine(query?: GetMedicineQueryDTO) {
     const page = query?.page ?? 1;
     const size = query?.size ?? 100;
@@ -124,6 +128,13 @@ export class MedicineService {
           formId,
         },
       });
+      await this.auditService.record({
+        action: 'CREATE',
+        entity: 'Medicine',
+        entityId: medicineCreated.id,
+        description: `Medicina "${medicineCreated.name}" creada`,
+        metadata: { before: null, after: medicineCreated, payload: medicine },
+      });
       return {
         medicine: medicineCreated,
         message: 'Medicina creada exitosamente.',
@@ -135,6 +146,10 @@ export class MedicineService {
 
   async updateMedicine(id: number, medicine: MedicineDTO) {
     try {
+      const before = await this.prismaService.medicine.findUnique({
+        where: { id },
+      });
+
       const [categoryId, formId] = await Promise.all([
         this.resolveCategory(medicine.category),
         this.resolveForm(medicine.form),
@@ -160,6 +175,14 @@ export class MedicineService {
           formId,
         },
         where: { id: id },
+      });
+
+      await this.auditService.record({
+        action: 'UPDATE',
+        entity: 'Medicine',
+        entityId: medicineUpdated.id,
+        description: `Medicina "${medicineUpdated.name}" actualizada`,
+        metadata: { before, after: medicineUpdated, payload: medicine },
       });
 
       return {
@@ -205,8 +228,19 @@ export class MedicineService {
   }
   async deleteMedicine(id: number) {
     try {
+      const before = await this.prismaService.medicine.findUnique({
+        where: { id },
+      });
       const medicineDeleted = await this.prismaService.medicine.delete({
         where: { id: id },
+      });
+
+      await this.auditService.record({
+        action: 'DELETE',
+        entity: 'Medicine',
+        entityId: medicineDeleted.id,
+        description: `Medicina "${medicineDeleted.name}" eliminada`,
+        metadata: { before, after: null },
       });
 
       return {
@@ -410,6 +444,19 @@ export class MedicineService {
           skipDuplicates: true,
         });
       }
+
+      await this.auditService.record({
+        action: 'CREATE',
+        entity: 'Medicine',
+        entityId: null,
+        description: `Carga masiva de medicinas: ${createdMedicines.length} agregada(s), ${skippedMedicines.length} omitida(s)`,
+        metadata: {
+          inserted: createdMedicines.length,
+          skipped: skippedMedicines.length,
+          medicines: createdMedicines.map((m) => m.name),
+          skippedItems: skippedMedicines,
+        },
+      });
 
       return {
         message:

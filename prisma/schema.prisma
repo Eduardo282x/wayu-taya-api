@@ -180,6 +180,7 @@ model Users {
 
   refreshTokens       RefreshToken[]
   passwordResetTokens PasswordResetToken[]
+  auditLogs           AuditLog[]
 
   @@index([rolId])
 }
@@ -356,4 +357,34 @@ model HistoryInventory {
   @@index([medicineId, storeId])
   @@index([date])
   @@index([donationId])
+}
+
+/// Bitácora de auditoría: quién hizo qué acción, sobre qué tabla/registro.
+///
+/// `userId` es nullable con ON DELETE SET NULL a propósito: el log debe
+/// sobrevivir a la eliminación del usuario. Por eso se guarda además un
+/// snapshot (`username`, `userRole`) para no perder el rastro.
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  userId      Int?
+  user        Users?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+  /// Snapshot del usuario al momento de la acción.
+  username    String   @default("")
+  userRole    String   @default("")
+  /// CREATE | UPDATE | DELETE | ENTRADA | SALIDA | TRANSFERENCIA ...
+  action      String
+  /// Tabla lógica afectada: Donation, DetDonation, Inventory, HistoryInventory, Medicine ...
+  entity      String
+  entityId    Int?
+  description String   @default("")
+  /// Payload de la petición y, en updates, estado antes/después.
+  metadata    Json?
+  ip          String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+  @@index([entity, entityId])
+  @@index([createdAt])
+  @@index([action])
 }
