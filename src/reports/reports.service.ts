@@ -281,6 +281,7 @@ export class ReportsService {
       const entradas = await this.prisma.donation.findMany({
         where: {
           type: 'Entrada',
+          deleted: false,
           provider: { name: providerName },
           lote: { in: lotes },
         },
@@ -300,6 +301,7 @@ export class ReportsService {
       const salidas = await this.prisma.donation.findMany({
         where: {
           type: 'Salida',
+          deleted: false,
           lote: { in: lotesConfirmados },
         },
         include: {
@@ -476,7 +478,12 @@ export class ReportsService {
 
       for (const lote of lotes) {
         const salidas = await this.prisma.donation.findMany({
-          where: { type: 'Salida', lote, provider: { name: providerName } },
+          where: {
+            type: 'Salida',
+            deleted: false,
+            lote,
+            provider: { name: providerName },
+          },
           include: {
             institution: true,
             detDonation: true,
@@ -632,6 +639,7 @@ export class ReportsService {
       const entradas = await this.prisma.donation.findMany({
         where: {
           type: 'Entrada',
+          deleted: false,
           provider: { name: provider },
           lote: { in: lotes },
         },
@@ -644,7 +652,11 @@ export class ReportsService {
       const lotesConfirmados = entradas.map((e) => e.lote);
 
       const salidas = await this.prisma.donation.findMany({
-        where: { type: 'Salida', lote: { in: lotesConfirmados } },
+        where: {
+          type: 'Salida',
+          deleted: false,
+          lote: { in: lotesConfirmados },
+        },
         include: {
           institution: true,
           detDonation: { include: { medicine: true } },
@@ -1577,7 +1589,7 @@ export class ReportsService {
   async getProviders(): Promise<{ provider: string; id: number }[]> {
     const donations = await this.prisma.donation.findMany({
       include: { provider: true },
-      where: { type: 'Entrada' },
+      where: { type: 'Entrada', deleted: false },
     });
     const onlyProviders = donations.map((item) => item.provider);
     const removeDuplicate = new Set(onlyProviders);
@@ -1591,7 +1603,9 @@ export class ReportsService {
   }
 
   async getLotes(): Promise<{ lotes: string[] }> {
-    const donations = await this.prisma.donation.findMany();
+    const donations = await this.prisma.donation.findMany({
+      where: { deleted: false },
+    });
     const onlyLotes = donations.map((item) => item.lote);
     const removeDuplicate = new Set(onlyLotes);
     const parseLotesDuplicates = [...removeDuplicate];
@@ -1605,6 +1619,7 @@ export class ReportsService {
     const donations = await this.prisma.donation.findMany({
       where: {
         type: 'Salida',
+        deleted: false,
         date: { gte: from, lte: to },
       },
       include: {
@@ -1632,6 +1647,7 @@ export class ReportsService {
     const donations = await this.prisma.donation.findMany({
       where: {
         type: 'Salida',
+        deleted: false,
         date: { gte: from, lte: to },
       },
       include: {

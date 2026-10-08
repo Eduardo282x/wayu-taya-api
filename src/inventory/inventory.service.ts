@@ -601,6 +601,7 @@ export class InventoryService {
       const historyRecords = (await tx.historyInventory.findMany({
         where: {
           donationId: originalDonation.id,
+          deleted: false,
           type: { in: ['Entrada', 'Salida'] },
           observations: {
             not: {
@@ -695,9 +696,23 @@ export class InventoryService {
             });
           }
         } else if (newStock > 0) {
+          // Si el inventario original ya no existe (p. ej. una salida que lo
+          // consumió por completo), el stock restaurado debe colgar de la
+          // donación de origen, no de la salida que se está revirtiendo; de lo
+          // contrario deleteDonation lo volvería a eliminar.
+          const sourceHistory = await tx.historyInventory.findFirst({
+            where: {
+              medicineId,
+              storeId,
+              lote,
+              type: 'Entrada',
+              deleted: false,
+            },
+            orderBy: { id: 'desc' },
+          });
           await tx.inventory.create({
             data: {
-              donationId: originalDonation.id,
+              donationId: sourceHistory?.donationId ?? originalDonation.id,
               medicineId,
               storeId,
               lote,

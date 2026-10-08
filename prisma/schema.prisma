@@ -353,10 +353,15 @@ model HistoryInventory {
   createAt       DateTime @default(now())
   updateAt       DateTime @updatedAt
   lote           String   @default("")
+  /// Soft-delete: al eliminar una donación su historial no se borra, se marca
+  /// como eliminado para conservar la bitácora y los movimientos de salida.
+  deleted        Boolean  @default(false)
+  deletedAt      DateTime?
 
   @@index([medicineId, storeId])
   @@index([date])
   @@index([donationId])
+  @@index([deleted])
 }
 
 /// Bitácora de auditoría: quién hizo qué acción, sobre qué tabla/registro.

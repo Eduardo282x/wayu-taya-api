@@ -192,7 +192,8 @@ export class DonationsService {
     const page = query?.page ?? 1;
     const size = query?.size ?? 100;
 
-    const where: any = {};
+    // Las donaciones con soft-delete no se listan.
+    const where: any = { deleted: false };
     if (query?.lote) {
       where.lote = { contains: query.lote, mode: 'insensitive' };
     }
@@ -272,6 +273,7 @@ export class DonationsService {
         ? await this.prismaService.historyInventory.findMany({
             where: {
               type: { in: ['Salida', 'Transferencia Salida'] },
+              deleted: false,
               medicineId: { in: medicineIds },
               lote: { in: lotes },
             },
@@ -511,6 +513,10 @@ export class DonationsService {
           });
 
           if (!originalDonation) throw new Error('Donación no encontrada');
+          if (originalDonation.deleted)
+            throw new BadRequestException(
+              'La donación fue eliminada y no puede actualizarse.',
+            );
 
           await this.validateControlNumberUnique(
             tx,
@@ -537,6 +543,7 @@ export class DonationsService {
               medicineId: { in: medicinesResolved.map((m) => m.medicineId) },
               storeId: { in: medicinesResolved.map((m) => m.storageId) },
               donationId: { not: id },
+              deleted: false,
               createAt: { gt: originalDonation.updateAt },
             },
           });
@@ -714,18 +721,29 @@ export class DonationsService {
             throw new BadRequestException('Donación no encontrada');
           }
 
-          // Revertir inventario usando datos históricos
-          await this.inventoryService.revertInventoryWithHistory(tx, donation);
+          // Revertir inventario usando datos históricos. Se conserva el
+          // resultado para informar unidades que ya no pudieron revertirse.
+          const revertResult =
+            await this.inventoryService.revertInventoryWithHistory(
+              tx,
+              donation,
+            );
+          const shortfalls = revertResult.shortfalls ?? {};
 
           const inventoriesToDelete = await tx.inventory.findMany({
             where: { donationId: id },
           });
 
-          // Eliminar registros relacionados en orden seguro
-          await tx.historyInventory.deleteMany({
-            where: { donationId: id },
+          // El historial no se borra físicamente: se marca como eliminado para
+          // conservar la bitácora y el asiento de reversión recién creado.
+          const now = new Date();
+          await tx.historyInventory.updateMany({
+            where: { id: { in: donation.historyInventory.map((h) => h.id) } },
+            data: { deleted: true, deletedAt: now },
           });
 
+          // Los registros operativos sí se eliminan para que no sigan
+          // descontando stock.
           await tx.detDonation.deleteMany({
             where: { donationId: id },
           });
@@ -734,9 +752,11 @@ export class DonationsService {
             where: { donationId: id },
           });
 
-          // Finalmente borrar la donación principal
-          const deletedDonation = await tx.donation.delete({
+          // Soft-delete de la donación: mantiene la FK del historial válida y
+          // la oculta de listados y reportes.
+          const deletedDonation = await tx.donation.update({
             where: { id },
+            data: { deleted: true },
           });
 
           for (const det of donation.detDonation) {
@@ -754,11 +774,14 @@ export class DonationsService {
           for (const hist of donation.historyInventory) {
             await this.auditService.record(
               {
-                action: 'DELETE',
+                action: 'UPDATE',
                 entity: 'HistoryInventory',
                 entityId: hist.id,
-                description: `Historial de inventario eliminado de donación ${id}`,
-                metadata: { before: hist, after: null },
+                description: `Historial de inventario marcado como eliminado de donación ${id}`,
+                metadata: {
+                  before: { deleted: false },
+                  after: { deleted: true, deletedAt: now },
+                },
               },
               tx,
             );
@@ -781,7 +804,11 @@ export class DonationsService {
               entity: 'Donation',
               entityId: deletedDonation.id,
               description: `Donación ${deletedDonation.controlNumber} eliminada`,
-              metadata: { before: donation, after: null },
+              metadata: {
+                before: donation,
+                after: { deleted: true },
+                shortfalls,
+              },
             },
             tx,
           );
