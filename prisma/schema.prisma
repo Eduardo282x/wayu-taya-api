@@ -243,6 +243,7 @@ model Medicine {
   category         Category           @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   medicine         Boolean
   presentation     String             @default("")
+  lote             String             @default("")
   temperate        String
   manufacturer     String
   activeIngredient String
@@ -339,25 +340,25 @@ model Inventory {
 }
 
 model HistoryInventory {
-  id             Int      @id @default(autoincrement())
+  id             Int       @id @default(autoincrement())
   medicineId     Int
-  medicine       Medicine @relation(fields: [medicineId], references: [id], onDelete: Restrict)
+  medicine       Medicine  @relation(fields: [medicineId], references: [id], onDelete: Restrict)
   storeId        Int
-  store          Store    @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  store          Store     @relation(fields: [storeId], references: [id], onDelete: Restrict)
   type           String
   amount         Int
   date           DateTime
   donationId     Int
-  donation       Donation @relation(fields: [donationId], references: [id], onDelete: Restrict)
+  donation       Donation  @relation(fields: [donationId], references: [id], onDelete: Restrict)
   observations   String
   admissionDate  DateTime
   expirationDate DateTime
-  createAt       DateTime @default(now())
-  updateAt       DateTime @updatedAt
-  lote           String   @default("")
+  createAt       DateTime  @default(now())
+  updateAt       DateTime  @updatedAt
+  lote           String    @default("")
   /// Soft-delete: al eliminar una donación su historial no se borra, se marca
   /// como eliminado para conservar la bitácora y los movimientos de salida.
-  deleted        Boolean  @default(false)
+  deleted        Boolean   @default(false)
   deletedAt      DateTime?
 
   @@index([medicineId, storeId])

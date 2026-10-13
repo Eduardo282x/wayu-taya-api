@@ -12,9 +12,10 @@ export class MedicineDTO {
   name: string;
   @IsString()
   description: string;
-  @IsOptional()
   @IsString()
   code: string;
+  @IsString()
+  lote: string;
 
   @IsString()
   category: string;

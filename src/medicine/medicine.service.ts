@@ -1,3 +1,4 @@
+/* eslint-disable no-useless-catch */
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AuditService } from 'src/audit/audit.service';
@@ -112,7 +113,8 @@ export class MedicineService {
         data: {
           name: medicine.name,
           description: medicine.description,
-          code: medicine.code ? medicine.code : null,
+          code: medicine.code,
+          lote: medicine.lote,
           categoryId,
           medicine: medicine.medicine,
           provider: medicine.provider ? medicine.provider : '',
@@ -159,7 +161,8 @@ export class MedicineService {
         data: {
           name: medicine.name,
           description: medicine.description,
-          code: medicine.code ? medicine.code : null,
+          code: medicine.code,
+          lote: medicine.lote,
           categoryId,
           medicine: medicine.medicine,
           provider: medicine.provider ? medicine.provider : '',
