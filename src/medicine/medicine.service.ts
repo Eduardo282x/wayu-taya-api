@@ -12,6 +12,24 @@ import {
 import * as ExcelJS from 'exceljs';
 import { Response } from 'express';
 
+const MEDICINE_EXCEL_FIELDS = {
+  code: 'Codigo',
+  name: 'Nombre',
+  presentation: 'Presentacion',
+  form: 'Forma',
+  category: 'Categoria',
+  medicine: 'Medicina',
+  lote: 'Lote (base)',
+  temperate: 'Temperatura',
+  manufacturer: 'Fabricante',
+  provider: 'Proveedor',
+  activeIngredient: 'Principio Activo',
+  countryOfOrigin: 'Pais Origen',
+  description: 'Descripcion',
+} as const;
+
+type MedicineExcelField = keyof typeof MEDICINE_EXCEL_FIELDS;
+
 @Injectable()
 export class MedicineService {
   constructor(
@@ -289,50 +307,47 @@ export class MedicineService {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Medicinas');
 
-      const headers = [
-        'Nombre',
-        'Descripcion',
-        'Categoria',
-        'Medicina',
-        'Codigo',
-        'Presentacion',
-        'Temperatura',
-        'Fabricante',
-        'Principio_Activo',
-        'Pais_Origen',
-        'Forma',
-      ];
+      const columns = Object.keys(
+        MEDICINE_EXCEL_FIELDS,
+      ) as MedicineExcelField[];
+      const headers = columns.map((key) => MEDICINE_EXCEL_FIELDS[key]);
       worksheet.addRow(headers);
 
-      const exampleRows = [
-        [
-          'Acetaminofén',
-          'FIEBRE - DOLOR - CONGESTION NASAL',
-          'Analgésico',
-          'Si',
-          '00536128935',
-          '325mg / Fenilefrina 5mg · 24 cápsulas',
-          'Ambiente',
-          'Rugby Laboratories',
-          'Acetaminophen, Phenylephrine HCl',
-          'UNITED STATES',
-          'Caja',
-        ],
-        [
-          'Ibuprofeno',
-          'Esto es para el dolor muscular',
-          'Antiinflamatorio',
-          'Si',
-          '',
-          '400mg · 20 comprimidos',
-          'Ambiente',
-          'Pfizer',
-          'Ibuprofeno',
-          'VE',
-          'Empaque',
-        ],
+      const exampleRows: Record<MedicineExcelField, string>[] = [
+        {
+          code: '0001',
+          name: 'Acetaminofén',
+          presentation: '325mg / Fenilefrina 5mg · 24 cápsulas',
+          form: 'Caja',
+          category: 'Analgésico',
+          medicine: 'Si',
+          lote: 'L2024-001',
+          temperate: 'Ambiente',
+          manufacturer: 'Rugby Laboratories',
+          provider: 'Proveedor Ejemplo',
+          activeIngredient: 'Acetaminophen, Phenylephrine HCl',
+          countryOfOrigin: 'UNITED STATES',
+          description: 'FIEBRE - DOLOR - CONGESTION NASAL',
+        },
+        {
+          code: '0002',
+          name: 'Ibuprofeno',
+          presentation: '400mg · 20 comprimidos',
+          form: 'Empaque',
+          category: 'Antiinflamatorio',
+          medicine: 'Si',
+          lote: 'L2024-002',
+          temperate: 'Ambiente',
+          manufacturer: 'Pfizer',
+          provider: 'Proveedor Ejemplo 2',
+          activeIngredient: 'Ibuprofeno',
+          countryOfOrigin: 'VE',
+          description: 'Esto es para el dolor muscular',
+        },
       ];
-      exampleRows.forEach((row) => worksheet.addRow(row));
+      exampleRows.forEach((row) =>
+        worksheet.addRow(columns.map((key) => row[key] ?? '')),
+      );
 
       res.setHeader(
         'Content-Type',
@@ -378,7 +393,7 @@ export class MedicineService {
           }
         });
 
-        if (rowData['Nombre']) {
+        if (rowData[MEDICINE_EXCEL_FIELDS.name]) {
           rawData.push(rowData as unknown as MedicineFormatExcel);
         }
       });
@@ -387,56 +402,68 @@ export class MedicineService {
       const skippedMedicines: string[] = [];
 
       for (const data of rawData) {
-        const normalizedName = this.normalizeText(data.Nombre);
+        const normalizedName = this.normalizeText(
+          data[MEDICINE_EXCEL_FIELDS.name],
+        );
 
         const alreadyExists = medicineDB.some(
           (med) => this.normalizeText(med.name) === normalizedName,
         );
 
         if (alreadyExists) {
-          skippedMedicines.push(data.Nombre);
+          skippedMedicines.push(data[MEDICINE_EXCEL_FIELDS.name]);
           continue;
         }
 
-        const normalizedCategory = this.normalizeText(data.Categoria);
+        const normalizedCategory = this.normalizeText(
+          data[MEDICINE_EXCEL_FIELDS.category],
+        );
         let category = categoriesDB.find(
           (cat) => this.normalizeText(cat.category) === normalizedCategory,
         );
 
         if (!category) {
           category = await this.prismaService.category.create({
-            data: { category: this.toTitleCase(data.Categoria) },
+            data: {
+              category: this.toTitleCase(data[MEDICINE_EXCEL_FIELDS.category]),
+            },
           });
           categoriesDB.push(category);
         }
 
         let form;
-        if (data.Forma) {
-          const normalizedForm = this.normalizeText(data.Forma);
+        if (data[MEDICINE_EXCEL_FIELDS.form]) {
+          const normalizedForm = this.normalizeText(
+            data[MEDICINE_EXCEL_FIELDS.form],
+          );
           form = formsDB.find(
             (f) => this.normalizeText(f.forms) === normalizedForm,
           );
           if (!form) {
             form = await this.prismaService.forms.create({
-              data: { forms: this.toTitleCase(data.Forma) },
+              data: {
+                forms: this.toTitleCase(data[MEDICINE_EXCEL_FIELDS.form]),
+              },
             });
             formsDB.push(form);
           }
         }
 
-        const isMedicine = data.Medicina == 'Si';
+        const isMedicine = data[MEDICINE_EXCEL_FIELDS.medicine] == 'Si';
 
         createdMedicines.push({
-          name: data.Nombre,
-          description: data.Descripcion,
-          code: data.Codigo.toString() || undefined,
+          name: data[MEDICINE_EXCEL_FIELDS.name],
+          description: data[MEDICINE_EXCEL_FIELDS.description],
+          code: data[MEDICINE_EXCEL_FIELDS.code].toString() || undefined,
           categoryId: category.id,
           medicine: isMedicine,
-          presentation: data.Presentacion || '',
-          temperate: data.Temperatura || '',
-          manufacturer: data.Fabricante || '',
-          activeIngredient: data.Principio_Activo || '',
-          countryOfOrigin: data.Pais_Origen || 'VE',
+          lote: data[MEDICINE_EXCEL_FIELDS.lote] || '',
+          provider: data[MEDICINE_EXCEL_FIELDS.provider] || '',
+          presentation: data[MEDICINE_EXCEL_FIELDS.presentation] || '',
+          temperate: data[MEDICINE_EXCEL_FIELDS.temperate] || '',
+          manufacturer: data[MEDICINE_EXCEL_FIELDS.manufacturer] || '',
+          activeIngredient: data[MEDICINE_EXCEL_FIELDS.activeIngredient] || '',
+          countryOfOrigin: data[MEDICINE_EXCEL_FIELDS.countryOfOrigin] || 'VE',
           formId: form && form.id ? form.id : 14,
         });
       }

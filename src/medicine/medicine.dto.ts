@@ -70,17 +70,19 @@ export class GetMedicineQueryDTO {
 }
 
 export interface MedicineFormatExcel {
+  Codigo: string;
   Nombre: string;
-  Descripcion: string;
+  Presentacion: string;
+  Forma: string;
   Categoria: string;
   Medicina: string;
-  Codigo: string;
-  Presentacion: string;
+  'Lote (base)': string;
   Temperatura: string;
   Fabricante: string;
-  Principio_Activo: string;
-  Pais_Origen: string;
-  Forma: string;
+  Proveedor: string;
+  'Principio Activo': string;
+  'Pais Origen': string;
+  Descripcion: string;
 }
 
 export class CategoryDTO {
