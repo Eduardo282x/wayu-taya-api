@@ -337,6 +337,8 @@ model Inventory {
   @@index([medicineId, storeId, lote])
   @@index([storeId])
   @@index([donationId])
+  /// Alertas de caducidad: filtra por lotes próximos a vencer.
+  @@index([expirationDate])
 }
 
 model HistoryInventory {

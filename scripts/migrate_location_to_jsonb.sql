@@ -65,7 +65,7 @@ ALTER TABLE "Events"       ADD COLUMN IF NOT EXISTS "location" JSONB;
 -- 2. Mapa de resolucion
 -- ---------------------------------------------------------------------------
 -- Origen de cada fila: catalogo de referencia del frontend
--- (src/main-load/main-load.data.ts, export `locations`). Los 11 nombres se
+-- (prisma/seed.data.ts, export `locations`). Los 11 nombres se
 -- verificaron como unicos alli antes de escribir este mapa.
 
 CREATE TEMP TABLE location_map (
