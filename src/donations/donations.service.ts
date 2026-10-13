@@ -1365,6 +1365,14 @@ export class DonationsService {
         orderBy: { name: 'asc' },
       });
 
+      const formatMedicineLabel = (
+        name: string,
+        presentation?: string | null,
+      ): string =>
+        presentation && presentation.trim()
+          ? `${name} - ${presentation.trim()}`
+          : name;
+
       const workbook = new ExcelJS.Workbook();
       workbook.creator = 'Wayu Taya';
 
@@ -1394,7 +1402,12 @@ export class DonationsService {
       };
 
       const exampleRows: any[] = [
-        ['Acetaminofén', 100, 'LOTE-001', new Date('2027-12-31')],
+        [
+          'Acetaminofén - 100ml x 24 pastillas',
+          100,
+          'LOTE-001',
+          new Date('2027-12-31'),
+        ],
         ['', '', '', ''],
       ];
       exampleRows.forEach((row) => donationSheet.addRow(row));
@@ -1404,8 +1417,7 @@ export class DonationsService {
         views: [{ state: 'frozen', ySplit: 1 }],
       });
       medicinesSheet.columns = [
-        { header: 'Medicina', key: 'medicine', width: 42 },
-        { header: 'Presentación', key: 'presentation', width: 32 },
+        { header: 'Medicina', key: 'medicine', width: 64 },
       ];
       medicinesSheet.getRow(1).font = {
         bold: true,
@@ -1419,8 +1431,7 @@ export class DonationsService {
 
       medicines.forEach((med) => {
         medicinesSheet.addRow({
-          medicine: med.name,
-          presentation: med.presentation || '',
+          medicine: formatMedicineLabel(med.name, med.presentation),
         });
       });
 
@@ -1428,13 +1439,13 @@ export class DonationsService {
         const optionCount = medicines.length;
         const lastMedicineRow = optionCount + 1;
         const formula = `Medicinas!$A$2:$A$${lastMedicineRow}`;
+        // Sugerencia no obligatoria: el desplegable muestra los medicamentos
+        // registrados, pero se permite escribir cualquier nombre libremente.
         (donationSheet as any).dataValidations.add(`A2:A500`, {
           type: 'list',
           formulae: [formula],
           allowBlank: true,
-          showErrorMessage: true,
-          error: 'Selecciona una medicina de la lista o escribe una nueva.',
-          errorTitle: 'Medicina no válida',
+          showErrorMessage: false,
         });
       }
 
