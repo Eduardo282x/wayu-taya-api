@@ -1,4 +1,10 @@
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Injectable,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 
 interface AttemptRecord {
   count: number;
@@ -13,10 +19,25 @@ interface AttemptRecord {
  * `ThrottlerStorage` de @nestjs/throttler, o los contadores se dividirán por réplica.
  */
 @Injectable()
-export class LoginAttemptService {
+export class LoginAttemptService implements OnModuleInit, OnModuleDestroy {
   private static readonly MAX_ATTEMPTS = 5;
   private static readonly WINDOW_MS = 15 * 60 * 1000;
+  private static readonly PURGE_INTERVAL_MS = 60_000;
+  private static readonly MAX_ENTRIES = 10_000;
   private readonly attempts = new Map<string, AttemptRecord>();
+  private purgeTimer?: NodeJS.Timeout;
+
+  onModuleInit(): void {
+    this.purgeTimer = setInterval(
+      () => this.purgeExpired(),
+      LoginAttemptService.PURGE_INTERVAL_MS,
+    );
+    this.purgeTimer.unref?.();
+  }
+
+  onModuleDestroy(): void {
+    if (this.purgeTimer) clearInterval(this.purgeTimer);
+  }
 
   private static key(username: string, ip?: string): string {
     return `${username.toLowerCase()}::${ip ?? 'unknown'}`;
@@ -46,6 +67,13 @@ export class LoginAttemptService {
     }
     rec.count += 1;
     rec.until = Date.now() + LoginAttemptService.WINDOW_MS;
+
+    // Cota dura: si el Map supera el máximo, se expulsan las entradas que
+    // expiran antes (las más antiguas) para que la memoria no crezca sin fin
+    // ante un ataque distribuido por usuario/IP.
+    if (this.attempts.size >= LoginAttemptService.MAX_ENTRIES) {
+      this.evictOldest();
+    }
     this.attempts.set(key, rec);
   }
 
@@ -59,5 +87,18 @@ export class LoginAttemptService {
     for (const [key, rec] of this.attempts) {
       if (rec.until <= now) this.attempts.delete(key);
     }
+  }
+
+  /** Elimina la entrada que expira antes (la más antigua). */
+  private evictOldest(): void {
+    let oldestKey: string | undefined;
+    let oldestExpiry = Infinity;
+    for (const [key, rec] of this.attempts) {
+      if (rec.until < oldestExpiry) {
+        oldestExpiry = rec.until;
+        oldestKey = key;
+      }
+    }
+    if (oldestKey !== undefined) this.attempts.delete(oldestKey);
   }
 }

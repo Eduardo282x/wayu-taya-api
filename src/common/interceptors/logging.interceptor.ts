@@ -21,6 +21,8 @@ export class LoggingInterceptor implements NestInterceptor {
     const userAgent = headers['user-agent'] || '';
     const startTime = Date.now();
 
+    // Solo se registran peticiones exitosas: los errores ya los persiste
+    // `AllExceptionsFilter`, y loguearlos aquí los duplicaría.
     return next.handle().pipe(
       tap({
         next: () => {
@@ -40,23 +42,6 @@ export class LoggingInterceptor implements NestInterceptor {
             requestBody: this.shouldLogBody(method, url) ? body : undefined,
             responseSize:
               Number(response.getHeader('content-length')) || undefined,
-          });
-        },
-        error: (error) => {
-          const responseTime = Date.now() - startTime;
-          const statusCode = error.getStatus ? error.getStatus() : 500;
-
-          this.logger.error({
-            timestamp: new Date(),
-            level: 'ERROR',
-            method,
-            url,
-            statusCode,
-            responseTime,
-            ip: ip || request.socket?.remoteAddress || 'N/A',
-            userAgent,
-            message: error.message || 'Error interno del servidor',
-            requestBody: this.shouldLogBody(method, url) ? body : undefined,
           });
         },
       }),

@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { Request } from 'express';
 import { IS_PUBLIC_KEY } from 'src/common/decorators/public.decorator';
 import { JwtPayload } from './auth.types';
+import { PasswordChangedAtService } from './password-changed-at.service';
 
 @Injectable()
 export class AuthGuard implements CanActivate {
@@ -17,6 +18,7 @@ export class AuthGuard implements CanActivate {
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly reflector: Reflector,
+    private readonly passwordChangedAt: PasswordChangedAtService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -47,6 +49,16 @@ export class AuthGuard implements CanActivate {
       const payload = await this.jwtService.verifyAsync<JwtPayload>(token, {
         secret: this.config.getOrThrow<string>('JWT_SECRET'),
       });
+
+      // Un access token emitido ANTES del último cambio de contraseña deja de
+      // ser válido aunque su firma siga siendo correcta.
+      const isStale = await this.passwordChangedAt.isTokenStale(
+        payload.sub,
+        payload.iat,
+      );
+      if (isStale) {
+        throw new UnauthorizedException('Token inválido o expirado');
+      }
 
       request['user'] = payload;
       return true;

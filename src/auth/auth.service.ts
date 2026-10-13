@@ -12,6 +12,7 @@ import * as bcrypt from 'bcrypt';
 
 import { PrismaService } from 'src/prisma/prisma.service';
 import { LoginAttemptService } from './login-attempt.service';
+import { PasswordChangedAtService } from './password-changed-at.service';
 import { JwtPayload } from './auth.types';
 import { DTOLogin } from './auth.dto';
 import {
@@ -54,6 +55,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly config: ConfigService,
     private readonly loginAttempts: LoginAttemptService,
+    private readonly passwordChangedAt: PasswordChangedAtService,
   ) {}
 
   /**
@@ -250,6 +252,9 @@ export class AuthService {
       }),
     ]);
 
+    // Invalida al instante los access tokens previos (no espera el TTL).
+    this.passwordChangedAt.invalidate(record.userId);
+
     return { message: 'Contraseña actualizada correctamente' };
   }
 
@@ -284,6 +289,9 @@ export class AuthService {
         data: { revokedAt: now },
       }),
     ]);
+
+    // Invalida al instante los access tokens previos (no espera el TTL).
+    this.passwordChangedAt.invalidate(userId);
 
     return { message: 'Contraseña actualizada correctamente' };
   }

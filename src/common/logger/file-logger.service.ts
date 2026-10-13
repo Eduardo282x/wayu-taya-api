@@ -4,6 +4,32 @@ import * as path from 'path';
 
 export type LogLevel = 'INFO' | 'WARN' | 'ERROR' | 'DEBUG';
 
+/**
+ * Orden numérico de severidad. Un log se escribe solo si su nivel es <= al
+ * umbral configurado en `LOG_LEVEL`.
+ */
+const LEVEL_WEIGHT: Record<LogLevel, number> = {
+  ERROR: 0,
+  WARN: 1,
+  INFO: 2,
+  DEBUG: 3,
+};
+
+/** `LOG_LEVEL` (env) -> umbral. Por defecto `log` (ERROR, WARN, INFO). */
+function resolveThreshold(): number {
+  switch ((process.env.LOG_LEVEL ?? 'log').toLowerCase()) {
+    case 'error':
+      return LEVEL_WEIGHT.ERROR;
+    case 'warn':
+      return LEVEL_WEIGHT.WARN;
+    case 'debug':
+      return LEVEL_WEIGHT.DEBUG;
+    case 'log':
+    default:
+      return LEVEL_WEIGHT.INFO;
+  }
+}
+
 export interface LogEntry {
   timestamp: Date;
   level: LogLevel;
@@ -24,11 +50,13 @@ export interface LogEntry {
 @Injectable()
 export class FileLoggerService {
   private readonly logsDir: string;
+  private readonly threshold: number;
   private combinedFile: string;
   private errorFile: string;
   private currentDate: string = '';
 
   constructor() {
+    this.threshold = resolveThreshold();
     this.logsDir = path.join(process.cwd(), 'logs');
     this.ensureLogsDir();
     this.currentDate = this.getDateString();
@@ -168,7 +196,12 @@ export class FileLoggerService {
     }
   }
 
+  private isEnabled(level: LogLevel): boolean {
+    return LEVEL_WEIGHT[level] <= this.threshold;
+  }
+
   log(entry: LogEntry): void {
+    if (!this.isEnabled('INFO')) return;
     const formatted = this.formatLogEntry(entry);
     this.writeToFile(this.combinedFile, formatted);
     console.log(formatted.trim());
@@ -176,6 +209,8 @@ export class FileLoggerService {
 
   /** Acepta tanto un LogEntry completo como un mensaje suelto. */
   error(messageOrEntry: string | LogEntry): void {
+    if (!this.isEnabled('ERROR')) return;
+
     const entry: LogEntry =
       typeof messageOrEntry === 'string'
         ? { timestamp: new Date(), level: 'ERROR', message: messageOrEntry }
@@ -188,6 +223,7 @@ export class FileLoggerService {
   }
 
   warn(entry: LogEntry): void {
+    if (!this.isEnabled('WARN')) return;
     const formatted = this.formatLogEntry(entry);
     this.writeToFile(this.combinedFile, formatted);
     console.warn(formatted.trim());
@@ -198,10 +234,9 @@ export class FileLoggerService {
   }
 
   debug(entry: LogEntry): void {
-    if (process.env.NODE_ENV === 'development') {
-      const formatted = this.formatLogEntry(entry);
-      this.writeToFile(this.combinedFile, formatted);
-      console.debug(formatted.trim());
-    }
+    if (!this.isEnabled('DEBUG')) return;
+    const formatted = this.formatLogEntry(entry);
+    this.writeToFile(this.combinedFile, formatted);
+    console.debug(formatted.trim());
   }
 }

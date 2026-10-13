@@ -1,5 +1,10 @@
 // src/common/interceptors/response.interceptor.ts
-import { Injectable, ExecutionContext, CallHandler } from '@nestjs/common';
+import {
+  Injectable,
+  ExecutionContext,
+  CallHandler,
+  StreamableFile,
+} from '@nestjs/common';
 import { map } from 'rxjs/operators';
 
 @Injectable()
@@ -9,6 +14,12 @@ export class ResponseInterceptor {
 
     return next.handle().pipe(
       map((res) => {
+        // Las respuestas binarias (StreamableFile) NO se envuelven: Nest las
+        // escribe tal cual con sus cabeceras.
+        if (res instanceof StreamableFile) {
+          return res;
+        }
+
         // 1. Extraemos el mensaje si existe, de lo contrario vacío
         const message = res?.message || '';
 

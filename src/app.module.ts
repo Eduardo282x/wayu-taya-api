@@ -13,7 +13,8 @@ import { RolesGuard } from './auth/roles.guard';
 
 import { envValidationSchema } from './config/env.validation';
 import { AllExceptionsFilter } from './common/filters/http-exception.filter';
-import { FileLoggerService } from './common/logger/file-logger.service';
+import { LoggerModule } from './common/logger/logger.module';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 import { EventsModule } from './events/events.module';
 import { ProvidersModule } from './providers/providers.module';
@@ -45,6 +46,9 @@ import { AuditContextInterceptor } from './audit/audit-context.interceptor';
       validationOptions: { abortEarly: false },
     }),
 
+    // FileLoggerService global (inyectable en cualquier módulo)
+    LoggerModule,
+
     // 1 pool de conexiones para toda la app (antes: 15 pools duplicados)
     PrismaModule,
 
@@ -73,7 +77,6 @@ import { AuditContextInterceptor } from './audit/audit-context.interceptor';
   controllers: [AppController],
   providers: [
     AppService,
-    FileLoggerService,
     {
       provide: APP_FILTER,
       useClass: AllExceptionsFilter,
@@ -83,6 +86,12 @@ import { AuditContextInterceptor } from './audit/audit-context.interceptor';
     {
       provide: APP_INTERCEPTOR,
       useClass: AuditContextInterceptor,
+    },
+    // Trazabilidad de peticiones exitosas. Se registra DESPUÉS de
+    // AuditContextInterceptor para que el usuario ya esté poblado.
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
     },
     // ORDEN IMPORTA: se ejecutan en el orden de declaración.
     {

@@ -6,6 +6,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthGuard } from './auth.guard';
 import { RolesGuard } from './roles.guard';
 import { LoginAttemptService } from './login-attempt.service';
+import { PasswordChangedAtService } from './password-changed-at.service';
 import {
   DEFAULT_EXPIRES_IN,
   DEFAULT_REFRESH_EXPIRES_IN,
@@ -31,8 +32,14 @@ import {
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, LoginAttemptService, AuthGuard, RolesGuard],
-  exports: [JwtModule, AuthService],
+  providers: [
+    AuthService,
+    LoginAttemptService,
+    PasswordChangedAtService,
+    AuthGuard,
+    RolesGuard,
+  ],
+  exports: [JwtModule, AuthService, PasswordChangedAtService],
 })
 export class AuthModule {}
 
