@@ -1,5 +1,12 @@
 import { Type } from 'class-transformer';
-import { IsNumber, IsOptional, IsString, Min } from 'class-validator';
+import {
+  IsEmail,
+  IsNumber,
+  IsOptional,
+  IsString,
+  Min,
+  Max,
+} from 'class-validator';
 
 export class ProviderDTO {
   @IsString()
@@ -10,7 +17,7 @@ export class ProviderDTO {
   address: string;
   @IsString()
   country: string;
-  @IsString()
+  @IsEmail()
   email: string;
   @IsString()
   responsible: string;
@@ -29,5 +36,6 @@ export class GetProvidersQueryDTO {
   @Type(() => Number)
   @IsNumber()
   @Min(1)
+  @Max(500)
   size: number;
 }

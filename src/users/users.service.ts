@@ -8,6 +8,7 @@ import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 
 import { PrismaService } from 'src/prisma/prisma.service';
+import { PasswordChangedAtService } from 'src/auth/password-changed-at.service';
 import { ProfileDTO, UserDTO, UserPasswordDTO } from './users.dto';
 
 const BCRYPT_ROUNDS = 12;
@@ -27,7 +28,10 @@ const USER_PUBLIC_SELECT = {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly passwordChangedAt: PasswordChangedAtService,
+  ) {}
 
   async getUsers() {
     const users = await this.prisma.users.findMany({
@@ -100,6 +104,9 @@ export class UsersService {
       where: { userId: id, revokedAt: null },
       data: { revokedAt: new Date() },
     });
+
+    // Invalida también los access tokens previos (cache de passwordChangedAt).
+    this.passwordChangedAt.invalidate(id);
 
     return { user, message: 'Contraseña actualizada exitosamente' };
   }

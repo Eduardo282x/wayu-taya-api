@@ -3,6 +3,7 @@ import {
   IsBoolean,
   IsDate,
   IsDefined,
+  IsEmail,
   IsNumber,
   IsOptional,
   IsString,
@@ -22,7 +23,7 @@ export class PeopleDTO {
   lastName: string;
   @IsString()
   address: string;
-  @IsString()
+  @IsEmail()
   email: string;
   @IsString()
   phone: string;

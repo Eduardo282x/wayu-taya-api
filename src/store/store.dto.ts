@@ -1,9 +1,11 @@
-import { IsInt, IsOptional, IsString, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class StoreDTO {
   @IsString()
+  @MaxLength(120)
   name: string;
   @IsString()
+  @MaxLength(255)
   address: string;
   @IsOptional()
   @IsInt()

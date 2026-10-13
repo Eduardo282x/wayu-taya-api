@@ -7,6 +7,7 @@ import {
   IsNumber,
   IsOptional,
   Min,
+  Max,
 } from 'class-validator';
 import { LocationDTO } from '../common/dto/location.dto';
 
@@ -24,8 +25,8 @@ export class InstitutionsDTO {
   phone: string;
   @IsString()
   country: string;
-  @IsString()
   @IsOptional()
+  @IsString()
   email: string;
   @IsString()
   type: string;
@@ -52,5 +53,6 @@ export class GetInstitutionsQueryDTO {
   @Type(() => Number)
   @IsNumber()
   @Min(1)
+  @Max(500)
   size: number;
 }
