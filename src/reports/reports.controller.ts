@@ -1,15 +1,14 @@
 import {
   Controller,
   Get,
-  Res,
   Post,
   HttpException,
   HttpStatus,
   Body,
   Param,
+  StreamableFile,
 } from '@nestjs/common';
 import { ReportsService } from './reports.service';
-import { Response } from 'express';
 import { Throttle } from '@nestjs/throttler';
 import {
   IInventory,
@@ -18,6 +17,9 @@ import {
   SummaryReportResponse,
 } from './reports.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
+
+const DOCX_MIME =
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
 @Controller('reports')
 export class ReportsController {
@@ -32,129 +34,81 @@ export class ReportsController {
   }
 
   /**
-   * Los reportes generan PDF/DOCX/Excel de forma SÍNCRONA: consumen CPU y
-   * memoria. Sin límite, unas pocas peticiones bloquean el event loop
-   * entero -> DoS de cómputo.
+   * Los reportes generan PDF/DOCX de forma intensiva en CPU. La generación se
+   * delega a `ReportWorkerPool` (worker_threads) para no bloquear el event
+   * loop; `@Throttle` queda como segunda barrera.
    */
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Get('/report-inventory')
-  async downloadInventory(@Res() res: Response) {
+  async downloadInventory(): Promise<StreamableFile> {
     const inventory = await this.inventoryService.getInventory();
     const buffer = await this.reportsService.generateInventoryReportPDF(
       inventory.inventory as unknown as IInventory[],
     );
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader(
-      'Content-Disposition',
-      'attachment; filename=inventory-report.pdf',
-    );
-    res.end(buffer);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: 'attachment; filename=inventory-report.pdf',
+    });
   }
 
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Get('/report-inventory/:storeId')
   async downloadInventoryByStore(
     @Param('storeId') storeId: string,
-    @Res() res: Response,
-  ) {
+  ): Promise<StreamableFile> {
     const inventory = await this.inventoryService.getInventory();
     const buffer = await this.reportsService.generateInventoryByStorePDF(
       inventory.inventory as unknown as IInventory[],
       Number(storeId),
     );
 
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename=inventory-store-${storeId}.pdf`,
-    );
-    res.end(buffer);
+    return new StreamableFile(buffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename=inventory-store-${storeId}.pdf`,
+    });
   }
 
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('/by-provider-and-lots')
-  async generateCustomReport(
-    @Body() body: { provider: string; lotes: string[] },
-    @Res() res: Response,
-  ) {
-    try {
-      const buffer = await this.reportsService.generateFormattedReport(
-        body.provider,
-        body.lotes,
-      );
+  async generateCustomReport(@Body() dto: ReportsDTO): Promise<StreamableFile> {
+    const buffer = await this.reportsService.generateFormattedReport(dto);
 
-      res.set({
-        'Content-Type':
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'Content-Disposition': 'attachment; filename=donation-report.docx',
-      });
-
-      res.send(buffer);
-    } catch (error) {
-      console.error('Error generando el documento Word:', error);
-      throw new HttpException(
-        'No se pudo generar el documento Word.',
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
+    return new StreamableFile(buffer, {
+      type: DOCX_MIME,
+      disposition: 'attachment; filename=donation-report.docx',
+    });
   }
 
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('/sample-doc')
-  async downloadSampleDoc(
-    @Body() body: { provider: string; lotes: string[] },
-    @Res() res: Response,
-  ) {
-    const { provider, lotes } = body;
-
-    if (!provider || !Array.isArray(lotes) || lotes.length === 0) {
+  async downloadSampleDoc(@Body() dto: ReportsDTO): Promise<StreamableFile> {
+    if (!dto.provider || !Array.isArray(dto.lotes) || dto.lotes.length === 0) {
       throw new HttpException(
         'Parámetros inválidos: se requiere un proveedor y al menos un lote',
         HttpStatus.BAD_REQUEST,
       );
     }
 
-    try {
-      const buffer = await this.reportsService.generateSampleDoc(
-        provider,
-        lotes,
-      );
+    const buffer = await this.reportsService.generateSampleDoc(dto);
 
-      res.set({
-        'Content-Type':
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'Content-Disposition': 'attachment; filename=sample-report.docx',
-      });
-
-      res.send(buffer);
-    } catch (error) {
-      throw new HttpException(
-        `Error al generar el documento: ${error instanceof Error ? error.message : String(error)}`,
-        HttpStatus.INTERNAL_SERVER_ERROR,
-      );
-    }
+    return new StreamableFile(buffer, {
+      type: DOCX_MIME,
+      disposition: 'attachment; filename=sample-report.docx',
+    });
   }
 
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('/unified-by-provider-and-lots')
-  async generateUnifiedReport(@Body() dto: ReportsDTO, @Res() res: Response) {
-    try {
-      const buffer =
-        await this.reportsService.generateUnifiedDonationReport(dto);
+  async generateUnifiedReport(
+    @Body() dto: ReportsDTO,
+  ): Promise<StreamableFile> {
+    const buffer = await this.reportsService.generateUnifiedDonationReport(dto);
 
-      res.set({
-        'Content-Type':
-          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-        'Content-Disposition':
-          'attachment; filename=donation-unified-report.docx',
-      });
-
-      res.send(buffer);
-    } catch (error) {
-      console.error('Error generando el reporte:', error);
-      res.status(500).json({ message: 'No se pudo generar el documento' });
-    }
+    return new StreamableFile(buffer, {
+      type: DOCX_MIME,
+      disposition: 'attachment; filename=donation-unified-report.docx',
+    });
   }
 
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
@@ -162,23 +116,13 @@ export class ReportsController {
   async getSummaryReport(
     @Body() dto: SummaryReportDto,
   ): Promise<SummaryReportResponse> {
-    try {
-      if (new Date(dto.from) >= new Date(dto.to)) {
-        throw new HttpException(
-          'La fecha de inicio debe ser anterior a la fecha de fin',
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      return await this.reportsService.generateSummaryReport(dto);
-    } catch (error) {
-      console.error(error);
-      if (error instanceof HttpException) throw error;
-
+    if (new Date(dto.from) >= new Date(dto.to)) {
       throw new HttpException(
-        'Error interno del servidor',
-        HttpStatus.INTERNAL_SERVER_ERROR,
+        'La fecha de inicio debe ser anterior a la fecha de fin',
+        HttpStatus.BAD_REQUEST,
       );
     }
+
+    return await this.reportsService.generateSummaryReport(dto);
   }
 }

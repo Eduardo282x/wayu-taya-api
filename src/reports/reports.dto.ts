@@ -1,5 +1,11 @@
-import { Transform } from 'class-transformer';
-import { IsArray, IsDate, IsString } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
+import {
+  IsArray,
+  IsDate,
+  IsNumber,
+  IsOptional,
+  IsString,
+} from 'class-validator';
 
 export class ReportsDTO {
   @IsString()
@@ -7,6 +13,27 @@ export class ReportsDTO {
   @IsArray()
   @IsString({ each: true })
   lotes: string[];
+
+  // Filtros opcionales: acotan el subconjunto exportado.
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  providerId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  storeId?: number;
+
+  @IsOptional()
+  @IsDate()
+  @Transform(({ value }) => new Date(value))
+  from?: Date;
+
+  @IsOptional()
+  @IsDate()
+  @Transform(({ value }) => new Date(value))
+  to?: Date;
 }
 
 export class SummaryReportDto {
@@ -17,6 +44,20 @@ export class SummaryReportDto {
   @IsDate()
   @Transform(({ value }) => new Date(value))
   to: Date;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  providerId?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  storeId?: number;
+
+  @IsOptional()
+  @IsString()
+  lote?: string;
 }
 
 export interface DonationSummary {

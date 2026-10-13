@@ -16,7 +16,6 @@ import {
   HeightRule,
   BorderStyle,
 } from 'docx';
-import { readFileSync } from 'fs';
 import { format } from 'date-fns';
 import {
   DonationSummary,
@@ -29,13 +28,67 @@ import {
 } from './reports.dto';
 import { toLocation } from 'src/common/dto/location.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { FileLoggerService } from 'src/common/logger/file-logger.service';
+import { loadLogo } from 'src/common/utils/load-logo';
+import { ReportWorkerPool } from './report-worker/report-worker-pool.service';
 import PDFDocument from 'pdfkit';
+
+/**
+ * Construye el logo para DOCX. Devuelve `null` si el asset no está disponible
+ * (producción sin `dist/assets`), para omitir la imagen sin romper el reporte.
+ * Es de nivel de módulo para poder ejecutarse también dentro del worker.
+ */
+function buildLogoImage(width: number, height: number): ImageRun | null {
+  const logo = loadLogo();
+  if (!logo) return null;
+  return new ImageRun({
+    data: logo,
+    transformation: { width, height },
+    type: 'png',
+  });
+}
 
 @Injectable()
 export class ReportsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly logger: FileLoggerService,
+    private readonly pool: ReportWorkerPool,
+  ) {}
+
+  /**
+   * Construye el `where` de donaciones aplicando los filtros opcionales del
+   * DTO (proveedor, lote, rango de fechas y almacén).
+   */
+  private buildDonationWhere(
+    dto: ReportsDTO,
+    type: 'Entrada' | 'Salida',
+    lotes: string[],
+  ): any {
+    const where: any = { type, deleted: false };
+    if (dto.providerId) where.providerId = dto.providerId;
+    else if (dto.provider) where.provider = { name: dto.provider };
+    if (lotes.length) where.lote = { in: lotes };
+    if (dto.from || dto.to) {
+      where.date = {};
+      if (dto.from) where.date.gte = new Date(dto.from);
+      if (dto.to) where.date.lte = new Date(dto.to);
+    }
+    if (dto.storeId)
+      where.historyInventory = { some: { storeId: dto.storeId } };
+    return where;
+  }
 
   async generateInventoryReportPDF(
+    inventoryData: IInventory[],
+  ): Promise<Buffer> {
+    return this.pool.run({
+      kind: 'inventory-pdf',
+      payload: { inventory: inventoryData },
+    });
+  }
+
+  static async renderInventoryReportPDF(
     inventoryData: IInventory[],
   ): Promise<Buffer> {
     return await new Promise((resolve, reject) => {
@@ -123,6 +176,16 @@ export class ReportsService {
   }
 
   async generateInventoryByStorePDF(
+    inventoryData: IInventory[],
+    storeId: number,
+  ): Promise<Buffer> {
+    return this.pool.run({
+      kind: 'inventory-by-store-pdf',
+      payload: { inventory: inventoryData, storeId },
+    });
+  }
+
+  static async renderInventoryByStorePDF(
     inventoryData: IInventory[],
     storeId: number,
   ): Promise<Buffer> {
@@ -229,31 +292,54 @@ export class ReportsService {
     });
   }
 
-  async generateSampleDoc(
-    providerName: string,
-    lotes: string[],
-  ): Promise<Buffer> {
+  async generateSampleDoc(dto: ReportsDTO): Promise<Buffer> {
+    const { provider: providerName, lotes } = dto;
+    if (!providerName || lotes.length === 0) {
+      throw new Error(
+        'Se requiere el nombre del proveedor y al menos un lote.',
+      );
+    }
+
+    const entradas = await this.prisma.donation.findMany({
+      where: this.buildDonationWhere(dto, 'Entrada', lotes),
+      include: { detDonation: { include: { medicine: true } } },
+    });
+    if (entradas.length === 0) {
+      throw new Error(
+        'No se encontraron entradas para el proveedor y lotes indicados.',
+      );
+    }
+    const lotesConfirmados = entradas.map((e) => e.lote);
+    const salidas = await this.prisma.donation.findMany({
+      where: this.buildDonationWhere(dto, 'Salida', lotesConfirmados),
+      include: {
+        institution: true,
+        detDonation: { include: { medicine: true } },
+      },
+    });
+
+    return this.pool.run({
+      kind: 'sample-doc',
+      payload: { providerName, lotes, entradas, salidas },
+    });
+  }
+
+  static async renderSampleDoc(payload: {
+    providerName: string;
+    lotes: string[];
+    entradas: any[];
+    salidas: any[];
+  }): Promise<Buffer> {
+    const { providerName, lotes, entradas, salidas } = payload;
     try {
-      if (!providerName || lotes.length === 0) {
-        throw new Error(
-          'Se requiere el nombre del proveedor y al menos un lote.',
-        );
-      }
-
-      const logoImage = readFileSync('src/assets/logo.png');
-
-      const image = new ImageRun({
-        data: logoImage,
-        transformation: {
-          width: 150,
-          height: 100,
-        },
-        type: 'png',
-      });
+      const image = buildLogoImage(150, 100);
 
       const header = new Header({
         children: [
-          new Paragraph({ alignment: AlignmentType.LEFT, children: [image] }),
+          new Paragraph({
+            alignment: AlignmentType.LEFT,
+            children: image ? [image] : [],
+          }),
         ],
       });
 
@@ -276,38 +362,6 @@ export class ReportsService {
             text: `Este informe detalla las entradas y salidas de donaciones del proveedor "${providerName}" para los lotes: ${lotes.join(', ')}.`,
           }),
         ],
-      });
-
-      const entradas = await this.prisma.donation.findMany({
-        where: {
-          type: 'Entrada',
-          deleted: false,
-          provider: { name: providerName },
-          lote: { in: lotes },
-        },
-        include: {
-          detDonation: { include: { medicine: true } },
-        },
-      });
-
-      if (entradas.length === 0) {
-        throw new Error(
-          'No se encontraron entradas para el proveedor y lotes indicados.',
-        );
-      }
-
-      const lotesConfirmados = entradas.map((e) => e.lote);
-
-      const salidas = await this.prisma.donation.findMany({
-        where: {
-          type: 'Salida',
-          deleted: false,
-          lote: { in: lotesConfirmados },
-        },
-        include: {
-          institution: true,
-          detDonation: { include: { medicine: true } },
-        },
       });
 
       const rows: TableRow[] = [];
@@ -421,23 +475,44 @@ export class ReportsService {
     }
   }
 
-  async generateFormattedReport(
-    providerName: string,
-    lotes: string[],
-  ): Promise<Buffer> {
-    try {
-      if (!providerName || !lotes.length)
-        throw new Error('Proveedor y lotes son requeridos');
+  async generateFormattedReport(dto: ReportsDTO): Promise<Buffer> {
+    const { provider: providerName, lotes } = dto;
+    if (!providerName || !lotes.length)
+      throw new Error('Proveedor y lotes son requeridos');
 
-      const logoImage = readFileSync('src/assets/logo.png');
-      const image = new ImageRun({
-        data: logoImage,
-        transformation: { width: 100, height: 50 },
-        type: 'png',
-      });
+    const salidasPorLote = await Promise.all(
+      lotes.map(async (lote) => ({
+        lote,
+        salidas: await this.prisma.donation.findMany({
+          where: this.buildDonationWhere(dto, 'Salida', [lote]),
+          include: { institution: true, detDonation: true },
+        }),
+      })),
+    );
+    const salidasByLote: Record<string, any[]> = {};
+    for (const { lote, salidas } of salidasPorLote)
+      salidasByLote[lote] = salidas;
+
+    return this.pool.run({
+      kind: 'formatted-report',
+      payload: { providerName, lotes, salidasByLote },
+    });
+  }
+
+  static async renderFormattedReport(payload: {
+    providerName: string;
+    lotes: string[];
+    salidasByLote: Record<string, any[]>;
+  }): Promise<Buffer> {
+    const { providerName, lotes, salidasByLote } = payload;
+    try {
+      const image = buildLogoImage(100, 50);
       const header = new Header({
         children: [
-          new Paragraph({ alignment: AlignmentType.LEFT, children: [image] }),
+          new Paragraph({
+            alignment: AlignmentType.LEFT,
+            children: image ? [image] : [],
+          }),
         ],
       });
 
@@ -477,18 +552,7 @@ export class ReportsService {
       const content: (Paragraph | Table)[] = [title, subtitle, intro];
 
       for (const lote of lotes) {
-        const salidas = await this.prisma.donation.findMany({
-          where: {
-            type: 'Salida',
-            deleted: false,
-            lote,
-            provider: { name: providerName },
-          },
-          include: {
-            institution: true,
-            detDonation: true,
-          },
-        });
+        const salidas = salidasByLote[lote] ?? [];
 
         const instituciones = new Set<string>();
         const centrosSalud = new Set<string>();
@@ -567,20 +631,47 @@ export class ReportsService {
   }
 
   async generateUnifiedDonationReport(dto: ReportsDTO): Promise<Buffer> {
-    try {
-      const { provider, lotes } = dto;
-      if (!provider || !lotes || lotes.length === 0) {
-        throw new Error(
-          'Se requiere el nombre del proveedor y al menos un lote.',
-        );
-      }
+    const { provider, lotes } = dto;
+    if (!provider || !lotes || lotes.length === 0) {
+      throw new Error(
+        'Se requiere el nombre del proveedor y al menos un lote.',
+      );
+    }
 
-      const logoImage = readFileSync('src/assets/logo.png');
-      const image = new ImageRun({
-        data: logoImage,
-        transformation: { width: 180, height: 120 },
-        type: 'png',
-      });
+    const entradas = await this.prisma.donation.findMany({
+      where: this.buildDonationWhere(dto, 'Entrada', lotes),
+      include: { detDonation: { include: { medicine: true } } },
+    });
+    if (entradas.length === 0)
+      throw new Error(
+        'No se encontraron entradas para el proveedor y lotes indicados.',
+      );
+    const lotesConfirmados = entradas.map((e) => e.lote);
+
+    const salidas = await this.prisma.donation.findMany({
+      where: this.buildDonationWhere(dto, 'Salida', lotesConfirmados),
+      include: {
+        institution: true,
+        detDonation: { include: { medicine: true } },
+      },
+    });
+
+    return this.pool.run({
+      kind: 'unified-report',
+      payload: { provider, lotes, entradas, salidas },
+    });
+  }
+
+  static async renderUnifiedDonationReport(payload: {
+    provider: string;
+    lotes: string[];
+    entradas: any[];
+    salidas: any[];
+  }): Promise<Buffer> {
+    const { provider, lotes, entradas, salidas } = payload;
+    const lotesConfirmados = entradas.map((e: any) => e.lote);
+    try {
+      const image = buildLogoImage(180, 120);
 
       // Header mejorado con mejor espaciado
       const header = new Header({
@@ -588,7 +679,7 @@ export class ReportsService {
           new Paragraph({
             alignment: AlignmentType.LEFT,
             spacing: { after: 200 },
-            children: [image],
+            children: image ? [image] : [],
           }),
         ],
       });
@@ -634,33 +725,6 @@ export class ReportsService {
           }),
         ],
         alignment: AlignmentType.CENTER,
-      });
-
-      const entradas = await this.prisma.donation.findMany({
-        where: {
-          type: 'Entrada',
-          deleted: false,
-          provider: { name: provider },
-          lote: { in: lotes },
-        },
-        include: { detDonation: { include: { medicine: true } } },
-      });
-      if (entradas.length === 0)
-        throw new Error(
-          'No se encontraron entradas para el proveedor y lotes indicados.',
-        );
-      const lotesConfirmados = entradas.map((e) => e.lote);
-
-      const salidas = await this.prisma.donation.findMany({
-        where: {
-          type: 'Salida',
-          deleted: false,
-          lote: { in: lotesConfirmados },
-        },
-        include: {
-          institution: true,
-          detDonation: { include: { medicine: true } },
-        },
       });
 
       const sections: (Paragraph | Table)[] = [];
@@ -1563,8 +1627,8 @@ export class ReportsService {
         lotes,
         providers,
       ] = await Promise.all([
-        this.getDonationsByDateRange(from, to),
-        this.getMostDonatedProducts(from, to),
+        this.getDonationsByDateRange(dto, from, to),
+        this.getMostDonatedProducts(dto, from, to),
         this.getProductsByStore(),
         this.getTotalInventory(),
         this.getLotes(),
@@ -1581,7 +1645,13 @@ export class ReportsService {
         providers,
       };
     } catch (error) {
-      console.error('Error al generar el resumen:', error);
+      this.logger.error({
+        timestamp: new Date(),
+        level: 'ERROR',
+        message: 'Error al generar el resumen',
+        internalDetail: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       throw error;
     }
   }
@@ -1612,16 +1682,26 @@ export class ReportsService {
     return { lotes: parseLotesDuplicates };
   }
 
+  private buildSummaryWhere(dto: SummaryReportDto, from: Date, to: Date): any {
+    const where: any = {
+      type: 'Salida',
+      deleted: false,
+      date: { gte: from, lte: to },
+    };
+    if (dto.providerId) where.providerId = dto.providerId;
+    if (dto.lote) where.lote = dto.lote;
+    if (dto.storeId)
+      where.historyInventory = { some: { storeId: dto.storeId } };
+    return where;
+  }
+
   private async getDonationsByDateRange(
+    dto: SummaryReportDto,
     from: Date,
     to: Date,
   ): Promise<DonationSummary[]> {
     const donations = await this.prisma.donation.findMany({
-      where: {
-        type: 'Salida',
-        deleted: false,
-        date: { gte: from, lte: to },
-      },
+      where: this.buildSummaryWhere(dto, from, to),
       include: {
         detDonation: {
           include: { medicine: true },
@@ -1641,15 +1721,12 @@ export class ReportsService {
   }
 
   private async getMostDonatedProducts(
+    dto: SummaryReportDto,
     from: Date,
     to: Date,
   ): Promise<ProductSummary[]> {
     const donations = await this.prisma.donation.findMany({
-      where: {
-        type: 'Salida',
-        deleted: false,
-        date: { gte: from, lte: to },
-      },
+      where: this.buildSummaryWhere(dto, from, to),
       include: {
         detDonation: { include: { medicine: true } },
       },
