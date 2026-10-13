@@ -429,7 +429,7 @@ export class MedicineService {
         createdMedicines.push({
           name: data.Nombre,
           description: data.Descripcion,
-          code: data.Codigo || undefined,
+          code: data.Codigo.toString() || undefined,
           categoryId: category.id,
           medicine: isMedicine,
           presentation: data.Presentacion || '',
