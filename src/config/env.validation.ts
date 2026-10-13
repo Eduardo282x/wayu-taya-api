@@ -40,5 +40,15 @@ export const envValidationSchema = Joi.object({
       'ALLOWED_ORIGINS es obligatoria. Lista de orígenes separados por comas, p.ej. https://app.example.com',
   }),
 
-  LOG_LEVEL: Joi.string().valid('error', 'warn', 'log', 'debug').default('log'),
+  // En producción `debug` está prohibido: aumentaría la superficie de fuga en
+  // los logs. En desarrollo se permite cualquier nivel.
+  LOG_LEVEL: Joi.string()
+    .valid('error', 'warn', 'log', 'debug')
+    .default('log')
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.valid('error', 'warn', 'log').invalid('debug').messages({
+        'any.invalid': 'LOG_LEVEL=debug no está permitido en producción',
+      }),
+    }),
 });

@@ -7,14 +7,16 @@ import {
   Put,
   Delete,
   Query,
-  Res,
+  StreamableFile,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
 import { DonationsService } from './donations.service';
 import { DonationsDTO, GetDonationsQueryDTO } from './donations.dto';
-import { Response } from 'express';
 import { ReportsService } from 'src/reports/reports.service';
+
+const XLSX_MIME =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 @Controller('donations')
 export class DonationsController {
@@ -33,98 +35,70 @@ export class DonationsController {
   }
 
   @Get('/template')
-  async downloadDonationTemplate(@Res() res: Response) {
-    return await this.donationsService.downloadDonationExcelTemplate(res);
+  async downloadDonationTemplate(): Promise<StreamableFile> {
+    const buffer = await this.donationsService.downloadDonationExcelTemplate();
+    return new StreamableFile(buffer, {
+      type: XLSX_MIME,
+      disposition: 'attachment; filename="donacion_plantilla.xlsx"',
+    });
   }
 
   @Get('/download/:id')
-  async downloadDonationPDF(@Param('id') id: string, @Res() res: Response) {
+  async downloadDonationPDF(@Param('id') id: string): Promise<StreamableFile> {
     const donationId = Number(id);
     if (isNaN(donationId)) {
       throw new HttpException('Invalid donation ID', HttpStatus.BAD_REQUEST);
     }
 
-    try {
-      // Llama al servicio que genera el PDF y guarda en archivo temporal o buffer
-      const pdfBuffer = (await this.donationsService.generateDonationPDF(
-        donationId,
-        'normal',
-      )) as Buffer;
+    const pdfBuffer = (await this.donationsService.generateDonationPDF(
+      donationId,
+      'normal',
+    )) as Buffer;
 
-      // Envía el archivo generado como descarga
-      res.set({
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename=factura_no_comercial_${donationId}.pdf`,
-        'Content-Length': pdfBuffer.length,
-      });
-
-      res.end(pdfBuffer);
-    } catch (error) {
-      console.error('Error generando PDF:', error);
-      res.status(500).send('Error generando PDF');
-    }
+    return new StreamableFile(pdfBuffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename=factura_no_comercial_${donationId}.pdf`,
+    });
   }
 
   @Get('/note-delivery/:id')
   async downloadNoteDeliveryDonationPDF(
     @Param('id') id: string,
-    @Res() res: Response,
-  ) {
+  ): Promise<StreamableFile> {
     const donationId = Number(id);
     if (isNaN(donationId)) {
       throw new HttpException('Invalid donation ID', HttpStatus.BAD_REQUEST);
     }
 
-    try {
-      // Llama al servicio que genera el PDF y guarda en archivo temporal o buffer
-      const pdfBuffer = (await this.donationsService.generateDonationPDF(
-        donationId,
-        'delivery',
-      )) as Buffer;
+    const pdfBuffer = (await this.donationsService.generateDonationPDF(
+      donationId,
+      'delivery',
+    )) as Buffer;
 
-      // Envía el archivo generado como descarga
-      res.set({
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename=nota_de_entrega_${donationId}.pdf`,
-        'Content-Length': pdfBuffer.length,
-      });
-
-      res.end(pdfBuffer);
-    } catch (error) {
-      console.error('Error generando PDF:', error);
-      res.status(500).send('Error generando PDF');
-    }
+    return new StreamableFile(pdfBuffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename=nota_de_entrega_${donationId}.pdf`,
+    });
   }
 
   @Get('/certificate/:id')
   async downloadCertificateDonationPDF(
     @Param('id') id: string,
-    @Res() res: Response,
-  ) {
+  ): Promise<StreamableFile> {
     const donationId = Number(id);
     if (isNaN(donationId)) {
       throw new HttpException('Invalid donation ID', HttpStatus.BAD_REQUEST);
     }
 
-    try {
-      // Llama al servicio que genera el PDF y guarda en archivo temporal o buffer
-      const pdfBuffer =
-        (await this.donationsService.downloadCertificateDonationPDF(
-          donationId,
-        )) as Buffer;
+    const pdfBuffer =
+      (await this.donationsService.downloadCertificateDonationPDF(
+        donationId,
+      )) as Buffer;
 
-      // Envía el archivo generado como descarga
-      res.set({
-        'Content-Type': 'application/pdf',
-        'Content-Disposition': `attachment; filename=certificado_de_donacion_${donationId}.pdf`,
-        'Content-Length': pdfBuffer.length,
-      });
-
-      res.end(pdfBuffer);
-    } catch (error) {
-      console.error('Error generando PDF:', error);
-      res.status(500).send('Error generando PDF');
-    }
+    return new StreamableFile(pdfBuffer, {
+      type: 'application/pdf',
+      disposition: `attachment; filename=certificado_de_donacion_${donationId}.pdf`,
+    });
   }
 
   @Post()

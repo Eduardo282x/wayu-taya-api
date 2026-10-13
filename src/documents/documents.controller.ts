@@ -10,15 +10,14 @@ import {
   ParseIntPipe,
   Post,
   Put,
-  Res,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { randomUUID } from 'crypto';
-import { existsSync } from 'fs';
+import { createReadStream, existsSync } from 'fs';
 import { basename, extname, isAbsolute, resolve, sep } from 'path';
-import type { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 
@@ -88,8 +87,7 @@ export class DocumentsController {
   @Throttle({ default: { limit: 30, ttl: 60_000 } })
   async downloadDocument(
     @Param('id', ParseIntPipe) id: number,
-    @Res() res: Response,
-  ) {
+  ): Promise<StreamableFile> {
     const document = await this.documentService.findDocument(id);
 
     if (!document) {
@@ -108,7 +106,9 @@ export class DocumentsController {
     }
 
     // basename evita separadores de ruta en el nombre de descarga.
-    return res.download(filePath, basename(document.name));
+    return new StreamableFile(createReadStream(filePath), {
+      disposition: `attachment; filename="${basename(document.name)}"`,
+    });
   }
 
   @Post()
@@ -170,31 +170,24 @@ export class DocumentsController {
 
   @Get('/pdf/adulto')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  async generateAdultPDF(@Res() res: Response) {
+  async generateAdultPDF(): Promise<StreamableFile> {
     const pdfBuffer = await this.documentService.generateAdultPDF();
 
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition':
-        'attachment; filename=autorizacion_usodeimagen.pdf',
-      'Content-Length': String(pdfBuffer.length),
+    return new StreamableFile(pdfBuffer, {
+      type: 'application/pdf',
+      disposition: 'attachment; filename=autorizacion_usodeimagen.pdf',
     });
-
-    return res.end(pdfBuffer);
   }
 
   @Get('/pdf/representante-legal')
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
-  async generateMinorPDF(@Res() res: Response) {
+  async generateMinorPDF(): Promise<StreamableFile> {
     const pdfBuffer = await this.documentService.generateMinorPDF();
 
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition':
+    return new StreamableFile(pdfBuffer, {
+      type: 'application/pdf',
+      disposition:
         'attachment; filename=autorizacion_usodeimagen_representantelegal.pdf',
-      'Content-Length': String(pdfBuffer.length),
     });
-
-    return res.end(pdfBuffer);
   }
 }

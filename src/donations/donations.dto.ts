@@ -9,6 +9,7 @@ import {
   IsBoolean,
   IsIn,
   Min,
+  Max,
 } from 'class-validator';
 
 export class DonationsDTO {
@@ -50,6 +51,7 @@ export class GetDonationsQueryDTO {
   @Type(() => Number)
   @IsNumber()
   @Min(1)
+  @Max(500)
   size: number;
 
   @IsOptional()

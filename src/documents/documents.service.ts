@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { relative, resolve, sep } from 'path';
 import { PrismaService } from 'src/prisma/prisma.service';
+import { FileLoggerService } from 'src/common/logger/file-logger.service';
+import { loadLogo } from 'src/common/utils/load-logo';
 import { DocumentDTO, NewDocumentDTO } from './documents.dto';
 // eslint-disable-next-line @typescript-eslint/no-require-imports -- plugin CJS sin tipos ESM
 const PDFDocument = require('pdfkit-table');
@@ -20,7 +22,10 @@ function toUploadsRelative(absolutePath: string): string {
 
 @Injectable()
 export class DocumentsService {
-  constructor(private prismaService: PrismaService) {}
+  constructor(
+    private prismaService: PrismaService,
+    private readonly logger: FileLoggerService,
+  ) {}
 
   async getDocuments() {
     const documents = await this.prismaService.documents.findMany({
@@ -186,13 +191,18 @@ export class DocumentsService {
         reject(err instanceof Error ? err : new Error(String(err))),
       );
 
-      try {
-        const logoWidth = 140;
-        const pageWidth = doc.page.width;
-        const x = (pageWidth - logoWidth) / 2;
-        doc.image('src/assets/logo.png', x, 30, { width: logoWidth });
-      } catch (err) {
-        console.warn('No se pudo cargar el logotipo:', err);
+      const logoWidth = 140;
+      const pageWidth = doc.page.width;
+      const x = (pageWidth - logoWidth) / 2;
+      const logo = loadLogo();
+      if (logo) {
+        doc.image(logo, x, 30, { width: logoWidth });
+      } else {
+        this.logger.warn({
+          timestamp: new Date(),
+          level: 'WARN',
+          message: 'No se pudo cargar el logotipo para el PDF de adulto',
+        });
       }
       doc.moveDown(3.5);
 
@@ -254,13 +264,19 @@ export class DocumentsService {
         reject(err instanceof Error ? err : new Error(String(err))),
       );
 
-      try {
-        const logoWidth = 140;
-        const pageWidth = doc.page.width;
-        const x = (pageWidth - logoWidth) / 2;
-        doc.image('src/assets/logo.png', x, 30, { width: logoWidth });
-      } catch (err) {
-        console.warn('No se pudo cargar el logotipo:', err);
+      const logoWidth = 140;
+      const pageWidth = doc.page.width;
+      const x = (pageWidth - logoWidth) / 2;
+      const logo = loadLogo();
+      if (logo) {
+        doc.image(logo, x, 30, { width: logoWidth });
+      } else {
+        this.logger.warn({
+          timestamp: new Date(),
+          level: 'WARN',
+          message:
+            'No se pudo cargar el logotipo para el PDF de representante legal',
+        });
       }
       doc.moveDown(3.5);
 

@@ -1,3 +1,10 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
+/* eslint-disable @typescript-eslint/no-base-to-string */
+/* eslint-disable no-useless-catch */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
   BadRequestException,
   ConflictException,
@@ -12,6 +19,8 @@ import {
 } from './donations.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
 import { AuditService } from 'src/audit/audit.service';
+import { FileLoggerService } from 'src/common/logger/file-logger.service';
+import { loadLogo } from 'src/common/utils/load-logo';
 import PDFDocument from 'pdfkit';
 import * as ExcelJS from 'exceljs';
 
@@ -21,6 +30,7 @@ export class DonationsService {
     private readonly prismaService: PrismaService,
     private readonly inventoryService: InventoryService,
     private readonly auditService: AuditService,
+    private readonly logger: FileLoggerService,
   ) {}
 
   normalizeText(text: string): string {
@@ -87,8 +97,8 @@ export class DonationsService {
     tx: any,
     dets: DetDonationDTO[],
   ): Promise<(DetDonationDTO & { medicineId: number })[]> {
-    const [medicines, categories, forms] = await Promise.all([
-      tx.medicine.findMany({ select: { id: true, name: true, code: true } }),
+    // Catálogos pequeños (categorías/formas): se cargan una vez y se indexan.
+    const [categories, forms] = await Promise.all([
       tx.category.findMany(),
       tx.forms.findMany(),
     ]);
@@ -100,11 +110,70 @@ export class DonationsService {
       forms.map((f: any) => [this.normalizeSearchKey(f.forms), f]),
     );
 
+    // Catálogo de medicinas: consulta DIRIGIDA por id/código del payload en vez
+    // de cargar toda la tabla. El matching por nombre (insensible a acentos) se
+    // resuelve sobre los candidatos; si un detalle solo trae nombre y no hay
+    // coincidencia dirigida, se carga una proyección mínima como respaldo.
+    const ids = [
+      ...new Set(
+        dets
+          .map((d) => d.medicineId)
+          .filter((v): v is number => typeof v === 'number' && v > 0),
+      ),
+    ];
+    const codes = [
+      ...new Set(
+        dets
+          .map((d) => d.medicine?.code)
+          .filter((v): v is string => typeof v === 'string' && v.length > 0),
+      ),
+    ];
+
+    const medicineSelect = { id: true, name: true, code: true } as const;
+    const or: any[] = [];
+    if (ids.length) or.push({ id: { in: ids } });
+    if (codes.length) or.push({ code: { in: codes } });
+
+    const directed: any[] = or.length
+      ? await tx.medicine.findMany({
+          where: { OR: or },
+          select: medicineSelect,
+        })
+      : [];
+
+    const byId = new Map<number, any>();
+    const byCode = new Map<string, any>();
+    const byName = new Map<string, any>();
+    const indexMedicine = (m: any): void => {
+      byId.set(m.id, m);
+      if (m.code) byCode.set(m.code, m);
+      byName.set(this.normalizeText(m.name), m);
+    };
+    directed.forEach(indexMedicine);
+
+    // Respaldo: solo si hay detalles por nombre que no se resolvieron por
+    // id/código (p. ej. medicinas nuevas o solo-nombre).
+    const unresolvedByName = dets.some(
+      (d) =>
+        (!d.medicineId || !byId.has(d.medicineId)) &&
+        d.medicine?.name &&
+        !byName.has(this.normalizeText(d.medicine.name)) &&
+        !(d.medicine.code && byCode.has(d.medicine.code)),
+    );
+    if (unresolvedByName) {
+      const all: any[] = await tx.medicine.findMany({
+        select: medicineSelect,
+      });
+      all.forEach((m) => {
+        if (!byId.has(m.id)) indexMedicine(m);
+      });
+    }
+
     const resolved: (DetDonationDTO & { medicineId: number })[] = [];
 
     for (const det of dets) {
       if (det.medicineId) {
-        const existing = medicines.find((m) => m.id === det.medicineId);
+        const existing = byId.get(det.medicineId);
         if (existing) {
           resolved.push({ ...det, medicineId: existing.id });
           continue;
@@ -118,11 +187,9 @@ export class DonationsService {
         );
 
       const normalizedName = this.normalizeText(name);
-      const match = medicines.find(
-        (m) =>
-          (det.medicine?.code && m.code && det.medicine.code === m.code) ||
-          this.normalizeText(m.name) === normalizedName,
-      );
+      const match =
+        (det.medicine?.code ? byCode.get(det.medicine.code) : undefined) ??
+        byName.get(normalizedName);
       if (match) {
         resolved.push({ ...det, medicineId: match.id });
         continue;
@@ -186,7 +253,7 @@ export class DonationsService {
         },
       });
 
-      medicines.push({ id: created.id, name, code: created.code });
+      indexMedicine({ id: created.id, name, code: created.code });
       resolved.push({ ...det, medicineId: created.id });
     }
 
@@ -285,6 +352,50 @@ export class DonationsService {
           })
         : [];
 
+    // Índices en memoria (una sola pasada) para evitar `.find`/`.filter`
+    // anidados O(página × detalles × filas).
+    const putFirst = <T>(map: Map<string, T>, key: string, value: T): void => {
+      if (!map.has(key)) map.set(key, value);
+    };
+
+    const invByDML = new Map<string, any>();
+    const invByDMS = new Map<string, any>();
+    const invByDM = new Map<string, any>();
+    for (const inv of inventories) {
+      putFirst(
+        invByDML,
+        `${inv.donationId}|${inv.medicineId}|${inv.lote}`,
+        inv,
+      );
+      putFirst(
+        invByDMS,
+        `${inv.donationId}|${inv.medicineId}|${inv.storeId}`,
+        inv,
+      );
+      putFirst(invByDM, `${inv.donationId}|${inv.medicineId}`, inv);
+    }
+
+    const histByDML = new Map<string, any>();
+    const histByDM = new Map<string, any>();
+    for (const h of histories) {
+      putFirst(histByDML, `${h.donationId}|${h.medicineId}|${h.lote}`, h);
+      putFirst(histByDM, `${h.donationId}|${h.medicineId}`, h);
+    }
+
+    const outflowByMLS = new Map<string, any[]>();
+    const outflowByML = new Map<string, any[]>();
+    for (const h of outflowRecords) {
+      const keyML = `${h.medicineId}|${h.lote}`;
+      const arrML = outflowByML.get(keyML);
+      if (arrML) arrML.push(h);
+      else outflowByML.set(keyML, [h]);
+
+      const keyMLS = `${keyML}|${h.storeId}`;
+      const arrMLS = outflowByMLS.get(keyMLS);
+      if (arrMLS) arrMLS.push(h);
+      else outflowByMLS.set(keyMLS, [h]);
+    }
+
     // what got from inv >tie to> donations thingamajig
     const donationsWithDates = donations.map((donation) => {
       const batches: { medicineId: number; lote: string; storeId?: number }[] =
@@ -292,37 +403,15 @@ export class DonationsService {
 
       const detDonationsWithDates = donation.detDonation.map((det) => {
         const lote = det.lote || donation.lote;
+        const dm = `${donation.id}|${det.medicineId}`;
 
         const inventoryRecord =
-          inventories.find(
-            (inv) =>
-              inv.donationId === donation.id &&
-              inv.medicineId === det.medicineId &&
-              inv.lote === lote,
-          ) ??
-          inventories.find(
-            (inv) =>
-              inv.donationId === donation.id &&
-              inv.medicineId === det.medicineId &&
-              inv.storeId === (det as any).storageId,
-          ) ??
-          inventories.find(
-            (inv) =>
-              inv.donationId === donation.id &&
-              inv.medicineId === det.medicineId,
-          );
+          invByDML.get(`${dm}|${lote}`) ??
+          invByDMS.get(`${dm}|${(det as any).storageId}`) ??
+          invByDM.get(dm);
 
         const historyRecord =
-          histories.find(
-            (h) =>
-              h.donationId === donation.id &&
-              h.medicineId === det.medicineId &&
-              h.lote === lote,
-          ) ??
-          histories.find(
-            (h) =>
-              h.donationId === donation.id && h.medicineId === det.medicineId,
-          );
+          histByDML.get(`${dm}|${lote}`) ?? histByDM.get(dm);
 
         const storeId = inventoryRecord?.storeId ?? historyRecord?.storeId;
         batches.push({ medicineId: det.medicineId, lote, storeId });
@@ -336,17 +425,21 @@ export class DonationsService {
         };
       });
 
-      const matchedOutflows = outflowRecords.filter(
-        (h) =>
-          h.donationId !== donation.id &&
-          h.date.getTime() >= donation.date.getTime() &&
-          batches.some(
-            (b) =>
-              b.medicineId === h.medicineId &&
-              b.lote === h.lote &&
-              (b.storeId == null || b.storeId === h.storeId),
-          ),
-      );
+      const matchedOutflows = new Map<number, any>();
+      for (const b of batches) {
+        const candidates =
+          (b.storeId != null
+            ? outflowByMLS.get(`${b.medicineId}|${b.lote}|${b.storeId}`)
+            : outflowByML.get(`${b.medicineId}|${b.lote}`)) ?? [];
+        for (const h of candidates) {
+          if (
+            h.donationId !== donation.id &&
+            h.date.getTime() >= donation.date.getTime()
+          ) {
+            matchedOutflows.set(h.id, h);
+          }
+        }
+      }
 
       const outflowMap = new Map<
         string,
@@ -358,7 +451,7 @@ export class DonationsService {
           transferencias: number;
         }
       >();
-      for (const h of matchedOutflows) {
+      for (const h of matchedOutflows.values()) {
         const key = `${h.medicineId}|${h.lote}|${h.storeId}`;
         const current = outflowMap.get(key) ?? {
           medicineId: h.medicineId,
@@ -919,13 +1012,18 @@ export class DonationsService {
           return `${day}/${month}/${year}`;
         };
 
-        // Logo a la derecha
-        try {
-          doc.image('src/assets/logo.png', TABLE_X + TABLE_W - LOGO_W, 10, {
+        // Logo a la derecha (se omite si el asset no está disponible)
+        const logoRight = loadLogo();
+        if (logoRight) {
+          doc.image(logoRight, TABLE_X + TABLE_W - LOGO_W, 10, {
             width: LOGO_W,
           });
-        } catch (err) {
-          console.warn('No se pudo cargar el logotipo:', err);
+        } else {
+          this.logger.warn({
+            timestamp: new Date(),
+            level: 'WARN',
+            message: 'No se pudo cargar el logotipo para el PDF de donación',
+          });
         }
 
         // Título y subtítulo
@@ -1170,7 +1268,13 @@ export class DonationsService {
 
       return filePDF;
     } catch (error) {
-      console.error('Error generando PDF de donación:', error);
+      this.logger.error({
+        timestamp: new Date(),
+        level: 'ERROR',
+        message: 'Error generando PDF de donación',
+        internalDetail: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       throw new Error(
         'Error generando PDF de donación: ' +
           (error instanceof Error ? error.message : String(error)),
@@ -1234,11 +1338,16 @@ export class DonationsService {
         const X_LEFT = 52.68;
         const RIGHT_X = 348.67;
 
-        // Logo a la izquierda, arriba del marco
-        try {
-          doc.image('src/assets/logo.png', 54.02, 10, { width: 200 });
-        } catch (err) {
-          console.warn('No se pudo cargar el logotipo:', err);
+        // Logo a la izquierda, arriba del marco (se omite si no está el asset)
+        const logoLeft = loadLogo();
+        if (logoLeft) {
+          doc.image(logoLeft, 54.02, 10, { width: 200 });
+        } else {
+          this.logger.warn({
+            timestamp: new Date(),
+            level: 'WARN',
+            message: 'No se pudo cargar el logotipo para el certificado',
+          });
         }
 
         // Banda con el título
@@ -1349,7 +1458,13 @@ export class DonationsService {
 
       return filePDF;
     } catch (error) {
-      console.error('Error generando certificado de donación:', error);
+      this.logger.error({
+        timestamp: new Date(),
+        level: 'ERROR',
+        message: 'Error generando certificado de donación',
+        internalDetail: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       throw new Error(
         'Error generando certificado de donación: ' +
           (error instanceof Error ? error.message : String(error)),
@@ -1358,7 +1473,7 @@ export class DonationsService {
     }
   }
 
-  async downloadDonationExcelTemplate(res: any) {
+  async downloadDonationExcelTemplate(): Promise<Buffer> {
     try {
       const medicines = await this.prismaService.medicine.findMany({
         select: { name: true, presentation: true },
@@ -1451,16 +1566,8 @@ export class DonationsService {
 
       (workbook as any).views = [{ activeTab: 0 }];
 
-      res.setHeader(
-        'Content-Type',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      );
-      res.setHeader(
-        'Content-Disposition',
-        'attachment; filename="donacion_plantilla.xlsx"',
-      );
-      await workbook.xlsx.write(res);
-      res.end();
+      const buffer = await workbook.xlsx.writeBuffer();
+      return Buffer.from(buffer);
     } catch (error) {
       throw error;
     }
