@@ -5,6 +5,7 @@ import {
   IsOptional,
   IsString,
   Min,
+  Max,
 } from 'class-validator';
 
 export class MedicineDTO {
@@ -62,6 +63,7 @@ export class GetMedicineQueryDTO {
   @Type(() => Number)
   @IsNumber()
   @Min(1)
+  @Max(500)
   size: number;
 
   @IsOptional()

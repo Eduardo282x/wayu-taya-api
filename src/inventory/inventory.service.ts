@@ -5,19 +5,28 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AuditService } from 'src/audit/audit.service';
+import { FileLoggerService } from 'src/common/logger/file-logger.service';
 import {
   HistoryQueryDto,
   InventoryDto,
   InventoryMoveDto,
   InventoryOutDTO,
   GetInventoryQueryDto,
+  AlertsQueryDto,
 } from './inventory.dto';
+
+/** Umbrales por defecto de las alertas, configurables por entorno. */
+const DEFAULT_EXPIRY_WINDOW_DAYS =
+  Number.parseInt(process.env.ALERTS_EXPIRY_DAYS ?? '30', 10) || 30;
+const DEFAULT_MIN_STOCK =
+  Number.parseInt(process.env.ALERTS_MIN_STOCK ?? '10', 10) || 0;
 
 @Injectable()
 export class InventoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly auditService: AuditService,
+    private readonly logger: FileLoggerService,
   ) {}
 
   async getInventory(query?: GetInventoryQueryDto) {
@@ -249,6 +258,9 @@ export class InventoryService {
     */
   async getHistory(query?: HistoryQueryDto) {
     try {
+      const page = query?.page ?? 1;
+      const size = query?.size ?? 100;
+
       const where: any = {};
       if (query) {
         const fromDate =
@@ -267,20 +279,118 @@ export class InventoryService {
         }
       }
 
-      const history = await this.prisma.historyInventory.findMany({
-        where,
-        orderBy: { date: 'desc' },
-        include: {
-          medicine: true,
-          store: true,
-          donation: true,
-        },
-      });
+      const [history, total] = await Promise.all([
+        this.prisma.historyInventory.findMany({
+          where,
+          orderBy: { date: 'desc' },
+          skip: (page - 1) * size,
+          take: size,
+          include: {
+            medicine: true,
+            store: true,
+            donation: true,
+          },
+        }),
+        this.prisma.historyInventory.count({ where }),
+      ]);
 
-      return { history };
+      return {
+        history,
+        pagination: {
+          total,
+          page,
+          size,
+          totalPages: Math.ceil(total / size),
+        },
+      };
     } catch (error) {
       throw error;
     }
+  }
+
+  /**
+   * Alertas de salud: lotes próximos a vencer y medicinas con stock bajo.
+   * Umbrales por defecto configurables por env.
+   */
+  async getAlerts(query?: AlertsQueryDto) {
+    const days = query?.days ?? DEFAULT_EXPIRY_WINDOW_DAYS;
+    const minStock = query?.minStock ?? DEFAULT_MIN_STOCK;
+    const storeId = query?.storeId;
+
+    const now = new Date();
+    const limitDate = new Date(now.getTime() + days * 24 * 60 * 60 * 1000);
+
+    const storeFilter = storeId ? { storeId } : {};
+
+    const [expiringLotes, lowStock] = await Promise.all([
+      this.prisma.inventory.findMany({
+        where: {
+          ...storeFilter,
+          stock: { gt: 0 },
+          expirationDate: { lte: limitDate },
+        },
+        include: { medicine: true, store: true },
+        orderBy: { expirationDate: 'asc' },
+      }),
+      this.prisma.inventory.groupBy({
+        by: ['medicineId', 'storeId'],
+        where: storeFilter,
+        _sum: { stock: true },
+        having: { stock: { _sum: { lt: minStock } } },
+      }),
+    ]);
+
+    // Resuelve nombres de medicina/almacén en una sola consulta por tabla.
+    const medicineIds = [...new Set(lowStock.map((l) => l.medicineId))];
+    const storeIds = [...new Set(lowStock.map((l) => l.storeId))];
+
+    const medicines: { id: number; name: string; presentation: string }[] =
+      medicineIds.length
+        ? await this.prisma.medicine.findMany({
+            where: { id: { in: medicineIds } },
+            select: { id: true, name: true, presentation: true },
+          })
+        : [];
+    const stores: { id: number; name: string }[] = storeIds.length
+      ? await this.prisma.store.findMany({
+          where: { id: { in: storeIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+
+    const medicineById = new Map<
+      number,
+      { id: number; name: string; presentation: string }
+    >();
+    for (const m of medicines) medicineById.set(m.id, m);
+    const storeById = new Map<number, { id: number; name: string }>();
+    for (const s of stores) storeById.set(s.id, s);
+
+    return {
+      thresholds: { days, minStock },
+      expiringLotes: expiringLotes.map((inv) => ({
+        inventoryId: inv.id,
+        medicineId: inv.medicineId,
+        medicineName: inv.medicine?.name ?? null,
+        storeId: inv.storeId,
+        storeName: inv.store?.name ?? null,
+        lote: inv.lote,
+        stock: inv.stock,
+        expirationDate: inv.expirationDate,
+        daysToExpire: Math.ceil(
+          (inv.expirationDate.getTime() - now.getTime()) /
+            (24 * 60 * 60 * 1000),
+        ),
+      })),
+      lowStock: lowStock.map((row) => ({
+        medicineId: row.medicineId,
+        medicineName: medicineById.get(row.medicineId)?.name ?? null,
+        presentation: medicineById.get(row.medicineId)?.presentation ?? null,
+        storeId: row.storeId,
+        storeName: storeById.get(row.storeId)?.name ?? null,
+        totalStock: row._sum.stock ?? 0,
+      })),
+    };
   }
 
   async processInventory(inventory: InventoryDto, tx?: any) {
@@ -977,7 +1087,13 @@ export class InventoryService {
         };
       });
     } catch (error) {
-      console.error('Error en la transferencia de inventario:', error);
+      this.logger.error({
+        timestamp: new Date(),
+        level: 'ERROR',
+        message: 'Error en la transferencia de inventario',
+        internalDetail: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
       throw new Error(
         `No se pudo completar la transferencia: ${error instanceof Error ? error.message : String(error)}`,
         { cause: error },

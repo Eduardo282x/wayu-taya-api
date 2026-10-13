@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Body, Query, Put } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import {
+  AlertsQueryDto,
   HistoryQueryDto,
   InventoryDto,
   InventoryMoveDto,
@@ -20,6 +21,11 @@ export class InventoryController {
   @Get('/historial')
   async getHistory(@Query() query: HistoryQueryDto) {
     return await this.inventoryService.getHistory(query);
+  }
+
+  @Get('/alerts')
+  async getAlerts(@Query() query: AlertsQueryDto) {
+    return await this.inventoryService.getAlerts(query);
   }
 
   @Post()

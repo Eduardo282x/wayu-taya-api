@@ -7,14 +7,16 @@ import {
   Post,
   Put,
   Query,
-  Res,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { MedicineService } from './medicine.service';
 import { GetMedicineQueryDTO, MedicineDTO } from './medicine.dto';
-import { Response } from 'express';
 import { FileInterceptor } from '@nestjs/platform-express';
+
+const XLSX_MIME =
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 @Controller('medicine')
 export class MedicineController {
@@ -36,8 +38,12 @@ export class MedicineController {
   }
   // Servicio para descargar el formato Excel
   @Get('/template')
-  async downloadTemplate(@Res() res: Response) {
-    return this.medicineService.downloadExcelTemplate(res);
+  async downloadTemplate(): Promise<StreamableFile> {
+    const buffer = await this.medicineService.downloadExcelTemplate();
+    return new StreamableFile(buffer, {
+      type: XLSX_MIME,
+      disposition: 'attachment; filename="medicine_template.xlsx"',
+    });
   }
 
   @Post()

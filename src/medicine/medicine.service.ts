@@ -9,8 +9,11 @@ import {
   CategoryDTO,
   FormsDTO,
 } from './medicine.dto';
+import {
+  medicineImportRowSchema,
+  MedicineImportRowError,
+} from './dto/medicine-import.schema';
 import * as ExcelJS from 'exceljs';
-import { Response } from 'express';
 
 const MEDICINE_EXCEL_FIELDS = {
   code: 'Codigo',
@@ -89,32 +92,47 @@ export class MedicineService {
     return this.normalizeText(value).replace(/\s+/g, ' ');
   }
 
-  private async resolveCategory(value: string): Promise<number> {
+  private async resolveCategory(value: string, tx: any): Promise<number> {
     const key = this.normalizeSearchKey(value);
-    const categories = await this.prismaService.category.findMany({
+    // 1) Coincidencia exacta insensible a mayúsculas (consulta dirigida).
+    const exact = await tx.category.findFirst({
+      where: { category: { equals: value.trim(), mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (exact) return exact.id;
+    // 2) Coincidencia insensible a acentos sobre el catálogo (pequeño).
+    const categories = await tx.category.findMany({
       select: { id: true, category: true },
     });
     const existing = categories.find(
-      (c) => this.normalizeSearchKey(c.category) === key,
+      (c: any) => this.normalizeSearchKey(c.category) === key,
     );
     if (existing) return existing.id;
-    const created = await this.prismaService.category.create({
+    const created = await tx.category.create({
       data: { category: this.toTitleCase(value) },
     });
     return created.id;
   }
 
-  private async resolveForm(value?: string): Promise<number> {
+  private async resolveForm(
+    value: string | undefined,
+    tx: any,
+  ): Promise<number> {
     if (!value || !this.normalizeSearchKey(value)) return 14;
     const key = this.normalizeSearchKey(value);
-    const forms = await this.prismaService.forms.findMany({
+    const exact = await tx.forms.findFirst({
+      where: { forms: { equals: value.trim(), mode: 'insensitive' } },
+      select: { id: true },
+    });
+    if (exact) return exact.id;
+    const forms = await tx.forms.findMany({
       select: { id: true, forms: true },
     });
     const existing = forms.find(
-      (f) => this.normalizeSearchKey(f.forms) === key,
+      (f: any) => this.normalizeSearchKey(f.forms) === key,
     );
     if (existing) return existing.id;
-    const created = await this.prismaService.forms.create({
+    const created = await tx.forms.create({
       data: { forms: this.toTitleCase(value) },
     });
     return created.id;
@@ -122,32 +140,39 @@ export class MedicineService {
 
   async createMedicine(medicine: MedicineDTO) {
     try {
-      const [categoryId, formId] = await Promise.all([
-        this.resolveCategory(medicine.category),
-        this.resolveForm(medicine.form),
-      ]);
+      // Resolución de categoría/forma y escritura en una sola transacción:
+      // si algo falla, no quedan categorías/formas huérfanas creadas.
+      const medicineCreated = await this.prismaService.$transaction(
+        async (tx) => {
+          const [categoryId, formId] = await Promise.all([
+            this.resolveCategory(medicine.category, tx),
+            this.resolveForm(medicine.form, tx),
+          ]);
 
-      const medicineCreated = await this.prismaService.medicine.create({
-        data: {
-          name: medicine.name,
-          description: medicine.description,
-          code: medicine.code,
-          lote: medicine.lote,
-          categoryId,
-          medicine: medicine.medicine,
-          provider: medicine.provider ? medicine.provider : '',
-          presentation: medicine.presentation ? medicine.presentation : '',
-          temperate: medicine.temperate ? medicine.temperate : '',
-          manufacturer: medicine.manufacturer ? medicine.manufacturer : '',
-          activeIngredient: medicine.activeIngredient
-            ? medicine.activeIngredient
-            : '',
-          countryOfOrigin: medicine.countryOfOrigin
-            ? medicine.countryOfOrigin
-            : '',
-          formId,
+          return tx.medicine.create({
+            data: {
+              name: medicine.name,
+              description: medicine.description,
+              code: medicine.code,
+              lote: medicine.lote,
+              categoryId,
+              medicine: medicine.medicine,
+              provider: medicine.provider ? medicine.provider : '',
+              presentation: medicine.presentation ? medicine.presentation : '',
+              temperate: medicine.temperate ? medicine.temperate : '',
+              manufacturer: medicine.manufacturer ? medicine.manufacturer : '',
+              activeIngredient: medicine.activeIngredient
+                ? medicine.activeIngredient
+                : '',
+              countryOfOrigin: medicine.countryOfOrigin
+                ? medicine.countryOfOrigin
+                : '',
+              formId,
+            },
+          });
         },
-      });
+      );
+
       await this.auditService.record({
         action: 'CREATE',
         entity: 'Medicine',
@@ -170,33 +195,37 @@ export class MedicineService {
         where: { id },
       });
 
-      const [categoryId, formId] = await Promise.all([
-        this.resolveCategory(medicine.category),
-        this.resolveForm(medicine.form),
-      ]);
+      const medicineUpdated = await this.prismaService.$transaction(
+        async (tx) => {
+          const [categoryId, formId] = await Promise.all([
+            this.resolveCategory(medicine.category, tx),
+            this.resolveForm(medicine.form, tx),
+          ]);
 
-      const medicineUpdated = await this.prismaService.medicine.update({
-        data: {
-          name: medicine.name,
-          description: medicine.description,
-          code: medicine.code,
-          lote: medicine.lote,
-          categoryId,
-          medicine: medicine.medicine,
-          provider: medicine.provider ? medicine.provider : '',
-          presentation: medicine.presentation ? medicine.presentation : '',
-          temperate: medicine.temperate ? medicine.temperate : '',
-          manufacturer: medicine.manufacturer ? medicine.manufacturer : '',
-          activeIngredient: medicine.activeIngredient
-            ? medicine.activeIngredient
-            : '',
-          countryOfOrigin: medicine.countryOfOrigin
-            ? medicine.countryOfOrigin
-            : '',
-          formId,
+          return tx.medicine.update({
+            data: {
+              name: medicine.name,
+              description: medicine.description,
+              code: medicine.code,
+              lote: medicine.lote,
+              categoryId,
+              medicine: medicine.medicine,
+              provider: medicine.provider ? medicine.provider : '',
+              presentation: medicine.presentation ? medicine.presentation : '',
+              temperate: medicine.temperate ? medicine.temperate : '',
+              manufacturer: medicine.manufacturer ? medicine.manufacturer : '',
+              activeIngredient: medicine.activeIngredient
+                ? medicine.activeIngredient
+                : '',
+              countryOfOrigin: medicine.countryOfOrigin
+                ? medicine.countryOfOrigin
+                : '',
+              formId,
+            },
+            where: { id: id },
+          });
         },
-        where: { id: id },
-      });
+      );
 
       await this.auditService.record({
         action: 'UPDATE',
@@ -302,7 +331,7 @@ export class MedicineService {
     }
   }
 
-  async downloadExcelTemplate(res: Response) {
+  async downloadExcelTemplate(): Promise<Buffer> {
     try {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet('Medicinas');
@@ -349,16 +378,8 @@ export class MedicineService {
         worksheet.addRow(columns.map((key) => row[key] ?? '')),
       );
 
-      res.setHeader(
-        'Content-Type',
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      );
-      res.setHeader(
-        'Content-Disposition',
-        'attachment; filename="medicine_template.xlsx"',
-      );
-      await workbook.xlsx.write(res);
-      res.end();
+      const buffer = await workbook.xlsx.writeBuffer();
+      return Buffer.from(buffer);
     } catch (error) {
       throw error;
     }
@@ -374,7 +395,7 @@ export class MedicineService {
       await workbook.xlsx.load(Buffer.from(file.buffer) as any);
       const worksheet = workbook.getWorksheet(1);
 
-      const rawData: MedicineFormatExcel[] = [];
+      const rawRows: { data: MedicineFormatExcel; row: number }[] = [];
       const headers: string[] = [];
 
       worksheet.eachRow((row, rowNumber) => {
@@ -394,14 +415,36 @@ export class MedicineService {
         });
 
         if (rowData[MEDICINE_EXCEL_FIELDS.name]) {
-          rawData.push(rowData as unknown as MedicineFormatExcel);
+          rawRows.push({
+            data: rowData as unknown as MedicineFormatExcel,
+            row: rowNumber,
+          });
         }
       });
+
+      // Validación con zod (fuente única): las filas inválidas se reportan por
+      // fila/campo y no se insertan.
+      const invalidRows: MedicineImportRowError[] = [];
+      const validRows: MedicineFormatExcel[] = [];
+      for (const { data, row } of rawRows) {
+        const parsed = medicineImportRowSchema.safeParse(data);
+        if (!parsed.success) {
+          for (const issue of parsed.error.issues) {
+            invalidRows.push({
+              row,
+              field: issue.path.join('.') || '(fila)',
+              message: issue.message,
+            });
+          }
+          continue;
+        }
+        validRows.push(parsed.data as unknown as MedicineFormatExcel);
+      }
 
       const createdMedicines: any[] = [];
       const skippedMedicines: string[] = [];
 
-      for (const data of rawData) {
+      for (const data of validRows) {
         const normalizedName = this.normalizeText(
           data[MEDICINE_EXCEL_FIELDS.name],
         );
@@ -454,7 +497,7 @@ export class MedicineService {
         createdMedicines.push({
           name: data[MEDICINE_EXCEL_FIELDS.name],
           description: data[MEDICINE_EXCEL_FIELDS.description],
-          code: data[MEDICINE_EXCEL_FIELDS.code].toString() || undefined,
+          code: data[MEDICINE_EXCEL_FIELDS.code]?.toString() || undefined,
           categoryId: category.id,
           medicine: isMedicine,
           lote: data[MEDICINE_EXCEL_FIELDS.lote] || '',
@@ -479,23 +522,26 @@ export class MedicineService {
         action: 'CREATE',
         entity: 'Medicine',
         entityId: null,
-        description: `Carga masiva de medicinas: ${createdMedicines.length} agregada(s), ${skippedMedicines.length} omitida(s)`,
+        description: `Carga masiva de medicinas: ${createdMedicines.length} agregada(s), ${skippedMedicines.length} omitida(s), ${invalidRows.length} inválida(s)`,
         metadata: {
           inserted: createdMedicines.length,
           skipped: skippedMedicines.length,
           medicines: createdMedicines.map((m) => m.name),
           skippedItems: skippedMedicines,
+          invalidRows,
         },
       });
 
       return {
         message:
           `Carga completada: ${createdMedicines.length} medicina(s) agregada(s), ` +
-          `${skippedMedicines.length} ya existían y fueron omitidas.`,
+          `${skippedMedicines.length} ya existían y fueron omitidas, ` +
+          `${invalidRows.length} fila(s) inválida(s).`,
         data: {
           inserted: createdMedicines.length,
           skipped: skippedMedicines.length,
           skippedItems: skippedMedicines,
+          invalidRows,
         },
       };
     } catch (error) {

@@ -2,12 +2,14 @@ import { Transform, Type } from 'class-transformer';
 import {
   IsInt,
   Min,
+  Max,
   IsDate,
   IsOptional,
   IsString,
   ValidateNested,
   IsArray,
   IsNumber,
+  IsIn,
 } from 'class-validator';
 
 export class InventoryDto {
@@ -25,6 +27,7 @@ export class InventoryDto {
 
   // for history
   @IsString()
+  @IsIn(['Entrada', 'Salida'])
   type: string;
 
   @IsDate()
@@ -70,6 +73,19 @@ export class HistoryQueryDto {
   @IsDate()
   @Transform(({ value }) => new Date(value))
   to: Date;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  page: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(500)
+  size: number;
 }
 
 export class GetInventoryQueryDto {
@@ -83,6 +99,7 @@ export class GetInventoryQueryDto {
   @Type(() => Number)
   @IsNumber()
   @Min(1)
+  @Max(500)
   size: number;
 
   @IsOptional()
@@ -125,4 +142,26 @@ export class InventoryOutDTO {
   amount: number;
   @IsString()
   observations: string;
+}
+
+export class AlertsQueryDto {
+  /** Ventana de días hacia delante para lotes por vencer. */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  @Max(365)
+  days: number;
+
+  /** Umbral de stock mínimo (agregado por medicina/almacén). */
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  minStock: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  storeId: number;
 }
