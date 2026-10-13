@@ -21,7 +21,6 @@ import { DocumentsModule } from './documents/documents.module';
 import { UsersModule } from './users/users.module';
 import { PeopleModule } from './people/people.module';
 import { ProgramsModule } from './programs/programs.module';
-import { MainLoadModule } from './main-load/main-load.module';
 import { StoreModule } from './store/store.module';
 import { MedicineModule } from './medicine/medicine.module';
 import { InventoryModule } from './inventory/inventory.module';
@@ -63,7 +62,6 @@ import { AuditContextInterceptor } from './audit/audit-context.interceptor';
     UsersModule,
     PeopleModule,
     ProgramsModule,
-    MainLoadModule,
     StoreModule,
     MedicineModule,
     InventoryModule,
