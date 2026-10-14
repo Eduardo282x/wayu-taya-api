@@ -214,6 +214,144 @@ export class InventoryService {
       },
     };
   }
+
+  /**
+   * Resumen agregado del inventario: total de unidades, desglose por almacén y
+   * separación medicamento/producto. Se calcula con agregados de Prisma (sin
+   * cargar filas) para no penalizar el tiempo de respuesta.
+   */
+  async getInventorySummary(query?: GetInventoryQueryDto) {
+    const where: any = {};
+    if (query?.storeId) {
+      where.storeId = query.storeId;
+    }
+    if (query?.name) {
+      where.medicine = {
+        name: { contains: query.name, mode: 'insensitive' },
+      };
+    }
+
+    // Una sola pasada agrupada por almacén + medicina: de aquí se derivan los
+    // totales, el desglose por almacén y el de medicamento/producto.
+    const groups = await this.prisma.inventory.groupBy({
+      by: ['storeId', 'medicineId'],
+      where,
+      _sum: { stock: true },
+      _count: { _all: true },
+    });
+
+    const medicineIds = [...new Set(groups.map((g) => g.medicineId))];
+
+    const [stores, medicines] = await Promise.all([
+      this.prisma.store.findMany({
+        select: {
+          id: true,
+          name: true,
+          address: true,
+          capacity: true,
+          deleted: true,
+        },
+      }),
+      medicineIds.length
+        ? this.prisma.medicine.findMany({
+            where: { id: { in: medicineIds } },
+            select: { id: true, medicine: true },
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const medicineFlagById = new Map<number, boolean>(
+      medicines.map((m): [number, boolean] => [m.id, m.medicine]),
+    );
+
+    // Acumuladores por almacén y por medicina.
+    const perStore = new Map<
+      number,
+      { items: number; records: number; medicines: Set<number> }
+    >();
+    const perMedicine = new Map<number, number>();
+
+    let totalItems = 0;
+    let totalRecords = 0;
+
+    for (const group of groups) {
+      const items = group._sum.stock ?? 0;
+      const records = group._count._all;
+
+      totalItems += items;
+      totalRecords += records;
+
+      const store = perStore.get(group.storeId) ?? {
+        items: 0,
+        records: 0,
+        medicines: new Set<number>(),
+      };
+      store.items += items;
+      store.records += records;
+      store.medicines.add(group.medicineId);
+      perStore.set(group.storeId, store);
+
+      perMedicine.set(
+        group.medicineId,
+        (perMedicine.get(group.medicineId) ?? 0) + items,
+      );
+    }
+
+    // Desglose medicamento vs producto (unidades y cantidad distinta).
+    let medicamentosItems = 0;
+    let medicamentosCount = 0;
+    let productosItems = 0;
+    let productosCount = 0;
+    for (const [medicineId, items] of perMedicine) {
+      if (medicineFlagById.get(medicineId) ?? false) {
+        medicamentosItems += items;
+        medicamentosCount += 1;
+      } else {
+        productosItems += items;
+        productosCount += 1;
+      }
+    }
+
+    // Se listan todos los almacenes activos (0 si no tienen stock) y cualquier
+    // almacén con inventario aunque esté marcado como eliminado, para no ocultar
+    // datos existentes.
+    const byStore = stores
+      .filter((store) => !store.deleted || perStore.has(store.id))
+      .map((store) => {
+        const accumulated = perStore.get(store.id);
+        const items = accumulated?.items ?? 0;
+        const usedCapacity = items;
+        const capacity = store.capacity ?? 0;
+        const availableCapacity = Math.max(capacity - usedCapacity, 0);
+        const capacityPercentage =
+          capacity > 0
+            ? Math.round((usedCapacity / capacity) * 10000) / 100
+            : 0;
+
+        return {
+          storeId: store.id,
+          storeName: store.name,
+          address: store.address,
+          items,
+          records: accumulated?.records ?? 0,
+          medicines: accumulated?.medicines.size ?? 0,
+          capacity,
+          usedCapacity,
+          availableCapacity,
+          capacityPercentage,
+        };
+      })
+      .sort((a, b) => b.items - a.items);
+
+    return {
+      totalItems,
+      totalRecords,
+      totalMedicines: medicineIds.length,
+      medicamentos: { items: medicamentosItems, count: medicamentosCount },
+      productos: { items: productosItems, count: productosCount },
+      byStore,
+    };
+  }
   /*
         async createInventoryOld(inventory: InventoryDto) {
             try {

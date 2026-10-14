@@ -28,6 +28,11 @@ export class InventoryController {
     return await this.inventoryService.getAlerts(query);
   }
 
+  @Get('/summary')
+  async getInventorySummary(@Query() query: GetInventoryQueryDto) {
+    return await this.inventoryService.getInventorySummary(query);
+  }
+
   @Post()
   async processInventory(@Body() inventory: InventoryDto) {
     return await this.inventoryService.processInventory(inventory);
