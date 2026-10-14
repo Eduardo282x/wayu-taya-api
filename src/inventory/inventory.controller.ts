@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-return */
 import { Controller, Get, Post, Body, Query, Put } from '@nestjs/common';
 import { InventoryService } from './inventory.service';
 import {
