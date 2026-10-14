@@ -260,10 +260,7 @@ export class DonationsService {
     return resolved;
   }
 
-  async getDonations(query?: GetDonationsQueryDTO) {
-    const page = query?.page ?? 1;
-    const size = query?.size ?? 100;
-
+  private buildDonationWhere(query?: GetDonationsQueryDTO): any {
     // Las donaciones con soft-delete no se listan.
     const where: any = { deleted: false };
     if (query?.lote) {
@@ -289,6 +286,98 @@ export class DonationsService {
       if (query.startDate) where.date.gte = query.startDate;
       if (query.endDate) where.date.lte = query.endDate;
     }
+    return where;
+  }
+
+  /**
+   * Resumen agregado del conjunto de donaciones que cumple el mismo filtro de
+   * `getDonations`. Se calcula con agregados de Prisma (sin cargar filas) para
+   * no penalizar el tiempo de respuesta.
+   */
+  async getDonationsSummary(query?: GetDonationsQueryDTO) {
+    const where = this.buildDonationWhere(query);
+
+    // Añade el tipo como condición AND para no pisar un `type` ya filtrado.
+    const withType = (type: string): any => ({
+      ...where,
+      AND: [...(where.AND ?? []), { type }],
+    });
+
+    // conteo de donaciones por tipo + rango real de fechas.
+    const donationsByType = this.prismaService.donation.groupBy({
+      by: ['type'],
+      where,
+      _count: { _all: true },
+      _min: { date: true },
+      _max: { date: true },
+    });
+
+    // items/beneficiados por tipo (una sola pasada agregada por cada tipo).
+    const itemsByType = (type: 'Entrada' | 'Salida') =>
+      this.prismaService.detDonation.aggregate({
+        where: { donation: withType(type) },
+        _sum: { amount: true, benefited: true },
+      });
+
+    const [grouped, entrada, salida] = await Promise.all([
+      donationsByType,
+      itemsByType('Entrada'),
+      itemsByType('Salida'),
+    ]);
+
+    const countsByType = new Map<string, number>(
+      grouped.map((row) => [row.type, row._count._all]),
+    );
+    const entradaDonations = countsByType.get('Entrada') ?? 0;
+    const salidaDonations = countsByType.get('Salida') ?? 0;
+    const totalDonations = entradaDonations + salidaDonations;
+
+    const entradaItems = entrada._sum.amount ?? 0;
+    const salidaItems = salida._sum.amount ?? 0;
+    const entradaBenefited = entrada._sum.benefited ?? 0;
+    const salidaBenefited = salida._sum.benefited ?? 0;
+    const totalItems = entradaItems + salidaItems;
+    const totalBenefited = entradaBenefited + salidaBenefited;
+
+    // El rango de fechas se obtiene del mínimo/máximo entre los grupos de tipo.
+    const dates = grouped
+      .flatMap((row) => [row._min.date, row._max.date])
+      .filter((value): value is Date => value instanceof Date);
+    const dateRange =
+      dates.length > 0
+        ? {
+            from: new Date(Math.min(...dates.map((d) => d.getTime()))),
+            to: new Date(Math.max(...dates.map((d) => d.getTime()))),
+          }
+        : null;
+
+    return {
+      totalDonations,
+      totalItems,
+      totalBenefited,
+      entrada: {
+        donations: entradaDonations,
+        items: entradaItems,
+        benefited: entradaBenefited,
+      },
+      salida: {
+        donations: salidaDonations,
+        items: salidaItems,
+        benefited: salidaBenefited,
+      },
+      averageItemsPerDonation:
+        totalDonations > 0
+          ? Number((totalItems / totalDonations).toFixed(2))
+          : 0,
+      dateRange,
+    };
+  }
+
+  async getDonations(query?: GetDonationsQueryDTO) {
+    const page = query?.page ?? 1;
+    const size = query?.size ?? 100;
+
+    const where = this.buildDonationWhere(query);
 
     // grab all
     const [donations, total] = await Promise.all([

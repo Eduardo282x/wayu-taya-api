@@ -34,6 +34,11 @@ export class DonationsController {
     return await this.reportService.getLotes();
   }
 
+  @Get('/summary')
+  async getDonationsSummary(@Query() query: GetDonationsQueryDTO) {
+    return await this.donationsService.getDonationsSummary(query);
+  }
+
   @Get('/template')
   async downloadDonationTemplate(): Promise<StreamableFile> {
     const buffer = await this.donationsService.downloadDonationExcelTemplate();

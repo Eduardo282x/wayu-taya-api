@@ -58,6 +58,9 @@ report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 # Prisma
 /generated
 /src/generated
+/prisma/seed.ts
+/prisma/seed.data.ts
+/scripts/clean-health-data.ts
 
 # IA
 opencode.json
