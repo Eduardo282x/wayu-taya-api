@@ -10,6 +10,7 @@ import {
   ConflictException,
   HttpException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import {
@@ -41,6 +42,53 @@ export class DonationsService {
     private readonly auditService: AuditService,
     private readonly logger: FileLoggerService,
   ) {}
+
+  /** Los conflictos de escritura/deadlocks son transitorios y se reintentan. */
+  private isRetryableTransactionError(error: unknown): boolean {
+    const code = (error as { code?: string } | null)?.code;
+    return code === 'P2034' || code === 'P2028';
+  }
+
+  private isPrismaError(error: unknown): boolean {
+    const code = (error as { code?: string } | null)?.code;
+    return typeof code === 'string' && /^P\d{4}$/.test(code);
+  }
+
+  private delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Transacción interactiva con aislamiento Serializable y reintentos para
+   * evitar que dos usuarios dejen el inventario inconsistente.
+   */
+  private async withTransaction<T>(
+    operation: (tx: any) => Promise<T>,
+  ): Promise<T> {
+    const attempts = 3;
+    let lastError: unknown;
+
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        return await this.prismaService.$transaction(operation, {
+          timeout: 60_000,
+          maxWait: 20_000,
+          isolationLevel: 'Serializable',
+        } as any);
+      } catch (error) {
+        lastError = error;
+        if (attempt < attempts && this.isRetryableTransactionError(error)) {
+          await this.delay(150 * attempt + Math.floor(Math.random() * 200));
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    throw lastError instanceof Error
+      ? lastError
+      : new Error('No se pudo completar la transacción.');
+  }
 
   normalizeText(text: string): string {
     return text
@@ -94,6 +142,152 @@ export class DonationsService {
             `Las donaciones de salida requieren el campo "benefited" (mayor o igual a 1) en el medicamento #${index + 1}.`,
           );
         }
+      }
+    }
+  }
+
+  /**
+   * Valida y normaliza los detalles que llegan del cliente. El DTO ya filtra
+   * tipos, pero esta capa protege también llamadas internas y datos heredados.
+   */
+  private validateMedicineDetails(
+    medicines: DetDonationDTO[],
+  ): DetDonationDTO[] {
+    if (!Array.isArray(medicines) || medicines.length === 0) {
+      throw new BadRequestException(
+        'Debe incluir al menos una medicina en la donación.',
+      );
+    }
+    if (medicines.length > 500) {
+      throw new BadRequestException(
+        'Una donación no puede superar las 500 medicinas.',
+      );
+    }
+
+    return medicines.map((det, index) => {
+      const amount = Number(det.amount);
+      if (!Number.isInteger(amount) || amount <= 0) {
+        throw new BadRequestException(
+          `La cantidad del medicamento #${index + 1} debe ser un entero mayor a 0.`,
+        );
+      }
+      if (
+        !Number.isInteger(Number(det.storageId)) ||
+        Number(det.storageId) <= 0
+      ) {
+        throw new BadRequestException(
+          `Selecciona un almacén válido para el medicamento #${index + 1}.`,
+        );
+      }
+      if (
+        !(det.expirationDate instanceof Date) ||
+        Number.isNaN(det.expirationDate.getTime())
+      ) {
+        throw new BadRequestException(
+          `La fecha de vencimiento del medicamento #${index + 1} no es válida.`,
+        );
+      }
+      if (
+        det.benefited != null &&
+        (!Number.isInteger(Number(det.benefited)) || Number(det.benefited) < 0)
+      ) {
+        throw new BadRequestException(
+          `Los beneficiados del medicamento #${index + 1} deben ser un entero mayor o igual a 0.`,
+        );
+      }
+
+      return {
+        ...det,
+        amount,
+        storageId: Number(det.storageId),
+        benefited: Number(det.benefited ?? 0),
+        lote: (det.lote ?? '').trim(),
+      };
+    });
+  }
+
+  /**
+   * Une líneas repetidas de la misma medicina/almacén/lote. Sin esto, el
+   * procesamiento de inventario podía crear filas duplicadas o descontar dos
+   * veces el mismo stock.
+   */
+  private mergeDuplicateDetails(
+    medicines: (DetDonationDTO & { medicineId: number })[],
+  ): (DetDonationDTO & { medicineId: number })[] {
+    const merged = new Map<string, DetDonationDTO & { medicineId: number }>();
+
+    for (const det of medicines) {
+      const lote = (det.lote ?? '').trim();
+      const key = `${det.medicineId}|${det.storageId}|${lote}`;
+      const existing = merged.get(key);
+
+      if (!existing) {
+        merged.set(key, { ...det, lote });
+        continue;
+      }
+
+      if (existing.expirationDate.getTime() !== det.expirationDate.getTime()) {
+        throw new BadRequestException(
+          `La medicina ${det.medicineId} aparece más de una vez para el mismo almacén y lote, pero con fechas de vencimiento distintas. Unifícalas antes de guardar.`,
+        );
+      }
+
+      existing.amount += det.amount;
+      existing.benefited = (existing.benefited ?? 0) + (det.benefited ?? 0);
+    }
+
+    return [...merged.values()];
+  }
+
+  /**
+   * Detecta cambios en los detalles sin confiar únicamente en el flag del
+   * cliente. La fecha de vencimiento se resuelve en inventario/historial, así
+   * que aquí se comparan los campos que sí están persistidos en DetDonation.
+   */
+  private detailsDiffer(
+    originalDonation: any,
+    medicines: (DetDonationDTO & { medicineId: number })[],
+  ): boolean {
+    const original = (originalDonation.detDonation ?? []).map((det: any) => {
+      const lote = (det.lote || originalDonation.lote || '').trim();
+      return `${det.medicineId}|${lote}|${det.amount}|${det.benefited ?? 0}`;
+    });
+    const current = medicines.map((det) => {
+      const lote = (det.lote || originalDonation.lote || '').trim();
+      return `${det.medicineId}|${lote}|${det.amount}|${det.benefited ?? 0}`;
+    });
+
+    return (
+      original.length !== current.length ||
+      [...original].sort().join('\n') !== [...current].sort().join('\n')
+    );
+  }
+
+  /** Verifica que los almacenes existan y estén activos antes de escribir. */
+  private async validateStores(
+    tx: any,
+    medicines: (DetDonationDTO & { medicineId: number })[],
+  ): Promise<void> {
+    const storeIds = [
+      ...new Set(medicines.map((det) => Number(det.storageId))),
+    ];
+    const stores = await tx.store.findMany({
+      where: { id: { in: storeIds } },
+      select: { id: true, name: true, deleted: true },
+    });
+    const byId = new Map<number, any>(stores.map((s: any) => [s.id, s]));
+
+    for (const id of storeIds) {
+      const store = byId.get(id);
+      if (!store) {
+        throw new BadRequestException(
+          `El almacén con id ${id} no existe. Actualiza los almacenes y vuelve a intentar.`,
+        );
+      }
+      if (store.deleted) {
+        throw new BadRequestException(
+          `El almacén "${store.name}" está eliminado y no puede recibir movimientos.`,
+        );
       }
     }
   }
@@ -190,10 +384,13 @@ export class DonationsService {
       }
 
       const name = det.medicine?.name;
-      if (!name)
-        throw new Error(
-          'Cada detalle debe incluir medicineId o el nombre de la medicina (medicine.name).',
+      if (!name) {
+        throw new BadRequestException(
+          det.medicineId
+            ? `La medicina con id ${det.medicineId} ya no existe. Actualiza el catálogo y vuelve a seleccionarla.`
+            : 'Cada detalle debe incluir una medicina válida.',
         );
+      }
 
       const normalizedName = this.normalizeText(name);
       const match =
@@ -232,7 +429,16 @@ export class DonationsService {
       const formValue = det.medicine?.form;
       let formId: number;
       if (!formValue || !this.normalizeSearchKey(formValue)) {
-        formId = 14;
+        const key = this.normalizeSearchKey('No especificada');
+        let form = formsByKey.get(key);
+        if (!form) {
+          form = await tx.forms.create({
+            data: { forms: 'No especificada' },
+          });
+          forms.push(form);
+          formsByKey.set(key, form);
+        }
+        formId = form.id;
       } else {
         const key = this.normalizeSearchKey(formValue);
         let form = formsByKey.get(key);
@@ -420,7 +626,9 @@ export class DonationsService {
       this.prismaService.historyInventory.findMany({
         where: {
           donationId: { in: donationIds },
+          type: { in: ['Entrada', 'Salida'] },
         },
+        orderBy: { id: 'desc' },
       }),
     ]);
 
@@ -516,6 +724,7 @@ export class DonationsService {
 
         return {
           ...det,
+          storageId: storeId ?? null,
           admissionDate:
             inventoryRecord?.admissionDate ?? historyRecord?.admissionDate,
           expirationDate:
@@ -591,139 +800,142 @@ export class DonationsService {
 
   async createDonation(donation: DonationsDTO) {
     try {
-      const newDonation = await this.prismaService.$transaction(
-        async (tx) => {
-          await this.validateControlNumberUnique(
-            tx,
-            donation.controlNumber,
-            donation.type,
-          );
-          this.validateBenefitedForType(donation);
+      const newDonation = await this.withTransaction(async (tx) => {
+        await this.validateControlNumberUnique(
+          tx,
+          donation.controlNumber,
+          donation.type,
+        );
+        this.validateBenefitedForType(donation);
+        this.validateMedicineDetails(donation.medicines);
 
-          const medicinesResolved: (DetDonationDTO & { medicineId: number })[] =
-            await this.resolveMedicines(tx, donation.medicines);
+        const resolved = await this.resolveMedicines(tx, donation.medicines);
+        const medicinesResolved = this.mergeDuplicateDetails(
+          this.validateMedicineDetails(resolved),
+        );
+        await this.validateStores(tx, medicinesResolved);
 
-          const donationCreated = await tx.donation.create({
-            data: {
-              institutionId: donation.institutionId,
-              providerId: donation.providerId,
-              type: donation.type,
-              date: donation.date,
-              controlNumber: donation.controlNumber,
-              lote: donation.lote,
-              benefited: this.sumBenefited(medicinesResolved),
-            },
-            include: {
-              institution: { select: { id: true, name: true } },
-              provider: { select: { id: true, name: true } },
-            },
-          });
-
-          const donationRef = buildDonationRef(donationCreated);
-          const donationRefs = buildRefs({
-            donation: donationRef,
-            institution: donationCreated.institution ?? undefined,
-            provider: donationCreated.provider ?? undefined,
-          });
-          const consignee =
-            donationCreated.institution?.name || donationCreated.provider?.name;
-
-          const dataDetDonation = medicinesResolved.map((pro) => ({
-            donationId: donationCreated.id,
-            medicineId: pro.medicineId,
-            amount: pro.amount,
-            benefited: pro.benefited ?? 0,
-            lote: pro.lote || donation.lote || '',
-          }));
-          await tx.detDonation.createMany({ data: dataDetDonation });
-
-          const inventoryDto = {
-            donationId: donationCreated.id,
-            lote: donation.lote,
-            medicines: medicinesResolved.map((med) => ({
-              medicineId: med.medicineId,
-              storeId: med.storageId,
-              stock: med.amount,
-              admissionDate: donation.date,
-              expirationDate: med.expirationDate,
-              lote: med.lote,
-            })),
+        const donationCreated = await tx.donation.create({
+          data: {
+            institutionId: donation.institutionId,
+            providerId: donation.providerId,
             type: donation.type,
             date: donation.date,
-            observations: '',
-          };
+            controlNumber: donation.controlNumber,
+            lote: donation.lote,
+            benefited: this.sumBenefited(medicinesResolved),
+          },
+          include: {
+            institution: { select: { id: true, name: true } },
+            provider: { select: { id: true, name: true } },
+          },
+        });
 
-          const result = await this.inventoryService.processInventory(
-            inventoryDto,
-            tx,
-          );
-          if (!result.success) throw new BadRequestException(result.message);
+        const donationRef = buildDonationRef(donationCreated);
+        const donationRefs = buildRefs({
+          donation: donationRef,
+          institution: donationCreated.institution ?? undefined,
+          provider: donationCreated.provider ?? undefined,
+        });
+        const consignee =
+          donationCreated.institution?.name || donationCreated.provider?.name;
 
+        const dataDetDonation = medicinesResolved.map((pro) => ({
+          donationId: donationCreated.id,
+          medicineId: pro.medicineId,
+          amount: pro.amount,
+          benefited: pro.benefited ?? 0,
+          lote: pro.lote || donation.lote || '',
+        }));
+        await tx.detDonation.createMany({ data: dataDetDonation });
+
+        const inventoryDto = {
+          donationId: donationCreated.id,
+          lote: donation.lote,
+          medicines: medicinesResolved.map((med) => ({
+            medicineId: med.medicineId,
+            storeId: med.storageId,
+            stock: med.amount,
+            admissionDate: donation.date,
+            expirationDate: med.expirationDate,
+            lote: med.lote,
+          })),
+          type: donation.type,
+          date: donation.date,
+          observations: '',
+        };
+
+        const result = await this.inventoryService.processInventory(
+          inventoryDto,
+          tx,
+        );
+        if (!result.success) throw new BadRequestException(result.message);
+
+        await this.auditService.record(
+          {
+            action: 'CREATE',
+            entity: 'Donation',
+            entityId: donationCreated.id,
+            description: `Donación ${donationLabel(donationRef)} creada${
+              consignee ? ` para ${consignee}` : ''
+            }`,
+            metadata: {
+              before: null,
+              after: donationCreated,
+              payload: donation,
+              refs: donationRefs,
+            },
+          },
+          tx,
+        );
+
+        const createdDets = await tx.detDonation.findMany({
+          where: { donationId: donationCreated.id },
+          include: {
+            medicine: { select: { id: true, name: true, code: true } },
+          },
+        });
+        for (const det of createdDets) {
+          const medicineRef = buildMedicineRef(det.medicine);
           await this.auditService.record(
             {
               action: 'CREATE',
-              entity: 'Donation',
-              entityId: donationCreated.id,
-              description: `Donación ${donationLabel(donationRef)} creada${
-                consignee ? ` para ${consignee}` : ''
-              }`,
+              entity: 'DetDonation',
+              entityId: det.id,
+              description: `Detalle de donación ${donationLabel(
+                donationRef,
+              )}: ${det.amount} x ${medicineLabel(medicineRef)} (lote ${det.lote})`,
               metadata: {
                 before: null,
-                after: donationCreated,
-                payload: donation,
-                refs: donationRefs,
+                after: det,
+                refs: buildRefs({
+                  donation: donationRef,
+                  medicine: medicineRef,
+                }),
               },
             },
             tx,
           );
+        }
 
-          const createdDets = await tx.detDonation.findMany({
-            where: { donationId: donationCreated.id },
-            include: {
-              medicine: { select: { id: true, name: true, code: true } },
-            },
-          });
-          for (const det of createdDets) {
-            const medicineRef = buildMedicineRef(det.medicine);
-            await this.auditService.record(
-              {
-                action: 'CREATE',
-                entity: 'DetDonation',
-                entityId: det.id,
-                description: `Detalle de donación ${donationLabel(
-                  donationRef,
-                )}: ${det.amount} x ${medicineLabel(medicineRef)} (lote ${det.lote})`,
-                metadata: {
-                  before: null,
-                  after: det,
-                  refs: buildRefs({
-                    donation: donationRef,
-                    medicine: medicineRef,
-                  }),
-                },
-              },
-              tx,
-            );
-          }
-
-          return {
-            success: true,
-            message:
-              'Donación creada exitosamente y acción de inventario procesada.',
-            data: donationCreated,
-          };
-        },
-        { timeout: 30000, maxWait: 20000 },
-      );
+        return {
+          success: true,
+          message:
+            'Donación creada exitosamente y acción de inventario procesada.',
+          data: donationCreated,
+        };
+      });
 
       return {
         donation: newDonation,
         message: 'Donación registrada exitosamente.',
       };
     } catch (error) {
-      if (error instanceof HttpException) throw error;
+      if (error instanceof HttpException || this.isPrismaError(error)) {
+        throw error;
+      }
       throw new BadRequestException(
-        'Error al crear la donación: ' +
+        'No se pudo crear la donación. ' +
           (error instanceof Error ? error.message : String(error)),
       );
     }
@@ -731,335 +943,209 @@ export class DonationsService {
 
   async updateDonation(id: number, donation: DonationsDTO) {
     try {
-      return await this.prismaService.$transaction(
-        async (tx) => {
-          const originalDonation = await tx.donation.findUnique({
-            where: { id },
-            include: {
-              detDonation: {
-                include: {
-                  medicine: { select: { id: true, name: true, code: true } },
-                },
-              },
-              historyInventory: true,
-              institution: { select: { id: true, name: true } },
-              provider: { select: { id: true, name: true } },
-            },
-          });
-
-          if (!originalDonation) throw new Error('Donación no encontrada');
-          if (originalDonation.deleted)
-            throw new BadRequestException(
-              'La donación fue eliminada y no puede actualizarse.',
-            );
-
-          await this.validateControlNumberUnique(
-            tx,
-            donation.controlNumber,
-            donation.type,
-            id,
-          );
-          this.validateBenefitedForType(donation);
-
-          const medicinesResolved: (DetDonationDTO & { medicineId: number })[] =
-            await this.resolveMedicines(tx, donation.medicines);
-
-          let revertedShortfalls: Record<number, number> = {};
-          if (donation.changeDonDetails === true) {
-            const revertResult =
-              await this.inventoryService.revertInventoryWithHistory(
-                tx,
-                originalDonation,
-              );
-            revertedShortfalls = revertResult.shortfalls ?? {};
-          }
-
-          const posteriores = await tx.historyInventory.findMany({
-            where: {
-              medicineId: { in: medicinesResolved.map((m) => m.medicineId) },
-              storeId: { in: medicinesResolved.map((m) => m.storageId) },
-              donationId: { not: id },
-              deleted: false,
-              createAt: { gt: originalDonation.updateAt },
-            },
-          });
-
-          const updatedDonationType = donation.type || originalDonation.type;
-
-          for (const med of medicinesResolved) {
-            const consumoPosterior = posteriores
-              .filter(
-                (h) =>
-                  h.medicineId === med.medicineId &&
-                  h.storeId === med.storageId,
-              )
-              .reduce(
-                (acc, h) => acc + (h.type === 'Salida' ? h.amount : -h.amount),
-                0,
-              );
-
-            if (
-              updatedDonationType === 'Entrada' &&
-              med.amount < consumoPosterior
-            ) {
-              throw new Error(
-                `No se puede reducir la cantidad de medicina ${med.medicineId} a ${med.amount} porque se usaron ${consumoPosterior} unidades en salidas posteriores.`,
-              );
-            }
-          }
-
-          const updateData: any = {
-            institutionId: donation.institutionId,
-            providerId: donation.providerId,
-            date: donation.date,
-            controlNumber: donation.controlNumber,
-            benefited: this.sumBenefited(medicinesResolved),
-            updateAt: new Date(),
-          };
-          if (donation.changeDonDetails) updateData.lote = donation.lote;
-
-          const updatedDonation = await tx.donation.update({
-            where: { id },
-            data: updateData,
-            include: {
-              institution: { select: { id: true, name: true } },
-              provider: { select: { id: true, name: true } },
-            },
-          });
-
-          if (donation.changeDonDetails) {
-            for (const med of medicinesResolved) {
-              const shortfall = revertedShortfalls[med.medicineId] ?? 0;
-              if (shortfall > med.amount) {
-                throw new BadRequestException(
-                  `No se puede actualizar la medicina ${med.medicineId}: ${shortfall} unidades ya fueron salidas o transferidas y la nueva cantidad (${med.amount}) es menor.`,
-                );
-              }
-            }
-
-            await tx.detDonation.deleteMany({ where: { donationId: id } });
-
-            const newDetails = medicinesResolved.map((m) => ({
-              donationId: id,
-              medicineId: m.medicineId,
-              amount: m.amount,
-              benefited: m.benefited ?? 0,
-              lote: m.lote || donation.lote || '',
-            }));
-            await tx.detDonation.createMany({ data: newDetails });
-
-            // Se descuenta lo ya salido/transferido para no recrear unidades
-            // que dejaron de existir en el inventario.
-            const inventoryMedicines = medicinesResolved
-              .map((med) => ({
-                medicineId: med.medicineId,
-                storeId: med.storageId,
-                stock: med.amount - (revertedShortfalls[med.medicineId] ?? 0),
-                admissionDate: donation.date,
-                expirationDate: med.expirationDate,
-                lote: med.lote,
-              }))
-              .filter((med) => med.stock > 0);
-
-            if (inventoryMedicines.length > 0) {
-              const inventoryDto = {
-                donationId: updatedDonation.id,
-                lote: updatedDonation.lote,
-                medicines: inventoryMedicines,
-                type: updatedDonation.type,
-                date: updatedDonation.date,
-                observations: 'Actualización con dependencias posteriores',
-              };
-
-              const result = await this.inventoryService.processInventory(
-                inventoryDto,
-                tx,
-              );
-              if (!result.success)
-                throw new BadRequestException(result.message);
-            }
-          }
-
-          const donationRef = buildDonationRef(updatedDonation);
-          const donationRefs = buildRefs({
-            donation: donationRef,
-            institution: updatedDonation.institution ?? undefined,
-            provider: updatedDonation.provider ?? undefined,
-          });
-
-          await this.auditService.record(
-            {
-              action: 'UPDATE',
-              entity: 'Donation',
-              entityId: updatedDonation.id,
-              description: `Donación ${donationLabel(donationRef)} actualizada`,
-              metadata: {
-                before: originalDonation,
-                after: updatedDonation,
-                payload: donation,
-                refs: donationRefs,
-              },
-            },
-            tx,
-          );
-
-          if (donation.changeDonDetails) {
-            for (const det of originalDonation.detDonation) {
-              const medicineRef = buildMedicineRef(det.medicine);
-              await this.auditService.record(
-                {
-                  action: 'DELETE',
-                  entity: 'DetDonation',
-                  entityId: det.id,
-                  description: `Detalle previo eliminado de donación ${donationLabel(
-                    donationRef,
-                  )}: ${det.amount} x ${medicineLabel(medicineRef)} (lote ${det.lote})`,
-                  metadata: {
-                    before: det,
-                    after: null,
-                    refs: buildRefs({
-                      donation: donationRef,
-                      medicine: medicineRef,
-                    }),
-                  },
-                },
-                tx,
-              );
-            }
-
-            const newDets = await tx.detDonation.findMany({
-              where: { donationId: id },
+      return await this.withTransaction(async (tx) => {
+        const originalDonation = await tx.donation.findUnique({
+          where: { id },
+          include: {
+            detDonation: {
               include: {
                 medicine: { select: { id: true, name: true, code: true } },
               },
-            });
-            for (const det of newDets) {
-              const medicineRef = buildMedicineRef(det.medicine);
-              await this.auditService.record(
-                {
-                  action: 'CREATE',
-                  entity: 'DetDonation',
-                  entityId: det.id,
-                  description: `Detalle nuevo de donación ${donationLabel(
-                    donationRef,
-                  )}: ${det.amount} x ${medicineLabel(medicineRef)} (lote ${det.lote})`,
-                  metadata: {
-                    before: null,
-                    after: det,
-                    refs: buildRefs({
-                      donation: donationRef,
-                      medicine: medicineRef,
-                    }),
-                  },
-                },
-                tx,
+            },
+            historyInventory: true,
+            institution: { select: { id: true, name: true } },
+            provider: { select: { id: true, name: true } },
+          },
+        });
+
+        if (!originalDonation)
+          throw new NotFoundException('La donación no existe o fue eliminada.');
+        if (originalDonation.deleted)
+          throw new BadRequestException(
+            'La donación fue eliminada y no puede actualizarse.',
+          );
+
+        await this.validateControlNumberUnique(
+          tx,
+          donation.controlNumber,
+          donation.type,
+          id,
+        );
+        this.validateBenefitedForType(donation);
+        this.validateMedicineDetails(donation.medicines);
+
+        const resolved = await this.resolveMedicines(tx, donation.medicines);
+        const medicinesResolved = this.mergeDuplicateDetails(
+          this.validateMedicineDetails(resolved),
+        );
+        await this.validateStores(tx, medicinesResolved);
+
+        const headerChanged =
+          donation.type !== originalDonation.type ||
+          donation.lote !== originalDonation.lote ||
+          donation.date.getTime() !== originalDonation.date.getTime();
+        const changeDonDetails =
+          donation.changeDonDetails === true ||
+          headerChanged ||
+          this.detailsDiffer(originalDonation, medicinesResolved);
+
+        let revertedShortfallsByKey: Record<string, number> = {};
+        if (changeDonDetails) {
+          const revertResult =
+            await this.inventoryService.revertInventoryWithHistory(
+              tx,
+              originalDonation,
+            );
+          revertedShortfallsByKey = revertResult.shortfallsByKey ?? {};
+        }
+
+        const posteriores = await tx.historyInventory.findMany({
+          where: {
+            medicineId: { in: medicinesResolved.map((m) => m.medicineId) },
+            storeId: { in: medicinesResolved.map((m) => m.storageId) },
+            donationId: { not: id },
+            deleted: false,
+            createAt: { gt: originalDonation.updateAt },
+          },
+        });
+
+        const updatedDonationType = donation.type || originalDonation.type;
+        const reversionWarnings: string[] = [];
+
+        for (const med of medicinesResolved) {
+          const consumoPosterior = posteriores
+            .filter(
+              (h) =>
+                h.medicineId === med.medicineId && h.storeId === med.storageId,
+            )
+            .reduce(
+              (acc, h) => acc + (h.type === 'Salida' ? h.amount : -h.amount),
+              0,
+            );
+
+          if (
+            updatedDonationType === 'Entrada' &&
+            med.amount < consumoPosterior
+          ) {
+            throw new Error(
+              `No se puede reducir la cantidad de medicina ${med.medicineId} a ${med.amount} porque se usaron ${consumoPosterior} unidades en salidas posteriores.`,
+            );
+          }
+        }
+
+        const updateData: any = {
+          institutionId: donation.institutionId,
+          providerId: donation.providerId,
+          type: updatedDonationType,
+          lote: donation.lote,
+          date: donation.date,
+          controlNumber: donation.controlNumber,
+          benefited: this.sumBenefited(medicinesResolved),
+          updateAt: new Date(),
+        };
+
+        const updatedDonation = await tx.donation.update({
+          where: { id },
+          data: updateData,
+          include: {
+            institution: { select: { id: true, name: true } },
+            provider: { select: { id: true, name: true } },
+          },
+        });
+
+        if (changeDonDetails) {
+          for (const med of medicinesResolved) {
+            const key = `${med.medicineId}|${med.storageId}|${(med.lote || donation.lote || '').trim()}`;
+            const shortfall = revertedShortfallsByKey[key] ?? 0;
+            if (shortfall > 0) {
+              reversionWarnings.push(
+                `La medicina ${med.medicineId} tenía ${shortfall} unidad(es) ya salidas o transferidas.`,
+              );
+            }
+            if (shortfall > med.amount) {
+              throw new BadRequestException(
+                `No se puede actualizar la medicina ${med.medicineId}: ${shortfall} unidades ya fueron salidas o transferidas y la nueva cantidad (${med.amount}) es menor.`,
               );
             }
           }
 
-          return {
-            success: true,
-            message: 'Donación actualizada correctamente.',
-            data: updatedDonation,
-          };
-        },
-        { timeout: 30000, maxWait: 20000 },
-      );
-    } catch (error) {
-      if (error instanceof HttpException) throw error;
-      throw new BadRequestException(
-        error instanceof Error
-          ? error.message
-          : 'Error desconocido en actualización de donación.',
-      );
-    }
-  }
+          await tx.detDonation.deleteMany({ where: { donationId: id } });
 
-  async deleteDonation(id: number) {
-    try {
-      return await this.prismaService.$transaction(
-        async (tx) => {
-          // Obtener la donación con todos sus datos relacionados
-          const donation = await tx.donation.findUnique({
-            where: { id },
-            include: {
-              detDonation: {
-                include: {
-                  medicine: { select: { id: true, name: true, code: true } },
-                },
-              },
-              historyInventory: {
-                include: {
-                  medicine: { select: { id: true, name: true, code: true } },
-                  store: { select: { id: true, name: true } },
-                },
-              },
-              institution: { select: { id: true, name: true } },
-              provider: { select: { id: true, name: true } },
-            },
-          });
+          const newDetails = medicinesResolved.map((m) => ({
+            donationId: id,
+            medicineId: m.medicineId,
+            amount: m.amount,
+            benefited: m.benefited ?? 0,
+            lote: m.lote || donation.lote || '',
+          }));
+          await tx.detDonation.createMany({ data: newDetails });
 
-          if (!donation) {
-            throw new BadRequestException('Donación no encontrada');
-          }
+          // Se descuenta lo ya salido/transferido para no recrear unidades
+          // que dejaron de existir en el inventario.
+          const inventoryMedicines = medicinesResolved
+            .map((med) => {
+              const key = `${med.medicineId}|${med.storageId}|${(med.lote || donation.lote || '').trim()}`;
+              return {
+                medicineId: med.medicineId,
+                storeId: med.storageId,
+                stock: med.amount - (revertedShortfallsByKey[key] ?? 0),
+                admissionDate: donation.date,
+                expirationDate: med.expirationDate,
+                lote: med.lote,
+              };
+            })
+            .filter((med) => med.stock > 0);
 
-          // Revertir inventario usando datos históricos. Se conserva el
-          // resultado para informar unidades que ya no pudieron revertirse.
-          const revertResult =
-            await this.inventoryService.revertInventoryWithHistory(
+          if (inventoryMedicines.length > 0) {
+            const inventoryDto = {
+              donationId: updatedDonation.id,
+              lote: updatedDonation.lote,
+              medicines: inventoryMedicines,
+              type: donation.type,
+              date: donation.date,
+              observations: 'Actualización con dependencias posteriores',
+            };
+
+            const result = await this.inventoryService.processInventory(
+              inventoryDto,
               tx,
-              donation,
             );
-          const shortfalls = revertResult.shortfalls ?? {};
+            if (!result.success) throw new BadRequestException(result.message);
+          }
+        }
 
-          const inventoriesToDelete = await tx.inventory.findMany({
-            where: { donationId: id },
-            include: {
-              medicine: { select: { id: true, name: true, code: true } },
-              store: { select: { id: true, name: true } },
+        const donationRef = buildDonationRef(updatedDonation);
+        const donationRefs = buildRefs({
+          donation: donationRef,
+          institution: updatedDonation.institution ?? undefined,
+          provider: updatedDonation.provider ?? undefined,
+        });
+
+        await this.auditService.record(
+          {
+            action: 'UPDATE',
+            entity: 'Donation',
+            entityId: updatedDonation.id,
+            description: `Donación ${donationLabel(donationRef)} actualizada`,
+            metadata: {
+              before: originalDonation,
+              after: updatedDonation,
+              payload: donation,
+              refs: donationRefs,
             },
-          });
+          },
+          tx,
+        );
 
-          // El historial no se borra físicamente: se marca como eliminado para
-          // conservar la bitácora y el asiento de reversión recién creado.
-          const now = new Date();
-          await tx.historyInventory.updateMany({
-            where: { id: { in: donation.historyInventory.map((h) => h.id) } },
-            data: { deleted: true, deletedAt: now },
-          });
-
-          // Los registros operativos sí se eliminan para que no sigan
-          // descontando stock.
-          await tx.detDonation.deleteMany({
-            where: { donationId: id },
-          });
-
-          await tx.inventory.deleteMany({
-            where: { donationId: id },
-          });
-
-          // Soft-delete de la donación: mantiene la FK del historial válida y
-          // la oculta de listados y reportes.
-          const deletedDonation = await tx.donation.update({
-            where: { id },
-            data: { deleted: true },
-          });
-
-          const donationRef = buildDonationRef(deletedDonation);
-          const donationRefs = buildRefs({
-            donation: donationRef,
-            institution: donation.institution ?? undefined,
-            provider: donation.provider ?? undefined,
-          });
-
-          for (const det of donation.detDonation) {
+        if (changeDonDetails) {
+          for (const det of originalDonation.detDonation) {
             const medicineRef = buildMedicineRef(det.medicine);
             await this.auditService.record(
               {
                 action: 'DELETE',
                 entity: 'DetDonation',
                 entityId: det.id,
-                description: `Detalle eliminado de donación ${donationLabel(
+                description: `Detalle previo eliminado de donación ${donationLabel(
                   donationRef,
                 )}: ${det.amount} x ${medicineLabel(medicineRef)} (lote ${det.lote})`,
                 metadata: {
@@ -1074,87 +1160,231 @@ export class DonationsService {
               tx,
             );
           }
-          for (const hist of donation.historyInventory) {
-            const medicineRef = buildMedicineRef(hist.medicine);
-            const storeRef = buildStoreRef(hist.store);
+
+          const newDets = await tx.detDonation.findMany({
+            where: { donationId: id },
+            include: {
+              medicine: { select: { id: true, name: true, code: true } },
+            },
+          });
+          for (const det of newDets) {
+            const medicineRef = buildMedicineRef(det.medicine);
             await this.auditService.record(
               {
-                action: 'UPDATE',
-                entity: 'HistoryInventory',
-                entityId: hist.id,
-                description: `Historial de inventario marcado como eliminado de donación ${donationLabel(
+                action: 'CREATE',
+                entity: 'DetDonation',
+                entityId: det.id,
+                description: `Detalle nuevo de donación ${donationLabel(
                   donationRef,
-                )}: ${hist.type} de ${hist.amount} x ${medicineLabel(
-                  medicineRef,
-                )} (lote ${hist.lote}, almacén ${storeLabel(storeRef)})`,
+                )}: ${det.amount} x ${medicineLabel(medicineRef)} (lote ${det.lote})`,
                 metadata: {
-                  before: { deleted: false },
-                  after: { deleted: true, deletedAt: now },
+                  before: null,
+                  after: det,
                   refs: buildRefs({
                     donation: donationRef,
                     medicine: medicineRef,
-                    store: storeRef,
                   }),
                 },
               },
               tx,
             );
           }
-          for (const inv of inventoriesToDelete) {
-            const medicineRef = buildMedicineRef(inv.medicine);
-            const storeRef = buildStoreRef(inv.store);
-            await this.auditService.record(
-              {
-                action: 'DELETE',
-                entity: 'Inventory',
-                entityId: inv.id,
-                description: `Inventario eliminado de donación ${donationLabel(
-                  donationRef,
-                )}: ${inv.stock} x ${medicineLabel(medicineRef)} (lote ${
-                  inv.lote
-                }, almacén ${storeLabel(storeRef)})`,
-                metadata: {
-                  before: inv,
-                  after: null,
-                  refs: buildRefs({
-                    donation: donationRef,
-                    medicine: medicineRef,
-                    store: storeRef,
-                  }),
-                },
+        }
+
+        return {
+          success: true,
+          message:
+            reversionWarnings.length > 0
+              ? `Donación actualizada. Avisos: ${reversionWarnings.join(' ')}`
+              : 'Donación actualizada correctamente.',
+          data: { ...updatedDonation, warnings: reversionWarnings },
+        };
+      });
+    } catch (error) {
+      if (error instanceof HttpException || this.isPrismaError(error)) {
+        throw error;
+      }
+      throw new BadRequestException(
+        'No se pudo actualizar la donación. ' +
+          (error instanceof Error ? error.message : String(error)),
+      );
+    }
+  }
+
+  async deleteDonation(id: number) {
+    try {
+      return await this.withTransaction(async (tx) => {
+        // Obtener la donación con todos sus datos relacionados
+        const donation = await tx.donation.findUnique({
+          where: { id },
+          include: {
+            detDonation: {
+              include: {
+                medicine: { select: { id: true, name: true, code: true } },
               },
-              tx,
-            );
-          }
+            },
+            historyInventory: {
+              include: {
+                medicine: { select: { id: true, name: true, code: true } },
+                store: { select: { id: true, name: true } },
+              },
+            },
+            institution: { select: { id: true, name: true } },
+            provider: { select: { id: true, name: true } },
+          },
+        });
+
+        if (!donation) {
+          throw new BadRequestException('Donación no encontrada');
+        }
+
+        // Revertir inventario usando datos históricos. Se conserva el
+        // resultado para informar unidades que ya no pudieron revertirse.
+        const revertResult =
+          await this.inventoryService.revertInventoryWithHistory(tx, donation);
+        const shortfalls = (revertResult.shortfalls ?? {}) as Record<
+          number,
+          number
+        >;
+
+        // El historial no se borra físicamente: se marca como eliminado para
+        // conservar la bitácora y el asiento de reversión recién creado.
+        const now = new Date();
+        await tx.historyInventory.updateMany({
+          where: { id: { in: donation.historyInventory.map((h) => h.id) } },
+          data: { deleted: true, deletedAt: now },
+        });
+
+        // Los detalles operativos sí se eliminan para que no sigan
+        // contando en reportes de la donación.
+        await tx.detDonation.deleteMany({
+          where: { donationId: id },
+        });
+
+        // NO se eliminan las filas de inventario por `donationId`: el stock
+        // de una misma medicina/almacén/lote puede estar compartido entre
+        // donaciones y la fila conserva el id de la primera. Borrarla aquí
+        // eliminaba stock de otras donaciones. La reversión de arriba ya
+        // dejó el stock en el valor correcto.
+
+        // La restricción única incluye `deleted`. Si ya existe otra donación
+        // eliminada con el mismo número/tipo, se archiva su número antes de
+        // eliminar esta para que el soft-delete no falle con un 409.
+        const archivedCollision = await tx.donation.findFirst({
+          where: {
+            controlNumber: donation.controlNumber,
+            type: donation.type,
+            deleted: true,
+            id: { not: id },
+          },
+          select: { id: true, controlNumber: true },
+        });
+        if (archivedCollision) {
+          await tx.donation.update({
+            where: { id: archivedCollision.id },
+            data: {
+              controlNumber: `${archivedCollision.controlNumber}#DEL-${archivedCollision.id}`,
+            },
+          });
+        }
+
+        // Soft-delete de la donación: mantiene la FK del historial válida y
+        // la oculta de listados y reportes.
+        const deletedDonation = await tx.donation.update({
+          where: { id },
+          data: { deleted: true },
+        });
+
+        const donationRef = buildDonationRef(deletedDonation);
+        const donationRefs = buildRefs({
+          donation: donationRef,
+          institution: donation.institution ?? undefined,
+          provider: donation.provider ?? undefined,
+        });
+
+        for (const det of donation.detDonation) {
+          const medicineRef = buildMedicineRef(det.medicine);
           await this.auditService.record(
             {
               action: 'DELETE',
-              entity: 'Donation',
-              entityId: deletedDonation.id,
-              description: `Donación ${donationLabel(donationRef)} eliminada`,
+              entity: 'DetDonation',
+              entityId: det.id,
+              description: `Detalle eliminado de donación ${donationLabel(
+                donationRef,
+              )}: ${det.amount} x ${medicineLabel(medicineRef)} (lote ${det.lote})`,
               metadata: {
-                before: donation,
-                after: { deleted: true },
-                shortfalls,
-                refs: donationRefs,
+                before: det,
+                after: null,
+                refs: buildRefs({
+                  donation: donationRef,
+                  medicine: medicineRef,
+                }),
               },
             },
             tx,
           );
+        }
+        for (const hist of donation.historyInventory) {
+          const medicineRef = buildMedicineRef(hist.medicine);
+          const storeRef = buildStoreRef(hist.store);
+          await this.auditService.record(
+            {
+              action: 'UPDATE',
+              entity: 'HistoryInventory',
+              entityId: hist.id,
+              description: `Historial de inventario marcado como eliminado de donación ${donationLabel(
+                donationRef,
+              )}: ${hist.type} de ${hist.amount} x ${medicineLabel(
+                medicineRef,
+              )} (lote ${hist.lote}, almacén ${storeLabel(storeRef)})`,
+              metadata: {
+                before: { deleted: false },
+                after: { deleted: true, deletedAt: now },
+                refs: buildRefs({
+                  donation: donationRef,
+                  medicine: medicineRef,
+                  store: storeRef,
+                }),
+              },
+            },
+            tx,
+          );
+        }
+        await this.auditService.record(
+          {
+            action: 'DELETE',
+            entity: 'Donation',
+            entityId: deletedDonation.id,
+            description: `Donación ${donationLabel(donationRef)} eliminada`,
+            metadata: {
+              before: donation,
+              after: { deleted: true },
+              shortfalls,
+              refs: donationRefs,
+            },
+          },
+          tx,
+        );
 
-          return {
-            success: true,
-            message:
-              'Donación eliminada y cambios en inventario revertidos correctamente.',
-            data: deletedDonation,
-          };
-        },
-        { timeout: 30000, maxWait: 20000 },
-      );
+        const shortfallCount = Object.values(shortfalls).reduce(
+          (sum, value) => sum + value,
+          0,
+        );
+        return {
+          success: true,
+          message:
+            shortfallCount > 0
+              ? `Donación eliminada. ${shortfallCount} unidad(es) no pudieron revertirse porque ya habían salido o se transfirieron.`
+              : 'Donación eliminada y cambios en inventario revertidos correctamente.',
+          data: deletedDonation,
+        };
+      });
     } catch (error) {
-      if (error instanceof HttpException) throw error;
+      if (error instanceof HttpException || this.isPrismaError(error)) {
+        throw error;
+      }
       throw new BadRequestException(
-        'Error al eliminar la donación: ' +
+        'No se pudo eliminar la donación. ' +
           (error instanceof Error ? error.message : String(error)),
       );
     }

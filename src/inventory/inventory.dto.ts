@@ -110,6 +110,12 @@ export class GetInventoryQueryDto {
   @Type(() => Number)
   @IsNumber()
   storeId: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(1)
+  medicineId: number;
 }
 
 export class InventoryMoveDto {

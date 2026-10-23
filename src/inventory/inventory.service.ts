@@ -53,6 +53,9 @@ export class InventoryService {
     if (query?.storeId) {
       where.storeId = query.storeId;
     }
+    if (query?.medicineId) {
+      where.medicineId = query.medicineId;
+    }
     if (query?.name) {
       where.medicine = {
         name: { contains: query.name, mode: 'insensitive' },
@@ -547,51 +550,127 @@ export class InventoryService {
     };
   }
 
+  private async runInventoryTransaction<T>(
+    operation: (tx: any) => Promise<T>,
+  ): Promise<T> {
+    const attempts = 3;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= attempts; attempt += 1) {
+      try {
+        return await this.prisma.$transaction(operation, {
+          timeout: 60_000,
+          maxWait: 20_000,
+          isolationLevel: 'Serializable',
+        } as any);
+      } catch (error) {
+        lastError = error;
+        const code = (error as { code?: string } | null)?.code;
+        const retryable = code === 'P2034' || code === 'P2028';
+        if (attempt < attempts && retryable) {
+          await new Promise((resolve) =>
+            setTimeout(
+              resolve,
+              150 * attempt + Math.floor(Math.random() * 200),
+            ),
+          );
+          continue;
+        }
+        throw error;
+      }
+    }
+    throw lastError instanceof Error
+      ? lastError
+      : new Error('No se pudo completar la transacción de inventario.');
+  }
+
   async processInventory(inventory: InventoryDto, tx?: any) {
     const prismaService = tx || this.prisma;
     const executor = tx
       ? async (cb: (trx: any) => Promise<any>) => cb(prismaService)
-      : this.prisma.$transaction.bind(this.prisma);
+      : (cb: (trx: any) => Promise<any>) => this.runInventoryTransaction(cb);
 
     return await executor(async (trx) => {
-      // Validación de duplicado exacto: donación ya procesada con mismos datos
-      const duplicado = await trx.historyInventory.findMany({
-        where: {
-          donationId: inventory.donationId,
-          type: inventory.type,
-          date: inventory.date,
-          observations: inventory.observations,
-        },
-      });
-
-      if (duplicado.length === inventory.medicines.length) {
-        const coincide = duplicado.every((hist) => {
-          const med = inventory.medicines.find(
-            (m) =>
-              m.medicineId === hist.medicineId && m.storeId === hist.storeId,
-          );
-          return med && med.stock === hist.amount;
-        });
-
-        if (coincide) {
-          throw new Error(
-            'Esta acción de inventario ya fue aplicada con los mismos detalles.',
-          );
-        }
+      if (
+        !Array.isArray(inventory.medicines) ||
+        inventory.medicines.length === 0
+      ) {
+        throw new BadRequestException(
+          'No hay medicinas para procesar en el inventario.',
+        );
       }
 
-      // Eliminar historial anterior si es actualización
-      if (
+      // Une líneas repetidas de la misma medicina/almacén/lote para que una
+      // carga con duplicados no cree filas ni descuentos duplicados.
+      const merged = new Map<string, (typeof inventory.medicines)[number]>();
+      for (const item of inventory.medicines) {
+        if (!Number.isInteger(item.stock) || item.stock <= 0) {
+          throw new BadRequestException(
+            `La cantidad de la medicina ${item.medicineId} debe ser un entero mayor a 0.`,
+          );
+        }
+        if (!item.storeId || !item.medicineId) {
+          throw new BadRequestException(
+            'Cada movimiento debe incluir medicina y almacén.',
+          );
+        }
+        const key = `${item.medicineId}|${item.storeId}|${item.lote ?? ''}`;
+        const existing = merged.get(key);
+        if (existing) {
+          existing.stock += item.stock;
+        } else {
+          merged.set(key, { ...item });
+        }
+      }
+      inventory = { ...inventory, medicines: [...merged.values()] };
+
+      const isUpdate =
         inventory.observations?.includes(
           'Actualización con dependencias posteriores',
-        )
-      ) {
+        ) ?? false;
+
+      // La limpieza del historial de la actualización anterior debe ocurrir
+      // ANTES de comprobar duplicados; de lo contrario un reintento de una
+      // operación ya confirmada se rechaza como "ya aplicada".
+      if (isUpdate) {
         await trx.historyInventory.deleteMany({
           where: {
             donationId: inventory.donationId,
             observations: 'Actualización con dependencias posteriores',
           },
         });
+      }
+
+      // Validación de duplicado exacto: donación ya procesada con mismos datos
+      if (!isUpdate) {
+        const duplicado = await trx.historyInventory.findMany({
+          where: {
+            donationId: inventory.donationId,
+            type: inventory.type,
+            date: inventory.date,
+            observations: inventory.observations,
+          },
+        });
+
+        if (
+          duplicado.length > 0 &&
+          duplicado.length === inventory.medicines.length
+        ) {
+          const coincide = duplicado.every((hist) => {
+            const med = inventory.medicines.find(
+              (m) =>
+                m.medicineId === hist.medicineId &&
+                m.storeId === hist.storeId &&
+                (m.lote ?? '') === (hist.lote ?? ''),
+            );
+            return med && med.stock === hist.amount;
+          });
+
+          if (coincide) {
+            throw new BadRequestException(
+              'Esta acción de inventario ya fue aplicada con los mismos detalles.',
+            );
+          }
+        }
       }
 
       const donationRow = await trx.donation.findUnique({
@@ -634,14 +713,6 @@ export class InventoryService {
       );
       const storeById = new Map<number, any>(storeRows.map((s) => [s.id, s]));
 
-      const records = await trx.inventory.findMany({
-        where: {
-          medicineId: { in: inventory.medicines.map((m) => m.medicineId) },
-          storeId: { in: inventory.medicines.map((m) => m.storeId) },
-        },
-        orderBy: { id: 'desc' },
-      });
-
       const historyData: any[] = [];
       const newInventoryRecords: any[] = [];
       const inventoryAudit: {
@@ -658,11 +729,19 @@ export class InventoryService {
 
       for (const item of inventory.medicines) {
         const expectedLote = item.lote || lote;
-        const record = records.find(
-          (r) =>
-            r.medicineId === item.medicineId &&
-            r.storeId === item.storeId &&
-            r.lote === expectedLote,
+        // Se relee por ítem: una línea anterior pudo haber cambiado el stock.
+        const matchingRecords: any[] = await trx.inventory.findMany({
+          where: {
+            medicineId: item.medicineId,
+            storeId: item.storeId,
+            lote: expectedLote,
+          },
+          orderBy: { id: 'asc' },
+        });
+        const record = matchingRecords[0];
+        const availableStock = matchingRecords.reduce(
+          (sum, row) => sum + row.stock,
+          0,
         );
 
         if (inventory.type === 'Entrada') {
@@ -725,51 +804,63 @@ export class InventoryService {
             });
           }
         } else if (inventory.type === 'Salida') {
-          if (!record) {
-            throw new Error(
-              `No se encontró inventario para medicina ${item.medicineId} en almacén ${item.storeId}.`,
+          if (matchingRecords.length === 0) {
+            throw new BadRequestException(
+              `No se encontró inventario para la medicina ${item.medicineId} en el almacén ${item.storeId}.`,
             );
           }
 
-          if (record.stock < item.stock) {
-            throw new Error(
-              `Stock insuficiente para medicina ${item.medicineId}: disponible ${record.stock}, solicitado ${item.stock}.`,
+          if (availableStock < item.stock) {
+            throw new BadRequestException(
+              `Stock insuficiente para la medicina ${item.medicineId}: disponible ${availableStock}, solicitado ${item.stock}.`,
             );
           }
 
-          if (record.stock === item.stock) {
-            await trx.inventory.delete({ where: { id: record.id } });
-            inventoryAudit.push({
-              action: 'DELETE',
-              entityId: record.id,
-              medicineId: item.medicineId,
-              storeId: record.storeId,
-              lote: record.lote,
-              movement: 'Salida',
-              amount: item.stock,
-              before: { stock: record.stock },
-              after: null,
-            });
-          } else {
-            await trx.inventory.update({
-              where: { id: record.id },
+          // Descuento atómico por fila. Si otra transacción consumió el stock
+          // entre la lectura y el update, el updateMany no afecta filas y se
+          // aborta para que la transacción se reintente.
+          let remaining = item.stock;
+          for (const row of matchingRecords) {
+            if (remaining <= 0) break;
+            const take = Math.min(row.stock, remaining);
+            if (take <= 0) continue;
+
+            const updated = await trx.inventory.updateMany({
+              where: { id: row.id, stock: { gte: take } },
               data: {
-                stock: { decrement: item.stock },
+                stock: { decrement: take },
                 updateAt: new Date(),
               },
             });
-            inventoryAudit.push({
-              action: 'UPDATE',
-              entityId: record.id,
-              medicineId: item.medicineId,
-              storeId: record.storeId,
-              lote: record.lote,
-              movement: 'Salida',
-              amount: item.stock,
-              before: { stock: record.stock },
-              after: { stock: record.stock - item.stock },
-            });
+            if (updated.count === 0) {
+              throw new Error(
+                'El stock cambió mientras se procesaba la salida. Intenta de nuevo.',
+              );
+            }
+
+            if (row.stock - take === 0) {
+              await trx.inventory.delete({ where: { id: row.id } });
+            }
+            remaining -= take;
           }
+
+          if (remaining > 0) {
+            throw new BadRequestException(
+              `Stock insuficiente para la medicina ${item.medicineId}: no se pudieron descontar ${item.stock} unidades.`,
+            );
+          }
+
+          inventoryAudit.push({
+            action: availableStock === item.stock ? 'DELETE' : 'UPDATE',
+            entityId: record.id,
+            medicineId: item.medicineId,
+            storeId: record.storeId,
+            lote: record.lote,
+            movement: 'Salida',
+            amount: item.stock,
+            before: { stock: availableStock },
+            after: { stock: availableStock - item.stock },
+          });
 
           historyData.push({
             medicineId: item.medicineId,
@@ -916,21 +1007,83 @@ export class InventoryService {
     }
 
     try {
-      // Solo se considera historial original (evita acumular actualizaciones anteriores)
-      const historyRecords = (await tx.historyInventory.findMany({
+      const allMovementRecords = (await tx.historyInventory.findMany({
         where: {
           donationId: originalDonation.id,
           deleted: false,
           type: { in: ['Entrada', 'Salida'] },
-          observations: {
-            not: {
-              contains: 'Actualización con dependencias posteriores',
-            },
-          },
         },
         orderBy: { id: 'desc' },
       })) as HistoryRecord[];
 
+      const updateRecords = allMovementRecords.filter((record) =>
+        (record.observations ?? '').includes(
+          'Actualización con dependencias posteriores',
+        ),
+      );
+      const originalRecords = allMovementRecords.filter(
+        (record) =>
+          !(record.observations ?? '').includes(
+            'Actualización con dependencias posteriores',
+          ),
+      );
+
+      const lastReversion = await tx.historyInventory.findFirst({
+        where: {
+          donationId: originalDonation.id,
+          deleted: false,
+          type: { in: ['Reversión Entrada', 'Reversión Salida'] },
+        },
+        orderBy: { id: 'desc' },
+        select: { id: true, createAt: true },
+      });
+
+      const latestAt = (records: HistoryRecord[]): Date | null =>
+        records.reduce<Date | null>(
+          (latest, record) =>
+            !latest || record.createAt.getTime() > latest.getTime()
+              ? record.createAt
+              : latest,
+          null,
+        );
+
+      const latestUpdateAt = latestAt(updateRecords);
+      const latestOriginalAt = latestAt(originalRecords);
+
+      // Los movimientos efectivos son la última actualización, salvo que una
+      // reversión posterior los haya dejado sin efecto. Si no hay
+      // actualización, se usan los originales con la misma comprobación.
+      let effectiveRecords: HistoryRecord[];
+      if (
+        updateRecords.length > 0 &&
+        (!lastReversion ||
+          (latestUpdateAt != null &&
+            latestUpdateAt.getTime() > lastReversion.createAt.getTime()))
+      ) {
+        effectiveRecords = updateRecords;
+      } else if (
+        lastReversion &&
+        (latestUpdateAt == null ||
+          lastReversion.createAt.getTime() >= latestUpdateAt.getTime())
+      ) {
+        effectiveRecords = [];
+      } else {
+        const alreadyReverted =
+          lastReversion != null &&
+          (latestOriginalAt == null ||
+            lastReversion.createAt.getTime() >= latestOriginalAt.getTime());
+        effectiveRecords = alreadyReverted ? [] : originalRecords;
+      }
+
+      if (effectiveRecords.length === 0) {
+        return {
+          success: true,
+          message: 'No había movimientos efectivos por revertir.',
+          shortfalls: {},
+        };
+      }
+
+      const historyRecords = effectiveRecords;
       const donationRef = buildDonationRef(originalDonation);
       const [medicineRows, storeRows] = await Promise.all([
         tx.medicine.findMany({
@@ -978,6 +1131,7 @@ export class InventoryService {
       }
 
       const shortfalls: Record<number, number> = {};
+      const shortfallsByKey: Record<string, number> = {};
 
       for (const { medicineId, storeId, lote, records } of groups) {
         const typedRecords = records;
@@ -990,31 +1144,98 @@ export class InventoryService {
             record.type === 'Entrada' ? record.amount : -record.amount;
         }
 
-        const currentInventory = await tx.inventory.findFirst({
-          where: { medicineId, storeId, lote },
-        });
+        if (netChange === 0) {
+          continue;
+        }
 
-        const isEntry = originalDonation.type === 'Entrada';
-        const currentStock = currentInventory?.stock ?? 0;
+        // Se leen TODAS las filas de inventario de esa clave: si el historial
+        // antiguo dejó duplicados, la reversión no debe ajustar solo una.
+        const currentRows: any[] = await tx.inventory.findMany({
+          where: { medicineId, storeId, lote },
+          orderBy: { id: 'asc' },
+        });
+        const currentInventory = currentRows[0];
+        const currentStock = currentRows.reduce(
+          (sum, row) => sum + row.stock,
+          0,
+        );
+
+        const isEntryContribution = netChange > 0;
         let newStock = currentStock;
         let revertedAmount = 0;
         let shortfall = 0;
 
-        if (isEntry) {
-          // Se intenta quitar netChange, pero solo puede quitarse lo que aún
-          // existe en el almacén; el resto ya fue consumido o transferido.
+        if (isEntryContribution) {
+          // Solo puede quitarse lo que aún existe; el resto ya fue consumido
+          // o transferido y se reporta como faltante.
           revertedAmount = Math.min(netChange, currentStock);
           shortfall = netChange - revertedAmount;
-          newStock = currentStock - netChange;
+          newStock = currentStock - revertedAmount;
+
+          let remaining = revertedAmount;
+          for (const row of currentRows) {
+            if (remaining <= 0) break;
+            const take = Math.min(row.stock, remaining);
+            if (take <= 0) continue;
+            if (take === row.stock) {
+              await tx.inventory.delete({ where: { id: row.id } });
+            } else {
+              await tx.inventory.update({
+                where: { id: row.id },
+                data: {
+                  stock: row.stock - take,
+                  updateAt: new Date(),
+                },
+              });
+            }
+            remaining -= take;
+          }
         } else {
           revertedAmount = Math.abs(netChange);
           newStock = currentStock + revertedAmount;
+
+          if (currentInventory) {
+            await tx.inventory.update({
+              where: { id: currentInventory.id },
+              data: {
+                stock: { increment: revertedAmount },
+                updateAt: new Date(),
+              },
+            });
+          } else {
+            // Si el inventario original ya no existe (p. ej. una salida que lo
+            // consumió por completo), el stock restaurado debe colgar de la
+            // donación de origen, no de la salida que se está revirtiendo.
+            const sourceHistory = await tx.historyInventory.findFirst({
+              where: {
+                medicineId,
+                storeId,
+                lote,
+                type: 'Entrada',
+                deleted: false,
+              },
+              orderBy: { id: 'desc' },
+            });
+            await tx.inventory.create({
+              data: {
+                donationId: sourceHistory?.donationId ?? originalDonation.id,
+                medicineId,
+                storeId,
+                lote,
+                stock: newStock,
+                admissionDate: typedRecords[0].admissionDate,
+                expirationDate: typedRecords[0].expirationDate,
+              },
+            });
+          }
         }
 
         if (newStock < 0) newStock = 0;
 
         if (shortfall > 0) {
           shortfalls[medicineId] = (shortfalls[medicineId] ?? 0) + shortfall;
+          const key = `${medicineId}|${storeId}|${lote}`;
+          shortfallsByKey[key] = (shortfallsByKey[key] ?? 0) + shortfall;
         }
 
         const observations =
@@ -1022,49 +1243,7 @@ export class InventoryService {
             ? `Reversión ajustada (${shortfall} unidades ya salidas/transferidas) | donación ${originalDonation.id}`
             : `Reversión de donación ${originalDonation.id}`;
 
-        if (currentInventory) {
-          if (newStock === 0) {
-            await tx.inventory.delete({
-              where: { id: currentInventory.id },
-            });
-          } else {
-            await tx.inventory.update({
-              where: { id: currentInventory.id },
-              data: {
-                stock: newStock,
-                updateAt: new Date(),
-              },
-            });
-          }
-        } else if (newStock > 0) {
-          // Si el inventario original ya no existe (p. ej. una salida que lo
-          // consumió por completo), el stock restaurado debe colgar de la
-          // donación de origen, no de la salida que se está revirtiendo; de lo
-          // contrario deleteDonation lo volvería a eliminar.
-          const sourceHistory = await tx.historyInventory.findFirst({
-            where: {
-              medicineId,
-              storeId,
-              lote,
-              type: 'Entrada',
-              deleted: false,
-            },
-            orderBy: { id: 'desc' },
-          });
-          await tx.inventory.create({
-            data: {
-              donationId: sourceHistory?.donationId ?? originalDonation.id,
-              medicineId,
-              storeId,
-              lote,
-              stock: newStock,
-              admissionDate: typedRecords[0].admissionDate,
-              expirationDate: typedRecords[0].expirationDate,
-            },
-          });
-        }
-
-        const reversionType = isEntry
+        const reversionType = isEntryContribution
           ? 'Reversión Entrada'
           : 'Reversión Salida';
         const reversion = await tx.historyInventory.create({
@@ -1148,6 +1327,7 @@ export class InventoryService {
         success: true,
         message: 'Reversión completada exitosamente',
         shortfalls,
+        shortfallsByKey,
       };
     } catch (error) {
       const message =

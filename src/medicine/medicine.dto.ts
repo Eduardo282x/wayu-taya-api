@@ -1,6 +1,7 @@
 import { Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsNotEmpty,
   IsNumber,
   IsOptional,
   IsString,
@@ -10,8 +11,10 @@ import {
 
 export class MedicineDTO {
   @IsString()
+  @IsNotEmpty({ message: 'El nombre es obligatorio.' })
   name: string;
   @IsString()
+  @IsNotEmpty({ message: 'La descripción es obligatoria.' })
   description: string;
   @IsString()
   code: string;

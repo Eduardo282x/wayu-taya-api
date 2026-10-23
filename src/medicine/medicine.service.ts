@@ -131,10 +131,11 @@ export class MedicineService {
   }
 
   private async resolveCategory(value: string, tx: any): Promise<number> {
-    const key = this.normalizeSearchKey(value);
+    const label = value?.trim() || 'General';
+    const key = this.normalizeSearchKey(label);
     // 1) Coincidencia exacta insensible a mayúsculas (consulta dirigida).
     const exact = await tx.category.findFirst({
-      where: { category: { equals: value.trim(), mode: 'insensitive' } },
+      where: { category: { equals: label, mode: 'insensitive' } },
       select: { id: true },
     });
     if (exact) return exact.id;
@@ -147,7 +148,7 @@ export class MedicineService {
     );
     if (existing) return existing.id;
     const created = await tx.category.create({
-      data: { category: this.toTitleCase(value) },
+      data: { category: this.toTitleCase(label) },
     });
     return created.id;
   }
@@ -156,10 +157,10 @@ export class MedicineService {
     value: string | undefined,
     tx: any,
   ): Promise<number> {
-    if (!value || !this.normalizeSearchKey(value)) return 14;
-    const key = this.normalizeSearchKey(value);
+    const label = value?.trim() || 'No especificada';
+    const key = this.normalizeSearchKey(label);
     const exact = await tx.forms.findFirst({
-      where: { forms: { equals: value.trim(), mode: 'insensitive' } },
+      where: { forms: { equals: label, mode: 'insensitive' } },
       select: { id: true },
     });
     if (exact) return exact.id;
@@ -170,8 +171,11 @@ export class MedicineService {
       (f: any) => this.normalizeSearchKey(f.forms) === key,
     );
     if (existing) return existing.id;
+
+    // Nunca se usa un id fijo: si el catálogo está vacío esta misma consulta
+    // crea la forma por defecto y la FK queda satisfecha.
     const created = await tx.forms.create({
-      data: { forms: this.toTitleCase(value) },
+      data: { forms: this.toTitleCase(label) },
     });
     return created.id;
   }
@@ -428,192 +432,207 @@ export class MedicineService {
   }
 
   async uploadExcel(file: Express.Multer.File) {
-    try {
-      const medicineDB = await this.prismaService.medicine.findMany();
-      const categoriesDB = await this.prismaService.category.findMany();
-      const formsDB = await this.prismaService.forms.findMany();
-
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(Buffer.from(file.buffer) as any);
-      const worksheet = workbook.getWorksheet(1);
-
-      const rawRows: { data: MedicineFormatExcel; row: number }[] = [];
-      const headers: string[] = [];
-
-      worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber === 1) {
-          row.eachCell((cell, colNumber) => {
-            headers[colNumber] = String(cell.value || '');
-          });
-          return;
-        }
-
-        const rowData: Record<string, any> = {};
-        row.eachCell((cell, colNumber) => {
-          const header = headers[colNumber];
-          if (header) {
-            rowData[header] = cell.value;
-          }
-        });
-
-        if (rowData[MEDICINE_EXCEL_FIELDS.name]) {
-          rawRows.push({
-            data: rowData as unknown as MedicineFormatExcel,
-            row: rowNumber,
-          });
-        }
-      });
-
-      // Validación con zod (fuente única): las filas inválidas se reportan por
-      // fila/campo y no se insertan.
-      const invalidRows: MedicineImportRowError[] = [];
-      const validRows: MedicineFormatExcel[] = [];
-      for (const { data, row } of rawRows) {
-        const parsed = medicineImportRowSchema.safeParse(data);
-        if (!parsed.success) {
-          for (const issue of parsed.error.issues) {
-            invalidRows.push({
-              row,
-              field: issue.path.join('.') || '(fila)',
-              message: issue.message,
-            });
-          }
-          continue;
-        }
-        validRows.push(parsed.data as unknown as MedicineFormatExcel);
-      }
-
-      const createdMedicines: any[] = [];
-      const skippedMedicines: string[] = [];
-      const duplicateCodeItems: { name: string; code: string }[] = [];
-      const existingCodes = new Set(
-        medicineDB
-          .map((med) => this.codeKey(med.code))
-          .filter((code): code is string => code !== null),
+    if (!file?.buffer) {
+      throw new ConflictException(
+        'No se recibió ningún archivo. Selecciona un Excel e intenta de nuevo.',
       );
-      const batchCodes = new Set<string>();
+    }
 
-      for (const data of validRows) {
-        const normalizedName = this.normalizeText(
-          data[MEDICINE_EXCEL_FIELDS.name],
-        );
+    const workbook = new ExcelJS.Workbook();
+    try {
+      await workbook.xlsx.load(Buffer.from(file.buffer) as any);
+    } catch {
+      throw new ConflictException(
+        'El archivo no es un Excel válido o está dañado.',
+      );
+    }
 
-        const alreadyExists = medicineDB.some(
-          (med) => this.normalizeText(med.name) === normalizedName,
-        );
+    const worksheet = workbook.getWorksheet(1);
+    if (!worksheet) {
+      throw new ConflictException(
+        'El archivo no contiene ninguna hoja de cálculo.',
+      );
+    }
 
-        if (alreadyExists) {
-          skippedMedicines.push(data[MEDICINE_EXCEL_FIELDS.name]);
-          continue;
-        }
+    const rawRows: { data: MedicineFormatExcel; row: number }[] = [];
+    let headers: string[] = [];
 
-        const rowCode = this.normalizeCode(data[MEDICINE_EXCEL_FIELDS.code]);
-        const rowCodeKey = this.codeKey(rowCode);
-        if (
-          rowCodeKey &&
-          (existingCodes.has(rowCodeKey) || batchCodes.has(rowCodeKey))
-        ) {
-          duplicateCodeItems.push({
-            name: data[MEDICINE_EXCEL_FIELDS.name],
-            code: rowCode,
-          });
-          skippedMedicines.push(data[MEDICINE_EXCEL_FIELDS.name]);
-          continue;
-        }
-
-        const normalizedCategory = this.normalizeText(
-          data[MEDICINE_EXCEL_FIELDS.category],
-        );
-        let category = categoriesDB.find(
-          (cat) => this.normalizeText(cat.category) === normalizedCategory,
-        );
-
-        if (!category) {
-          category = await this.prismaService.category.create({
-            data: {
-              category: this.toTitleCase(data[MEDICINE_EXCEL_FIELDS.category]),
-            },
-          });
-          categoriesDB.push(category);
-        }
-
-        let form;
-        if (data[MEDICINE_EXCEL_FIELDS.form]) {
-          const normalizedForm = this.normalizeText(
-            data[MEDICINE_EXCEL_FIELDS.form],
-          );
-          form = formsDB.find(
-            (f) => this.normalizeText(f.forms) === normalizedForm,
-          );
-          if (!form) {
-            form = await this.prismaService.forms.create({
-              data: {
-                forms: this.toTitleCase(data[MEDICINE_EXCEL_FIELDS.form]),
-              },
-            });
-            formsDB.push(form);
-          }
-        }
-
-        const isMedicine = data[MEDICINE_EXCEL_FIELDS.medicine] == 'Si';
-
-        createdMedicines.push({
-          name: data[MEDICINE_EXCEL_FIELDS.name],
-          description: data[MEDICINE_EXCEL_FIELDS.description],
-          code: rowCode ?? undefined,
-          categoryId: category.id,
-          medicine: isMedicine,
-          lote: data[MEDICINE_EXCEL_FIELDS.lote] || '',
-          provider: data[MEDICINE_EXCEL_FIELDS.provider] || '',
-          presentation: data[MEDICINE_EXCEL_FIELDS.presentation] || '',
-          temperate: data[MEDICINE_EXCEL_FIELDS.temperate] || '',
-          manufacturer: data[MEDICINE_EXCEL_FIELDS.manufacturer] || '',
-          activeIngredient: data[MEDICINE_EXCEL_FIELDS.activeIngredient] || '',
-          countryOfOrigin: data[MEDICINE_EXCEL_FIELDS.countryOfOrigin] || 'VE',
-          formId: form && form.id ? form.id : 14,
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) {
+        headers = [];
+        row.eachCell((cell, colNumber) => {
+          headers[colNumber] = String(cell.value || '').trim();
         });
-
-        if (rowCodeKey) batchCodes.add(rowCodeKey);
+        return;
       }
 
-      if (createdMedicines.length > 0) {
-        await this.prismaService.medicine.createMany({
-          data: createdMedicines,
-          skipDuplicates: true,
-        });
-      }
-
-      await this.auditService.record({
-        action: 'CREATE',
-        entity: 'Medicine',
-        entityId: null,
-        description: `Carga masiva de medicinas: ${createdMedicines.length} agregada(s), ${skippedMedicines.length} omitida(s), ${duplicateCodeItems.length} con código duplicado, ${invalidRows.length} inválida(s)`,
-        metadata: {
-          inserted: createdMedicines.length,
-          skipped: skippedMedicines.length,
-          medicines: createdMedicines.map((m) => m.name),
-          skippedItems: skippedMedicines,
-          duplicateCodeItems,
-          invalidRows,
-        },
+      const rowData: Record<string, any> = {};
+      row.eachCell((cell, colNumber) => {
+        const header = headers[colNumber];
+        if (header) {
+          rowData[header] = cell.value;
+        }
       });
 
-      return {
-        message:
-          `Carga completada: ${createdMedicines.length} medicina(s) agregada(s), ` +
-          `${skippedMedicines.length} ya existían (por nombre o código) y fueron omitidas, ` +
-          `${invalidRows.length} fila(s) inválida(s).`,
-        data: {
+      if (rowData[MEDICINE_EXCEL_FIELDS.name]) {
+        rawRows.push({
+          data: rowData as unknown as MedicineFormatExcel,
+          row: rowNumber,
+        });
+      }
+    });
+
+    if (rawRows.length === 0) {
+      throw new ConflictException(
+        'El archivo no contiene filas con el nombre de la medicina.',
+      );
+    }
+    if (rawRows.length > 5000) {
+      throw new ConflictException(
+        'El archivo supera el máximo de 5000 filas por carga.',
+      );
+    }
+
+    // Validación con zod (fuente única): las filas inválidas se reportan por
+    // fila/campo y no se insertan.
+    const invalidRows: MedicineImportRowError[] = [];
+    const validRows: MedicineFormatExcel[] = [];
+    for (const { data, row } of rawRows) {
+      const parsed = medicineImportRowSchema.safeParse(data);
+      if (!parsed.success) {
+        for (const issue of parsed.error.issues) {
+          invalidRows.push({
+            row,
+            field: issue.path.join('.') || '(fila)',
+            message: issue.message,
+          });
+        }
+        continue;
+      }
+      validRows.push(parsed.data as unknown as MedicineFormatExcel);
+    }
+
+    // Todo el lote se escribe en una transacción: si algo falla no quedan
+    // categorías/formas huérfanas ni medicinas a medias.
+    const result = await this.prismaService.$transaction(
+      async (tx) => {
+        const medicineDB = await tx.medicine.findMany({
+          select: { id: true, name: true, code: true },
+        });
+        const createdMedicines: any[] = [];
+        const skippedMedicines: string[] = [];
+        const duplicateCodeItems: { name: string; code: string }[] = [];
+        const existingCodes = new Set(
+          medicineDB
+            .map((med) => this.codeKey(med.code))
+            .filter((code): code is string => code !== null),
+        );
+        const existingNames = new Set(
+          medicineDB.map((med) => this.normalizeText(med.name)),
+        );
+        const batchCodes = new Set<string>();
+        const batchNames = new Set<string>();
+
+        for (const data of validRows) {
+          const name = data[MEDICINE_EXCEL_FIELDS.name]?.trim();
+          const normalizedName = this.normalizeText(name ?? '');
+
+          if (
+            existingNames.has(normalizedName) ||
+            batchNames.has(normalizedName)
+          ) {
+            skippedMedicines.push(name ?? '');
+            continue;
+          }
+
+          const rowCode = this.normalizeCode(data[MEDICINE_EXCEL_FIELDS.code]);
+          const rowCodeKey = this.codeKey(rowCode);
+          if (
+            rowCodeKey &&
+            (existingCodes.has(rowCodeKey) || batchCodes.has(rowCodeKey))
+          ) {
+            duplicateCodeItems.push({
+              name: name ?? '',
+              code: rowCode,
+            });
+            skippedMedicines.push(name ?? '');
+            continue;
+          }
+
+          const categoryId = await this.resolveCategory(
+            data[MEDICINE_EXCEL_FIELDS.category] ?? '',
+            tx,
+          );
+          const formId = await this.resolveForm(
+            data[MEDICINE_EXCEL_FIELDS.form],
+            tx,
+          );
+          const medicineValue = this.normalizeText(
+            String(data[MEDICINE_EXCEL_FIELDS.medicine] ?? ''),
+          );
+
+          createdMedicines.push({
+            name,
+            description: data[MEDICINE_EXCEL_FIELDS.description] ?? '',
+            code: rowCode ?? undefined,
+            categoryId,
+            medicine: medicineValue === 'si',
+            lote: data[MEDICINE_EXCEL_FIELDS.lote] || '',
+            provider: data[MEDICINE_EXCEL_FIELDS.provider] || '',
+            presentation: data[MEDICINE_EXCEL_FIELDS.presentation] || '',
+            temperate: data[MEDICINE_EXCEL_FIELDS.temperate] || '',
+            manufacturer: data[MEDICINE_EXCEL_FIELDS.manufacturer] || '',
+            activeIngredient:
+              data[MEDICINE_EXCEL_FIELDS.activeIngredient] || '',
+            countryOfOrigin:
+              data[MEDICINE_EXCEL_FIELDS.countryOfOrigin] || 'VE',
+            formId,
+          });
+
+          batchNames.add(normalizedName);
+          if (rowCodeKey) batchCodes.add(rowCodeKey);
+        }
+
+        if (createdMedicines.length > 0) {
+          await tx.medicine.createMany({ data: createdMedicines });
+        }
+
+        await this.auditService.record(
+          {
+            action: 'CREATE',
+            entity: 'Medicine',
+            entityId: null,
+            description: `Carga masiva de medicinas: ${createdMedicines.length} agregada(s), ${skippedMedicines.length} omitida(s), ${duplicateCodeItems.length} con código duplicado, ${invalidRows.length} inválida(s)`,
+            metadata: {
+              inserted: createdMedicines.length,
+              skipped: skippedMedicines.length,
+              medicines: createdMedicines.map((m) => m.name),
+              skippedItems: skippedMedicines,
+              duplicateCodeItems,
+              invalidRows,
+            },
+          },
+          tx,
+        );
+
+        return {
           inserted: createdMedicines.length,
           skipped: skippedMedicines.length,
           skippedItems: skippedMedicines,
           duplicateCodeItems,
           invalidRows,
-        },
-      };
-    } catch (error) {
-      throw error;
-    }
+        };
+      },
+      { timeout: 60_000, maxWait: 20_000 },
+    );
+
+    return {
+      message:
+        `Carga completada: ${result.inserted} medicina(s) agregada(s), ` +
+        `${result.skipped} ya existían (por nombre o código) y fueron omitidas, ` +
+        `${invalidRows.length} fila(s) inválida(s).`,
+      data: result,
+    };
   }
 
   normalizeText(text: string): string {

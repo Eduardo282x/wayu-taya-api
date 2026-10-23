@@ -26,6 +26,7 @@ export class MedicineController {
   async getMedicine(@Query() query: GetMedicineQueryDTO) {
     return await this.medicineService.getMedicine(query);
   }
+
   //categoria
   @Get('/category')
   async getCategory() {
