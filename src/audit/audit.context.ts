@@ -9,6 +9,8 @@ export interface AuditContextStore {
   user?: JwtPayload;
   ip?: string;
   userAgent?: string;
+  /** Identificador único de la petición para correlacionar logs y respuestas. */
+  requestId?: string;
 }
 
 export const auditContextStorage = new AsyncLocalStorage<AuditContextStore>();

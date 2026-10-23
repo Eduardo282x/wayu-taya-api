@@ -4,6 +4,7 @@ import {
   Injectable,
   NestInterceptor,
 } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { Observable, Subscription } from 'rxjs';
 import { Request } from 'express';
 import { JwtPayload } from 'src/auth/auth.types';
@@ -23,10 +24,23 @@ export class AuditContextInterceptor implements NestInterceptor {
     if (context.getType() !== 'http') return next.handle();
 
     const request = context.switchToHttp().getRequest<Request>();
+    const response = context.switchToHttp().getResponse();
+    const incomingId = request.headers['x-request-id'];
+    const requestId =
+      typeof incomingId === 'string' && incomingId.trim().length > 0
+        ? incomingId.trim()
+        : randomUUID();
+
+    // Se expone tanto en la cabecera como en el request para que el filtro de
+    // excepciones pueda correlacionar la respuesta de error con el log.
+    (request as Request & { requestId?: string }).requestId = requestId;
+    response.setHeader('X-Request-Id', requestId);
+
     const store = {
       user: request['user'] as JwtPayload | undefined,
       ip: request.ip || request.socket?.remoteAddress,
       userAgent: request.headers['user-agent'],
+      requestId,
     };
 
     return new Observable((subscriber) => {

@@ -39,6 +39,10 @@ export interface LogEntry {
   responseTime?: number;
   ip?: string;
   userAgent?: string;
+  /** Identificador de la petición para correlacionar con la respuesta HTTP. */
+  requestId?: string;
+  userId?: number | null;
+  username?: string;
   message: string;
   requestBody?: any;
   responseSize?: number;
@@ -134,6 +138,17 @@ export class FileLoggerService {
 
     let line = `[${timestamp}] ${entry.level.padEnd(5)} | ${method} | ${url} | ${status} | ${time} | ${ip}`;
 
+    if (entry.requestId) {
+      line += ` | req=${entry.requestId}`;
+    }
+
+    if (entry.userId != null || entry.username) {
+      const user = entry.username
+        ? `${entry.username}${entry.userId != null ? ` (#${entry.userId})` : ''}`
+        : `#${entry.userId}`;
+      line += ` | user=${user}`;
+    }
+
     if (entry.message) {
       line += ` | ${entry.message}`;
     }
@@ -153,7 +168,13 @@ export class FileLoggerService {
 
     if (entry.requestBody && Object.keys(entry.requestBody).length > 0) {
       const sanitized = this.sanitizeBody(entry.requestBody);
-      line += `\n                    Body: ${JSON.stringify(sanitized)}`;
+      let serialized: string;
+      try {
+        serialized = JSON.stringify(sanitized) ?? '[NO_SERIALIZABLE]';
+      } catch {
+        serialized = '[NO_SERIALIZABLE]';
+      }
+      line += `\n                    Body: ${serialized.slice(0, 12000)}`;
     }
 
     if (entry.responseSize) {
@@ -164,27 +185,51 @@ export class FileLoggerService {
   }
 
   private sanitizeBody(body: any): any {
-    if (!body || typeof body !== 'object') return body;
-
-    const sensitiveFields = [
+    const sensitiveFields = new Set([
       'password',
+      'currentpassword',
+      'newpassword',
       'token',
       'secret',
       'authorization',
-      'apiKey',
+      'apikey',
       'api_key',
       'access_token',
       'refresh_token',
-    ];
-    const sanitized = { ...body };
+      'refreshtoken',
+    ]);
 
-    for (const field of sensitiveFields) {
-      if (sanitized[field]) {
-        sanitized[field] = '***REDACTED***';
+    const seen = new WeakSet<object>();
+    const walk = (value: any, depth = 0): any => {
+      if (value == null) return value;
+      if (depth > 8) return '[TRUNCADO]';
+      if (typeof value === 'string') {
+        return value.length > 4000 ? `${value.slice(0, 4000)}…` : value;
       }
-    }
+      if (typeof value !== 'object') return value;
+      if (value instanceof Date) return value.toISOString();
+      if (Buffer.isBuffer(value)) return `[Buffer ${value.length} bytes]`;
+      if (seen.has(value)) return '[CIRCULAR]';
+      seen.add(value);
 
-    return sanitized;
+      if (Array.isArray(value)) {
+        return value.slice(0, 200).map((item) => walk(item, depth + 1));
+      }
+
+      const result: Record<string, any> = {};
+      for (const [key, child] of Object.entries(value)) {
+        result[key] = sensitiveFields.has(key.toLowerCase())
+          ? '***REDACTED***'
+          : walk(child, depth + 1);
+      }
+      return result;
+    };
+
+    try {
+      return walk(body);
+    } catch {
+      return '[NO_SERIALIZABLE]';
+    }
   }
 
   private writeToFile(filePath: string, content: string): void {

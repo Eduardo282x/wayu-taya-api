@@ -8,6 +8,7 @@ import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { Request, Response } from 'express';
 import { FileLoggerService } from '../logger/file-logger.service';
+import { getAuditContext } from 'src/audit/audit.context';
 
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
@@ -28,6 +29,10 @@ export class LoggingInterceptor implements NestInterceptor {
         next: () => {
           const responseTime = Date.now() - startTime;
           const statusCode = response.statusCode;
+          const auditContext = getAuditContext();
+          const requestId =
+            auditContext?.requestId ??
+            (request as Request & { requestId?: string }).requestId;
 
           this.logger.log({
             timestamp: new Date(),
@@ -38,6 +43,9 @@ export class LoggingInterceptor implements NestInterceptor {
             responseTime,
             ip: ip || request.socket?.remoteAddress || 'N/A',
             userAgent,
+            requestId,
+            userId: auditContext?.user?.sub,
+            username: auditContext?.user?.username,
             message: `${method} ${url} completado`,
             requestBody: this.shouldLogBody(method, url) ? body : undefined,
             responseSize:
@@ -51,9 +59,7 @@ export class LoggingInterceptor implements NestInterceptor {
   private shouldLogBody(method: string, url: string): boolean {
     if (method === 'GET' || method === 'DELETE') return false;
 
-    const sensitiveUrls = ['/auth/login', '/auth/register', '/auth/refresh'];
-    if (sensitiveUrls.some((sensitiveUrl) => url.includes(sensitiveUrl)))
-      return false;
+    if (url.includes('/auth/')) return false;
 
     return true;
   }

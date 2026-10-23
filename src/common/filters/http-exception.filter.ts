@@ -10,20 +10,61 @@ import {
 import { Prisma } from 'src/generated/prisma/client';
 import { FileLoggerService } from '../logger/file-logger.service';
 import { Request } from 'express';
+import { AuditService } from 'src/audit/audit.service';
+import { getAuditContext } from 'src/audit/audit.context';
+
+type RequestWithContext = Request & {
+  requestId?: string;
+  user?: { sub?: number; username?: string; rol?: string };
+};
+
+const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const SENSITIVE_ROUTES = ['/auth/'];
 
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
   constructor(
     @Inject(FileLoggerService) private readonly logger: FileLoggerService,
+    @Inject(AuditService) private readonly auditService: AuditService,
   ) {}
 
-  catch(exception: any, host: ArgumentsHost) {
+  async catch(exception: any, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse();
-    const request = ctx.getRequest<Request>();
+    const request = ctx.getRequest<RequestWithContext>();
+    const auditContext = getAuditContext();
 
     const { method, url, ip, headers } = request;
     const userAgent = headers['user-agent'] || '';
+    const requestId =
+      request.requestId ??
+      (typeof headers['x-request-id'] === 'string'
+        ? headers['x-request-id']
+        : auditContext?.requestId);
+    const user = request.user ?? auditContext?.user;
+    const isSensitiveRoute = SENSITIVE_ROUTES.some((route) =>
+      url.includes(route),
+    );
+    const shouldLogPayload = MUTATING_METHODS.has(method) && !isSensitiveRoute;
+    const shouldAuditFailure =
+      MUTATING_METHODS.has(method) && !isSensitiveRoute;
+
+    const uploadFile = (
+      request as Request & {
+        file?: { originalname?: string; size?: number; mimetype?: string };
+      }
+    ).file;
+    const requestPayload = request.is('multipart/form-data')
+      ? uploadFile
+        ? {
+            file: {
+              originalname: uploadFile.originalname ?? '',
+              size: uploadFile.size ?? 0,
+              mimetype: uploadFile.mimetype ?? '',
+            },
+          }
+        : null
+      : (request.body ?? null);
 
     let statusCode: number;
     let message: string;
@@ -48,6 +89,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
       internalDetail = exception?.message;
     }
 
+    const safeMessage = Array.isArray(message) ? message[0] : message;
+
     this.logger.error({
       timestamp: new Date(),
       level: 'ERROR',
@@ -56,12 +99,62 @@ export class AllExceptionsFilter implements ExceptionFilter {
       statusCode,
       ip: ip || request.socket?.remoteAddress || 'N/A',
       userAgent,
-      message: Array.isArray(message) ? message[0] : message,
+      requestId,
+      userId: user?.sub,
+      username: user?.username,
+      message: safeMessage,
       // El stack se registra en el log, no se devuelve en la respuesta.
       stack: exception instanceof HttpException ? undefined : exception?.stack,
       internalDetail,
-      requestBody: undefined,
+      requestBody: shouldLogPayload ? requestPayload : undefined,
     });
+
+    // El fallo se audita con la conexión principal: sobrevive al rollback de
+    // la transacción que originó el error. Si la auditoría falla, se registra
+    // el problema pero nunca se oculta la excepción original.
+    if (shouldAuditFailure) {
+      try {
+        await this.auditService.recordFailure(
+          {
+            action: 'FAILED',
+            entity: this.resolveEntity(url),
+            entityId: null,
+            description: `Intento fallido ${method} ${url} (${statusCode}): ${safeMessage}`,
+            metadata: {
+              statusCode,
+              message: safeMessage,
+              requestId: requestId ?? null,
+              method,
+              url,
+              payload: shouldLogPayload ? requestPayload : null,
+              errorName: exception?.constructor?.name ?? 'Error',
+            },
+          },
+          {
+            user: user as any,
+            ip: ip || request.socket?.remoteAddress,
+            userAgent,
+            requestId,
+          },
+        );
+      } catch (auditError) {
+        this.logger.error({
+          timestamp: new Date(),
+          level: 'ERROR',
+          method,
+          url,
+          statusCode,
+          requestId,
+          userId: user?.sub,
+          username: user?.username,
+          message: 'No se pudo registrar el fallo en auditoría',
+          internalDetail:
+            auditError instanceof Error
+              ? auditError.message
+              : String(auditError),
+        });
+      }
+    }
 
     if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       // NO se envían `code` ni `exception.message` de Prisma: revelan nombres
@@ -70,7 +163,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
         success: false,
         statusCode,
         message,
-        data: null,
+        data: { requestId: requestId ?? null },
       });
       return;
     }
@@ -83,16 +176,38 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const data =
       exception instanceof HttpException
         ? typeof httpResponse === 'string'
-          ? { detail: httpResponse }
-          : { ...httpResponse }
-        : { detail: 'Error interno del servidor' };
+          ? { detail: httpResponse, requestId: requestId ?? null }
+          : { ...httpResponse, requestId: requestId ?? null }
+        : {
+            detail: 'Error interno del servidor',
+            requestId: requestId ?? null,
+          };
 
     response.status(statusCode).json({
       success: false,
       statusCode,
-      message: Array.isArray(message) ? message[0] : message,
+      message: safeMessage,
       data,
     });
+  }
+
+  /** Entidad lógica de auditoría a partir de la ruta HTTP. */
+  private resolveEntity(url: string): string {
+    const path = url.split('?')[0];
+    const mappings: { segment: string; entity: string }[] = [
+      { segment: '/donations', entity: 'Donation' },
+      { segment: '/medicine', entity: 'Medicine' },
+      { segment: '/inventory', entity: 'Inventory' },
+      { segment: '/store', entity: 'Store' },
+      { segment: '/providers', entity: 'Provider' },
+      { segment: '/institutions', entity: 'Institution' },
+      { segment: '/people', entity: 'People' },
+      { segment: '/events', entity: 'Event' },
+      { segment: '/documents', entity: 'Document' },
+      { segment: '/users', entity: 'User' },
+    ];
+    const match = mappings.find(({ segment }) => path.includes(segment));
+    return match?.entity ?? 'HttpRequest';
   }
 
   private handlePrismaError(exception: Prisma.PrismaClientKnownRequestError): {
@@ -200,7 +315,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       case 'P2028':
         return {
           statusCode: HttpStatus.REQUEST_TIMEOUT,
-          message: `Se excedió el límite de logs de la transacción`,
+          message: `La operación tardó demasiado y fue cancelada. No se guardó nada; intenta de nuevo.`,
         };
       case 'P2029':
         return {
@@ -224,8 +339,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
         };
       case 'P2034':
         return {
-          statusCode: HttpStatus.BAD_REQUEST,
-          message: `Se produjo un error de precisión decimal en la base de datos`,
+          statusCode: HttpStatus.CONFLICT,
+          message: `Otro usuario estaba actualizando el inventario al mismo tiempo. No se guardó nada; intenta de nuevo.`,
         };
       default:
         this.logger.error(

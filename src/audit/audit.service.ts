@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { Prisma } from 'src/generated/prisma/client';
 import { AuditEntry, GetAuditQueryDTO } from './audit.dto';
-import { getAuditContext } from './audit.context';
+import { AuditContextStore, getAuditContext } from './audit.context';
 
 /**
  * Escribe la bitácora de auditoría.
@@ -38,6 +38,38 @@ export class AuditService {
             : (entry.metadata as Prisma.InputJsonValue),
         ip: ctx?.ip ?? null,
         userAgent: ctx?.userAgent ?? null,
+      },
+    });
+  }
+
+  /**
+   * Registra un intento fallido. A diferencia de `record()`, escribe con la
+   * conexión principal (no con el `tx`) para que el registro sobreviva al
+   * rollback de la operación que falló. El contexto se recibe explícito porque
+   * el filtro de excepciones puede ejecutarse fuera del AsyncLocalStorage.
+   */
+  async recordFailure(
+    entry: AuditEntry,
+    context?: AuditContextStore & { requestId?: string },
+  ): Promise<void> {
+    const fallback = getAuditContext();
+    const user = context?.user ?? fallback?.user;
+
+    await this.prisma.auditLog.create({
+      data: {
+        userId: user?.sub ?? null,
+        username: user?.username ?? '',
+        userRole: user?.rol ?? '',
+        action: entry.action,
+        entity: entry.entity,
+        entityId: entry.entityId ?? null,
+        description: entry.description ?? '',
+        metadata:
+          entry.metadata == null
+            ? undefined
+            : (entry.metadata as Prisma.InputJsonValue),
+        ip: context?.ip ?? fallback?.ip ?? null,
+        userAgent: context?.userAgent ?? fallback?.userAgent ?? null,
       },
     });
   }

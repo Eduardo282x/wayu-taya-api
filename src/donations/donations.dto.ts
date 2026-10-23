@@ -1,11 +1,15 @@
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
   IsArray,
   IsDate,
   ValidateNested,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
+  IsNotEmpty,
   IsBoolean,
   IsIn,
   Min,
@@ -22,12 +26,16 @@ export class DonationsDTO {
   @IsString()
   @IsIn(['Entrada', 'Salida'])
   type: string;
-  @IsDate()
-  @Transform(({ value }) => new Date(value))
+  @IsDate({ message: 'La fecha de la donación no es válida.' })
+  @Transform(({ value }) =>
+    value == null || value === '' ? value : new Date(value),
+  )
   date: Date;
   @IsString()
+  @IsNotEmpty({ message: 'El número de control es obligatorio.' })
   controlNumber: string;
   @IsString()
+  @IsNotEmpty({ message: 'El lote es obligatorio.' })
   lote: string;
 
   @IsOptional()
@@ -35,6 +43,10 @@ export class DonationsDTO {
   changeDonDetails: boolean;
 
   @IsArray()
+  @ArrayMinSize(1, { message: 'Debe incluir al menos una medicina.' })
+  @ArrayMaxSize(500, {
+    message: 'Una donación no puede superar las 500 medicinas.',
+  })
   @ValidateNested({ each: true })
   @Type(() => DetDonationDTO)
   medicines: DetDonationDTO[];
@@ -135,7 +147,8 @@ export class MedicineMinDTO {
 
 export class DetDonationDTO {
   @IsOptional()
-  @IsNumber()
+  @IsInt()
+  @Min(1)
   medicineId: number;
 
   @IsOptional()
@@ -143,19 +156,26 @@ export class DetDonationDTO {
   @Type(() => MedicineMinDTO)
   medicine: MedicineMinDTO;
 
-  @IsNumber()
+  @IsInt({ message: 'La cantidad debe ser un número entero.' })
+  @Min(1, { message: 'La cantidad debe ser mayor a 0.' })
   amount: number;
+
   @IsOptional()
-  @IsNumber()
+  @IsInt()
   @Min(0)
   benefited: number;
-  @IsNumber()
+
+  @IsInt({ message: 'El almacén es obligatorio.' })
+  @Min(1, { message: 'El almacén es obligatorio.' })
   storageId: number;
+
   @IsOptional()
   @IsString()
   lote: string;
 
-  @IsDate()
-  @Transform(({ value }) => new Date(value))
+  @IsDate({ message: 'La fecha de vencimiento no es válida.' })
+  @Transform(({ value }) =>
+    value == null || value === '' ? value : new Date(value),
+  )
   expirationDate: Date;
 }
