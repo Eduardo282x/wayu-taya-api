@@ -12,6 +12,15 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AuditService } from 'src/audit/audit.service';
+import {
+  buildDonationRef,
+  buildMedicineRef,
+  buildRefs,
+  buildStoreRef,
+  donationLabel,
+  medicineLabel,
+  storeLabel,
+} from 'src/audit/audit-labels';
 import { FileLoggerService } from 'src/common/logger/file-logger.service';
 import {
   HistoryQueryDto,
@@ -585,17 +594,45 @@ export class InventoryService {
         });
       }
 
-      const lote =
-        inventory.lote ||
-        (
-          await trx.donation.findUnique({
-            where: { id: inventory.donationId },
-            select: { lote: true },
-          })
-        )?.lote;
+      const donationRow = await trx.donation.findUnique({
+        where: { id: inventory.donationId },
+        select: {
+          id: true,
+          controlNumber: true,
+          type: true,
+          date: true,
+          lote: true,
+        },
+      });
+
+      const lote = inventory.lote || donationRow?.lote;
 
       if (!lote)
         throw new Error('No se pudo determinar el lote de la donación.');
+
+      // Snapshot legible (una consulta por catálogo) para que el log no
+      // dependa de filas que luego se borran o cambian.
+      const [medicineRows, storeRows] = await Promise.all([
+        trx.medicine.findMany({
+          where: {
+            id: {
+              in: [...new Set(inventory.medicines.map((m) => m.medicineId))],
+            },
+          },
+          select: { id: true, name: true, code: true },
+        }),
+        trx.store.findMany({
+          where: {
+            id: { in: [...new Set(inventory.medicines.map((m) => m.storeId))] },
+          },
+          select: { id: true, name: true },
+        }),
+      ]);
+      const donationRef = buildDonationRef(donationRow);
+      const medicineById = new Map<number, any>(
+        medicineRows.map((m) => [m.id, m]),
+      );
+      const storeById = new Map<number, any>(storeRows.map((s) => [s.id, s]));
 
       const records = await trx.inventory.findMany({
         where: {
@@ -783,12 +820,20 @@ export class InventoryService {
       }
 
       for (const entry of inventoryAudit) {
+        const medicineRef = buildMedicineRef(
+          medicineById.get(entry.medicineId),
+        );
+        const storeRef = buildStoreRef(storeById.get(entry.storeId));
         await this.auditService.record(
           {
             action: entry.action,
             entity: 'Inventory',
             entityId: entry.entityId,
-            description: `${entry.movement} de medicina ${entry.medicineId} (lote ${entry.lote}, almacén ${entry.storeId}): ${entry.amount} unidades`,
+            description: `${entry.movement} de ${entry.amount} unidades de ${medicineLabel(
+              medicineRef,
+            )} (lote ${entry.lote}, almacén ${storeLabel(
+              storeRef,
+            )}) — donación ${donationLabel(donationRef)}`,
             metadata: {
               movement: entry.movement,
               amount: entry.amount,
@@ -798,6 +843,11 @@ export class InventoryService {
               donationId: inventory.donationId,
               before: entry.before,
               after: entry.after,
+              refs: buildRefs({
+                donation: donationRef,
+                medicine: medicineRef,
+                store: storeRef,
+              }),
             },
           },
           trx,
@@ -814,13 +864,27 @@ export class InventoryService {
           },
         });
         for (const h of createdHistory) {
+          const medicineRef = buildMedicineRef(medicineById.get(h.medicineId));
+          const storeRef = buildStoreRef(storeById.get(h.storeId));
           await this.auditService.record(
             {
               action: 'CREATE',
               entity: 'HistoryInventory',
               entityId: h.id,
-              description: `Movimiento ${h.type} de medicina ${h.medicineId} (lote ${h.lote})`,
-              metadata: { before: null, after: h },
+              description: `Movimiento ${h.type} de ${h.amount} unidades de ${medicineLabel(
+                medicineRef,
+              )} (lote ${h.lote}, almacén ${storeLabel(
+                storeRef,
+              )}) — donación ${donationLabel(donationRef)}`,
+              metadata: {
+                before: null,
+                after: h,
+                refs: buildRefs({
+                  donation: donationRef,
+                  medicine: medicineRef,
+                  store: storeRef,
+                }),
+              },
             },
             trx,
           );
@@ -867,6 +931,26 @@ export class InventoryService {
         orderBy: { id: 'desc' },
       })) as HistoryRecord[];
 
+      const donationRef = buildDonationRef(originalDonation);
+      const [medicineRows, storeRows] = await Promise.all([
+        tx.medicine.findMany({
+          where: {
+            id: { in: [...new Set(historyRecords.map((r) => r.medicineId))] },
+          },
+          select: { id: true, name: true, code: true },
+        }),
+        tx.store.findMany({
+          where: {
+            id: { in: [...new Set(historyRecords.map((r) => r.storeId))] },
+          },
+          select: { id: true, name: true },
+        }),
+      ]);
+      const medicineById = new Map<number, any>(
+        medicineRows.map((m) => [m.id, m]),
+      );
+      const storeById = new Map<number, any>(storeRows.map((s) => [s.id, s]));
+
       const groups: {
         medicineId: number;
         storeId: number;
@@ -897,6 +981,8 @@ export class InventoryService {
 
       for (const { medicineId, storeId, lote, records } of groups) {
         const typedRecords = records;
+        const medicineRef = buildMedicineRef(medicineById.get(medicineId));
+        const storeRef = buildStoreRef(storeById.get(storeId));
 
         let netChange = 0;
         for (const record of typedRecords) {
@@ -1009,7 +1095,11 @@ export class InventoryService {
               action: inventoryAction,
               entity: 'Inventory',
               entityId: currentInventory?.id ?? null,
-              description: `${reversionType} de medicina ${medicineId} (lote ${lote}, almacén ${storeId})`,
+              description: `${reversionType} de ${revertedAmount} unidades de ${medicineLabel(
+                medicineRef,
+              )} (lote ${lote}, almacén ${storeLabel(
+                storeRef,
+              )}) — donación ${donationLabel(donationRef)}`,
               metadata: {
                 reversalType: reversionType,
                 revertedAmount,
@@ -1020,6 +1110,11 @@ export class InventoryService {
                 donationId: originalDonation.id,
                 before: currentInventory ? { stock: currentStock } : null,
                 after: { stock: newStock },
+                refs: buildRefs({
+                  donation: donationRef,
+                  medicine: medicineRef,
+                  store: storeRef,
+                }),
               },
             },
             tx,
@@ -1030,8 +1125,20 @@ export class InventoryService {
             action: 'CREATE',
             entity: 'HistoryInventory',
             entityId: reversion.id,
-            description: `Movimiento ${reversionType} de medicina ${medicineId} (lote ${lote})`,
-            metadata: { before: null, after: reversion },
+            description: `Movimiento ${reversionType} de ${revertedAmount} unidades de ${medicineLabel(
+              medicineRef,
+            )} (lote ${lote}, almacén ${storeLabel(
+              storeRef,
+            )}) — donación ${donationLabel(donationRef)}`,
+            metadata: {
+              before: null,
+              after: reversion,
+              refs: buildRefs({
+                donation: donationRef,
+                medicine: medicineRef,
+                store: storeRef,
+              }),
+            },
           },
           tx,
         );
@@ -1054,6 +1161,51 @@ export class InventoryService {
   async transferMedicineBetweenStores(params: InventoryMoveDto) {
     try {
       return await this.prisma.$transaction(async (tx) => {
+        const medicineIds = [
+          ...new Set(params.movements.map((m) => m.medicineId)),
+        ];
+        const storeIds = [
+          ...new Set(
+            params.movements.flatMap((m) => [m.sourceStoreId, m.targetStoreId]),
+          ),
+        ];
+        const [medicineRows, storeRows] = await Promise.all([
+          tx.medicine.findMany({
+            where: { id: { in: medicineIds } },
+            select: { id: true, name: true, code: true },
+          }),
+          tx.store.findMany({
+            where: { id: { in: storeIds } },
+            select: { id: true, name: true },
+          }),
+        ]);
+        const medicineById = new Map<number, any>(
+          medicineRows.map((m) => [m.id, m]),
+        );
+        const storeById = new Map<number, any>(storeRows.map((s) => [s.id, s]));
+        const donationRefCache = new Map<
+          number,
+          ReturnType<typeof buildDonationRef>
+        >();
+        const donationRefOf = async (donationId: number) => {
+          if (donationRefCache.has(donationId)) {
+            return donationRefCache.get(donationId);
+          }
+          const row = await tx.donation.findUnique({
+            where: { id: donationId },
+            select: {
+              id: true,
+              controlNumber: true,
+              type: true,
+              date: true,
+              lote: true,
+            },
+          });
+          const ref = buildDonationRef(row);
+          donationRefCache.set(donationId, ref);
+          return ref;
+        };
+
         for (const movement of params.movements) {
           const { medicineId, sourceStoreId, quantity, targetStoreId } =
             movement;
@@ -1071,6 +1223,11 @@ export class InventoryService {
               `Stock insuficiente en el almacén fuente (Medicina ID: ${medicineId}, Almacén ID: ${sourceStoreId}).`,
             );
           }
+
+          const donationRef = await donationRefOf(sourceInventory.donationId);
+          const medicineRef = buildMedicineRef(medicineById.get(medicineId));
+          const sourceStoreRef = buildStoreRef(storeById.get(sourceStoreId));
+          const targetStoreRef = buildStoreRef(storeById.get(targetStoreId));
 
           // Reducir stock del almacén fuente
           const sourceBefore = sourceInventory.stock;
@@ -1094,7 +1251,13 @@ export class InventoryService {
               action: reduceAmount.stock == 0 ? 'DELETE' : 'UPDATE',
               entity: 'Inventory',
               entityId: sourceInventory.id,
-              description: `Transferencia: ${quantity} unidades de medicina ${medicineId} desde almacén ${sourceStoreId}`,
+              description: `Transferencia: ${quantity} unidades de ${medicineLabel(
+                medicineRef,
+              )} desde almacén ${storeLabel(
+                sourceStoreRef,
+              )} hacia ${storeLabel(targetStoreRef)} — donación ${donationLabel(
+                donationRef,
+              )}`,
               metadata: {
                 movement: 'Transferencia Salida',
                 medicineId,
@@ -1104,6 +1267,12 @@ export class InventoryService {
                 targetStoreId,
                 before: { stock: sourceBefore },
                 after: { stock: reduceAmount.stock },
+                refs: buildRefs({
+                  donation: donationRef,
+                  medicine: medicineRef,
+                  store: sourceStoreRef,
+                  targetStore: targetStoreRef,
+                }),
               },
             },
             tx,
@@ -1155,7 +1324,11 @@ export class InventoryService {
               action: destinationInventory ? 'UPDATE' : 'CREATE',
               entity: 'Inventory',
               entityId: destinationId,
-              description: `Transferencia: ${quantity} unidades de medicina ${medicineId} hacia almacén ${targetStoreId}`,
+              description: `Transferencia: ${quantity} unidades de ${medicineLabel(
+                medicineRef,
+              )} desde ${storeLabel(sourceStoreRef)} hacia almacén ${storeLabel(
+                targetStoreRef,
+              )} — donación ${donationLabel(donationRef)}`,
               metadata: {
                 movement: 'Transferencia Entrada',
                 medicineId,
@@ -1167,6 +1340,12 @@ export class InventoryService {
                   ? { stock: destinationBefore }
                   : null,
                 after: { stock: destinationBefore + quantity },
+                refs: buildRefs({
+                  donation: donationRef,
+                  medicine: medicineRef,
+                  store: targetStoreRef,
+                  targetStore: sourceStoreRef,
+                }),
               },
             },
             tx,
@@ -1209,8 +1388,20 @@ export class InventoryService {
               action: 'CREATE',
               entity: 'HistoryInventory',
               entityId: transferOut.id,
-              description: `Movimiento Transferencia Salida de medicina ${medicineId} (lote ${sourceInventory.lote})`,
-              metadata: { before: null, after: transferOut },
+              description: `Movimiento Transferencia Salida de ${quantity} unidades de ${medicineLabel(
+                medicineRef,
+              )} (lote ${sourceInventory.lote}, almacén ${storeLabel(
+                sourceStoreRef,
+              )}) — donación ${donationLabel(donationRef)}`,
+              metadata: {
+                before: null,
+                after: transferOut,
+                refs: buildRefs({
+                  donation: donationRef,
+                  medicine: medicineRef,
+                  store: sourceStoreRef,
+                }),
+              },
             },
             tx,
           );
@@ -1219,8 +1410,20 @@ export class InventoryService {
               action: 'CREATE',
               entity: 'HistoryInventory',
               entityId: transferIn.id,
-              description: `Movimiento Transferencia Entrada de medicina ${medicineId} (lote ${sourceInventory.lote})`,
-              metadata: { before: null, after: transferIn },
+              description: `Movimiento Transferencia Entrada de ${quantity} unidades de ${medicineLabel(
+                medicineRef,
+              )} (lote ${sourceInventory.lote}, almacén ${storeLabel(
+                targetStoreRef,
+              )}) — donación ${donationLabel(donationRef)}`,
+              metadata: {
+                before: null,
+                after: transferIn,
+                refs: buildRefs({
+                  donation: donationRef,
+                  medicine: medicineRef,
+                  store: targetStoreRef,
+                }),
+              },
             },
             tx,
           );
@@ -1270,6 +1473,30 @@ export class InventoryService {
         );
       }
 
+      const [medicineRow, storeRow, donationRow] = await Promise.all([
+        this.prisma.medicine.findUnique({
+          where: { id: data.medicineId },
+          select: { id: true, name: true, code: true },
+        }),
+        this.prisma.store.findUnique({
+          where: { id: data.storeId },
+          select: { id: true, name: true },
+        }),
+        this.prisma.donation.findUnique({
+          where: { id: inventory.donationId },
+          select: {
+            id: true,
+            controlNumber: true,
+            type: true,
+            date: true,
+            lote: true,
+          },
+        }),
+      ]);
+      const medicineRef = buildMedicineRef(medicineRow);
+      const storeRef = buildStoreRef(storeRow);
+      const donationRef = buildDonationRef(donationRow);
+
       //update or delete stock
       await this.prisma.$transaction(async (tx) => {
         const beforeStock = inventory.stock;
@@ -1294,7 +1521,11 @@ export class InventoryService {
             action: beforeStock - amount === 0 ? 'DELETE' : 'UPDATE',
             entity: 'Inventory',
             entityId: inventory.id,
-            description: `Salida manual: ${amount} unidades de medicina ${data.medicineId} (lote ${inventory.lote}, almacén ${data.storeId})`,
+            description: `Salida manual: ${amount} unidades de ${medicineLabel(
+              medicineRef,
+            )} (lote ${inventory.lote}, almacén ${storeLabel(
+              storeRef,
+            )}) — donación ${donationLabel(donationRef)}`,
             metadata: {
               movement: 'Salida',
               medicineId: data.medicineId,
@@ -1304,6 +1535,11 @@ export class InventoryService {
               observations: data.observations,
               before: { stock: beforeStock },
               after: { stock: beforeStock - amount },
+              refs: buildRefs({
+                donation: donationRef,
+                medicine: medicineRef,
+                store: storeRef,
+              }),
             },
           },
           tx,
@@ -1330,8 +1566,20 @@ export class InventoryService {
             action: 'CREATE',
             entity: 'HistoryInventory',
             entityId: history.id,
-            description: `Movimiento Salida de medicina ${data.medicineId} (lote ${inventory.lote})`,
-            metadata: { before: null, after: history },
+            description: `Movimiento Salida de ${amount} unidades de ${medicineLabel(
+              medicineRef,
+            )} (lote ${inventory.lote}, almacén ${storeLabel(
+              storeRef,
+            )}) — donación ${donationLabel(donationRef)}`,
+            metadata: {
+              before: null,
+              after: history,
+              refs: buildRefs({
+                donation: donationRef,
+                medicine: medicineRef,
+                store: storeRef,
+              }),
+            },
           },
           tx,
         );

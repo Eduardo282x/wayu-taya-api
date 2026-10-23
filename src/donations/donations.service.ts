@@ -19,6 +19,15 @@ import {
 } from './donations.dto';
 import { InventoryService } from 'src/inventory/inventory.service';
 import { AuditService } from 'src/audit/audit.service';
+import {
+  buildDonationRef,
+  buildMedicineRef,
+  buildRefs,
+  buildStoreRef,
+  donationLabel,
+  medicineLabel,
+  storeLabel,
+} from 'src/audit/audit-labels';
 import { FileLoggerService } from 'src/common/logger/file-logger.service';
 import { loadLogo } from 'src/common/utils/load-logo';
 import PDFDocument from 'pdfkit';
@@ -604,7 +613,20 @@ export class DonationsService {
               lote: donation.lote,
               benefited: this.sumBenefited(medicinesResolved),
             },
+            include: {
+              institution: { select: { id: true, name: true } },
+              provider: { select: { id: true, name: true } },
+            },
           });
+
+          const donationRef = buildDonationRef(donationCreated);
+          const donationRefs = buildRefs({
+            donation: donationRef,
+            institution: donationCreated.institution ?? undefined,
+            provider: donationCreated.provider ?? undefined,
+          });
+          const consignee =
+            donationCreated.institution?.name || donationCreated.provider?.name;
 
           const dataDetDonation = medicinesResolved.map((pro) => ({
             donationId: donationCreated.id,
@@ -642,11 +664,14 @@ export class DonationsService {
               action: 'CREATE',
               entity: 'Donation',
               entityId: donationCreated.id,
-              description: `Donación ${donationCreated.controlNumber} (${donationCreated.type}) creada`,
+              description: `Donación ${donationLabel(donationRef)} creada${
+                consignee ? ` para ${consignee}` : ''
+              }`,
               metadata: {
                 before: null,
                 after: donationCreated,
                 payload: donation,
+                refs: donationRefs,
               },
             },
             tx,
@@ -654,15 +679,28 @@ export class DonationsService {
 
           const createdDets = await tx.detDonation.findMany({
             where: { donationId: donationCreated.id },
+            include: {
+              medicine: { select: { id: true, name: true, code: true } },
+            },
           });
           for (const det of createdDets) {
+            const medicineRef = buildMedicineRef(det.medicine);
             await this.auditService.record(
               {
                 action: 'CREATE',
                 entity: 'DetDonation',
                 entityId: det.id,
-                description: `Detalle de donación ${donationCreated.controlNumber} (medicina ${det.medicineId})`,
-                metadata: { before: null, after: det },
+                description: `Detalle de donación ${donationLabel(
+                  donationRef,
+                )}: ${det.amount} x ${medicineLabel(medicineRef)} (lote ${det.lote})`,
+                metadata: {
+                  before: null,
+                  after: det,
+                  refs: buildRefs({
+                    donation: donationRef,
+                    medicine: medicineRef,
+                  }),
+                },
               },
               tx,
             );
@@ -698,8 +736,14 @@ export class DonationsService {
           const originalDonation = await tx.donation.findUnique({
             where: { id },
             include: {
-              detDonation: true,
+              detDonation: {
+                include: {
+                  medicine: { select: { id: true, name: true, code: true } },
+                },
+              },
               historyInventory: true,
+              institution: { select: { id: true, name: true } },
+              provider: { select: { id: true, name: true } },
             },
           });
 
@@ -777,6 +821,10 @@ export class DonationsService {
           const updatedDonation = await tx.donation.update({
             where: { id },
             data: updateData,
+            include: {
+              institution: { select: { id: true, name: true } },
+              provider: { select: { id: true, name: true } },
+            },
           });
 
           if (donation.changeDonDetails) {
@@ -832,16 +880,24 @@ export class DonationsService {
             }
           }
 
+          const donationRef = buildDonationRef(updatedDonation);
+          const donationRefs = buildRefs({
+            donation: donationRef,
+            institution: updatedDonation.institution ?? undefined,
+            provider: updatedDonation.provider ?? undefined,
+          });
+
           await this.auditService.record(
             {
               action: 'UPDATE',
               entity: 'Donation',
               entityId: updatedDonation.id,
-              description: `Donación ${updatedDonation.controlNumber} (${updatedDonation.type}) actualizada`,
+              description: `Donación ${donationLabel(donationRef)} actualizada`,
               metadata: {
                 before: originalDonation,
                 after: updatedDonation,
                 payload: donation,
+                refs: donationRefs,
               },
             },
             tx,
@@ -849,13 +905,23 @@ export class DonationsService {
 
           if (donation.changeDonDetails) {
             for (const det of originalDonation.detDonation) {
+              const medicineRef = buildMedicineRef(det.medicine);
               await this.auditService.record(
                 {
                   action: 'DELETE',
                   entity: 'DetDonation',
                   entityId: det.id,
-                  description: `Detalle previo eliminado de donación ${originalDonation.controlNumber} (medicina ${det.medicineId})`,
-                  metadata: { before: det, after: null },
+                  description: `Detalle previo eliminado de donación ${donationLabel(
+                    donationRef,
+                  )}: ${det.amount} x ${medicineLabel(medicineRef)} (lote ${det.lote})`,
+                  metadata: {
+                    before: det,
+                    after: null,
+                    refs: buildRefs({
+                      donation: donationRef,
+                      medicine: medicineRef,
+                    }),
+                  },
                 },
                 tx,
               );
@@ -863,15 +929,28 @@ export class DonationsService {
 
             const newDets = await tx.detDonation.findMany({
               where: { donationId: id },
+              include: {
+                medicine: { select: { id: true, name: true, code: true } },
+              },
             });
             for (const det of newDets) {
+              const medicineRef = buildMedicineRef(det.medicine);
               await this.auditService.record(
                 {
                   action: 'CREATE',
                   entity: 'DetDonation',
                   entityId: det.id,
-                  description: `Detalle nuevo de donación ${originalDonation.controlNumber} (medicina ${det.medicineId})`,
-                  metadata: { before: null, after: det },
+                  description: `Detalle nuevo de donación ${donationLabel(
+                    donationRef,
+                  )}: ${det.amount} x ${medicineLabel(medicineRef)} (lote ${det.lote})`,
+                  metadata: {
+                    before: null,
+                    after: det,
+                    refs: buildRefs({
+                      donation: donationRef,
+                      medicine: medicineRef,
+                    }),
+                  },
                 },
                 tx,
               );
@@ -904,8 +983,19 @@ export class DonationsService {
           const donation = await tx.donation.findUnique({
             where: { id },
             include: {
-              detDonation: true,
-              historyInventory: true, // Asegurarnos de tener datos históricos
+              detDonation: {
+                include: {
+                  medicine: { select: { id: true, name: true, code: true } },
+                },
+              },
+              historyInventory: {
+                include: {
+                  medicine: { select: { id: true, name: true, code: true } },
+                  store: { select: { id: true, name: true } },
+                },
+              },
+              institution: { select: { id: true, name: true } },
+              provider: { select: { id: true, name: true } },
             },
           });
 
@@ -924,6 +1014,10 @@ export class DonationsService {
 
           const inventoriesToDelete = await tx.inventory.findMany({
             where: { donationId: id },
+            include: {
+              medicine: { select: { id: true, name: true, code: true } },
+              store: { select: { id: true, name: true } },
+            },
           });
 
           // El historial no se borra físicamente: se marca como eliminado para
@@ -951,41 +1045,83 @@ export class DonationsService {
             data: { deleted: true },
           });
 
+          const donationRef = buildDonationRef(deletedDonation);
+          const donationRefs = buildRefs({
+            donation: donationRef,
+            institution: donation.institution ?? undefined,
+            provider: donation.provider ?? undefined,
+          });
+
           for (const det of donation.detDonation) {
+            const medicineRef = buildMedicineRef(det.medicine);
             await this.auditService.record(
               {
                 action: 'DELETE',
                 entity: 'DetDonation',
                 entityId: det.id,
-                description: `Detalle eliminado de donación ${donation.controlNumber} (medicina ${det.medicineId})`,
-                metadata: { before: det, after: null },
+                description: `Detalle eliminado de donación ${donationLabel(
+                  donationRef,
+                )}: ${det.amount} x ${medicineLabel(medicineRef)} (lote ${det.lote})`,
+                metadata: {
+                  before: det,
+                  after: null,
+                  refs: buildRefs({
+                    donation: donationRef,
+                    medicine: medicineRef,
+                  }),
+                },
               },
               tx,
             );
           }
           for (const hist of donation.historyInventory) {
+            const medicineRef = buildMedicineRef(hist.medicine);
+            const storeRef = buildStoreRef(hist.store);
             await this.auditService.record(
               {
                 action: 'UPDATE',
                 entity: 'HistoryInventory',
                 entityId: hist.id,
-                description: `Historial de inventario marcado como eliminado de donación ${donation.controlNumber}`,
+                description: `Historial de inventario marcado como eliminado de donación ${donationLabel(
+                  donationRef,
+                )}: ${hist.type} de ${hist.amount} x ${medicineLabel(
+                  medicineRef,
+                )} (lote ${hist.lote}, almacén ${storeLabel(storeRef)})`,
                 metadata: {
                   before: { deleted: false },
                   after: { deleted: true, deletedAt: now },
+                  refs: buildRefs({
+                    donation: donationRef,
+                    medicine: medicineRef,
+                    store: storeRef,
+                  }),
                 },
               },
               tx,
             );
           }
           for (const inv of inventoriesToDelete) {
+            const medicineRef = buildMedicineRef(inv.medicine);
+            const storeRef = buildStoreRef(inv.store);
             await this.auditService.record(
               {
                 action: 'DELETE',
                 entity: 'Inventory',
                 entityId: inv.id,
-                description: `Inventario eliminado de donación ${donation.controlNumber}`,
-                metadata: { before: inv, after: null },
+                description: `Inventario eliminado de donación ${donationLabel(
+                  donationRef,
+                )}: ${inv.stock} x ${medicineLabel(medicineRef)} (lote ${
+                  inv.lote
+                }, almacén ${storeLabel(storeRef)})`,
+                metadata: {
+                  before: inv,
+                  after: null,
+                  refs: buildRefs({
+                    donation: donationRef,
+                    medicine: medicineRef,
+                    store: storeRef,
+                  }),
+                },
               },
               tx,
             );
@@ -995,11 +1131,12 @@ export class DonationsService {
               action: 'DELETE',
               entity: 'Donation',
               entityId: deletedDonation.id,
-              description: `Donación ${deletedDonation.controlNumber} eliminada`,
+              description: `Donación ${donationLabel(donationRef)} eliminada`,
               metadata: {
                 before: donation,
                 after: { deleted: true },
                 shortfalls,
+                refs: donationRefs,
               },
             },
             tx,
