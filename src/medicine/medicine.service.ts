@@ -1,5 +1,5 @@
 /* eslint-disable no-useless-catch */
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { AuditService } from 'src/audit/audit.service';
 import {
@@ -92,6 +92,44 @@ export class MedicineService {
     return this.normalizeText(value).replace(/\s+/g, ' ');
   }
 
+  /** Normaliza un código para compararlo (trim, conservando el valor real). */
+  private normalizeCode(code?: string | null): string | null {
+    const normalized = code?.trim();
+    return normalized ? normalized : null;
+  }
+
+  /** Clave case-insensitive para comparar códigos en memoria. */
+  private codeKey(code?: string | null): string | null {
+    return this.normalizeCode(code)?.toLowerCase() ?? null;
+  }
+
+  /**
+   * Evita códigos repetidos entre medicinas. Un código vacío/nulo no se valida
+   * porque es opcional; la comparación ignora espacios y mayúsculas.
+   */
+  private async assertCodeAvailable(
+    tx: any,
+    code: string | null | undefined,
+    excludeId?: number,
+  ): Promise<void> {
+    const normalized = this.normalizeCode(code);
+    if (!normalized) return;
+
+    const existing = (await tx.medicine.findFirst({
+      where: {
+        code: { equals: normalized, mode: 'insensitive' },
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+      select: { id: true, name: true },
+    })) as { id: number; name: string } | null;
+
+    if (existing) {
+      throw new ConflictException(
+        `Ya existe una medicina con el código "${normalized}" (${existing.name}).`,
+      );
+    }
+  }
+
   private async resolveCategory(value: string, tx: any): Promise<number> {
     const key = this.normalizeSearchKey(value);
     // 1) Coincidencia exacta insensible a mayúsculas (consulta dirigida).
@@ -149,6 +187,8 @@ export class MedicineService {
             this.resolveForm(medicine.form, tx),
           ]);
 
+          await this.assertCodeAvailable(tx, medicine.code);
+
           return tx.medicine.create({
             data: {
               name: medicine.name,
@@ -201,6 +241,8 @@ export class MedicineService {
             this.resolveCategory(medicine.category, tx),
             this.resolveForm(medicine.form, tx),
           ]);
+
+          await this.assertCodeAvailable(tx, medicine.code, id);
 
           return tx.medicine.update({
             data: {
@@ -443,6 +485,13 @@ export class MedicineService {
 
       const createdMedicines: any[] = [];
       const skippedMedicines: string[] = [];
+      const duplicateCodeItems: { name: string; code: string }[] = [];
+      const existingCodes = new Set(
+        medicineDB
+          .map((med) => this.codeKey(med.code))
+          .filter((code): code is string => code !== null),
+      );
+      const batchCodes = new Set<string>();
 
       for (const data of validRows) {
         const normalizedName = this.normalizeText(
@@ -454,6 +503,20 @@ export class MedicineService {
         );
 
         if (alreadyExists) {
+          skippedMedicines.push(data[MEDICINE_EXCEL_FIELDS.name]);
+          continue;
+        }
+
+        const rowCode = this.normalizeCode(data[MEDICINE_EXCEL_FIELDS.code]);
+        const rowCodeKey = this.codeKey(rowCode);
+        if (
+          rowCodeKey &&
+          (existingCodes.has(rowCodeKey) || batchCodes.has(rowCodeKey))
+        ) {
+          duplicateCodeItems.push({
+            name: data[MEDICINE_EXCEL_FIELDS.name],
+            code: rowCode,
+          });
           skippedMedicines.push(data[MEDICINE_EXCEL_FIELDS.name]);
           continue;
         }
@@ -497,7 +560,7 @@ export class MedicineService {
         createdMedicines.push({
           name: data[MEDICINE_EXCEL_FIELDS.name],
           description: data[MEDICINE_EXCEL_FIELDS.description],
-          code: data[MEDICINE_EXCEL_FIELDS.code]?.toString() || undefined,
+          code: rowCode ?? undefined,
           categoryId: category.id,
           medicine: isMedicine,
           lote: data[MEDICINE_EXCEL_FIELDS.lote] || '',
@@ -509,6 +572,8 @@ export class MedicineService {
           countryOfOrigin: data[MEDICINE_EXCEL_FIELDS.countryOfOrigin] || 'VE',
           formId: form && form.id ? form.id : 14,
         });
+
+        if (rowCodeKey) batchCodes.add(rowCodeKey);
       }
 
       if (createdMedicines.length > 0) {
@@ -522,12 +587,13 @@ export class MedicineService {
         action: 'CREATE',
         entity: 'Medicine',
         entityId: null,
-        description: `Carga masiva de medicinas: ${createdMedicines.length} agregada(s), ${skippedMedicines.length} omitida(s), ${invalidRows.length} inválida(s)`,
+        description: `Carga masiva de medicinas: ${createdMedicines.length} agregada(s), ${skippedMedicines.length} omitida(s), ${duplicateCodeItems.length} con código duplicado, ${invalidRows.length} inválida(s)`,
         metadata: {
           inserted: createdMedicines.length,
           skipped: skippedMedicines.length,
           medicines: createdMedicines.map((m) => m.name),
           skippedItems: skippedMedicines,
+          duplicateCodeItems,
           invalidRows,
         },
       });
@@ -535,12 +601,13 @@ export class MedicineService {
       return {
         message:
           `Carga completada: ${createdMedicines.length} medicina(s) agregada(s), ` +
-          `${skippedMedicines.length} ya existían y fueron omitidas, ` +
+          `${skippedMedicines.length} ya existían (por nombre o código) y fueron omitidas, ` +
           `${invalidRows.length} fila(s) inválida(s).`,
         data: {
           inserted: createdMedicines.length,
           skipped: skippedMedicines.length,
           skippedItems: skippedMedicines,
+          duplicateCodeItems,
           invalidRows,
         },
       };
