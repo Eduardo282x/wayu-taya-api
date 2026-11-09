@@ -45,6 +45,39 @@ export class InventoryService {
     private readonly logger: FileLoggerService,
   ) {}
 
+  /**
+   * Helpers para los mensajes de error. Nunca se expone el id interno al
+   * usuario: si falta el nombre se usa una referencia genérica.
+   */
+  private medicineName(
+    medicineById: Map<number, any>,
+    medicineId: number,
+  ): string | undefined {
+    const name = medicineById.get(Number(medicineId))?.name;
+    return typeof name === 'string' && name.trim() ? name.trim() : undefined;
+  }
+
+  private storeName(
+    storeById: Map<number, any>,
+    storeId: number,
+  ): string | undefined {
+    const name = storeById.get(Number(storeId))?.name;
+    return typeof name === 'string' && name.trim() ? name.trim() : undefined;
+  }
+
+  private medicinePhrase(
+    medicineById: Map<number, any>,
+    medicineId: number,
+  ): string {
+    const name = this.medicineName(medicineById, medicineId);
+    return name ? `la medicina "${name}"` : 'la medicina seleccionada';
+  }
+
+  private storePhrase(storeById: Map<number, any>, storeId: number): string {
+    const name = this.storeName(storeById, storeId);
+    return name ? `el almacén "${name}"` : 'el almacén seleccionado';
+  }
+
   async getInventory(query?: GetInventoryQueryDto) {
     const page = query?.page ?? 1;
     const size = query?.size ?? 100;
@@ -599,13 +632,46 @@ export class InventoryService {
         );
       }
 
+      // Snapshot legible (una consulta por catálogo) para mensajes de error y
+      // auditoría sin exponer ids internos.
+      const medicineIds = [
+        ...new Set(
+          inventory.medicines
+            .map((m) => Number(m.medicineId))
+            .filter((id) => Number.isInteger(id) && id > 0),
+        ),
+      ];
+      const storeIds = [
+        ...new Set(
+          inventory.medicines
+            .map((m) => Number(m.storeId))
+            .filter((id) => Number.isInteger(id) && id > 0),
+        ),
+      ];
+      const [medicineRows, storeRows] = await Promise.all([
+        trx.medicine.findMany({
+          where: { id: { in: medicineIds } },
+          select: { id: true, name: true, code: true },
+        }),
+        trx.store.findMany({
+          where: { id: { in: storeIds } },
+          select: { id: true, name: true },
+        }),
+      ]);
+      const medicineById = new Map<number, any>(
+        medicineRows.map((m) => [m.id, m]),
+      );
+      const storeById = new Map<number, any>(
+        storeRows.map((s) => [s.id, s]),
+      );
+
       // Une líneas repetidas de la misma medicina/almacén/lote para que una
       // carga con duplicados no cree filas ni descuentos duplicados.
       const merged = new Map<string, (typeof inventory.medicines)[number]>();
       for (const item of inventory.medicines) {
         if (!Number.isInteger(item.stock) || item.stock <= 0) {
           throw new BadRequestException(
-            `La cantidad de la medicina ${item.medicineId} debe ser un entero mayor a 0.`,
+            `La cantidad de ${this.medicinePhrase(medicineById, item.medicineId)} debe ser un entero mayor a 0.`,
           );
         }
         if (!item.storeId || !item.medicineId) {
@@ -689,29 +755,7 @@ export class InventoryService {
       if (!lote)
         throw new Error('No se pudo determinar el lote de la donación.');
 
-      // Snapshot legible (una consulta por catálogo) para que el log no
-      // dependa de filas que luego se borran o cambian.
-      const [medicineRows, storeRows] = await Promise.all([
-        trx.medicine.findMany({
-          where: {
-            id: {
-              in: [...new Set(inventory.medicines.map((m) => m.medicineId))],
-            },
-          },
-          select: { id: true, name: true, code: true },
-        }),
-        trx.store.findMany({
-          where: {
-            id: { in: [...new Set(inventory.medicines.map((m) => m.storeId))] },
-          },
-          select: { id: true, name: true },
-        }),
-      ]);
       const donationRef = buildDonationRef(donationRow);
-      const medicineById = new Map<number, any>(
-        medicineRows.map((m) => [m.id, m]),
-      );
-      const storeById = new Map<number, any>(storeRows.map((s) => [s.id, s]));
 
       const historyData: any[] = [];
       const newInventoryRecords: any[] = [];
@@ -806,13 +850,13 @@ export class InventoryService {
         } else if (inventory.type === 'Salida') {
           if (matchingRecords.length === 0) {
             throw new BadRequestException(
-              `No se encontró inventario para la medicina ${item.medicineId} en el almacén ${item.storeId}.`,
+              `No se encontró inventario para ${this.medicinePhrase(medicineById, item.medicineId)} en ${this.storePhrase(storeById, item.storeId)}.`,
             );
           }
 
           if (availableStock < item.stock) {
             throw new BadRequestException(
-              `Stock insuficiente para la medicina ${item.medicineId}: disponible ${availableStock}, solicitado ${item.stock}.`,
+              `Stock insuficiente para ${this.medicinePhrase(medicineById, item.medicineId)} en ${this.storePhrase(storeById, item.storeId)}: disponible ${availableStock}, solicitado ${item.stock}.`,
             );
           }
 
@@ -846,7 +890,7 @@ export class InventoryService {
 
           if (remaining > 0) {
             throw new BadRequestException(
-              `Stock insuficiente para la medicina ${item.medicineId}: no se pudieron descontar ${item.stock} unidades.`,
+              `Stock insuficiente para ${this.medicinePhrase(medicineById, item.medicineId)} en ${this.storePhrase(storeById, item.storeId)}: no se pudieron descontar ${item.stock} unidades.`,
             );
           }
 
@@ -1399,8 +1443,8 @@ export class InventoryService {
           });
 
           if (!sourceInventory || sourceInventory.stock < quantity) {
-            throw new Error(
-              `Stock insuficiente en el almacén fuente (Medicina ID: ${medicineId}, Almacén ID: ${sourceStoreId}).`,
+            throw new BadRequestException(
+              `Stock insuficiente para ${this.medicinePhrase(medicineById, medicineId)} en ${this.storePhrase(storeById, sourceStoreId)}.`,
             );
           }
 
@@ -1542,7 +1586,9 @@ export class InventoryService {
               amount: quantity,
               type: 'Transferencia Salida',
               date: transferDate,
-              observations: `Transferencia al almacén ${targetStoreId}`,
+              observations: `Transferencia al almacén ${
+                this.storeName(storeById, targetStoreId) ?? 'destino'
+              }`,
               admissionDate: sourceInventory.admissionDate,
               expirationDate: sourceInventory.expirationDate,
               lote: sourceInventory.lote,
@@ -1556,7 +1602,9 @@ export class InventoryService {
               amount: quantity,
               type: 'Transferencia Entrada',
               date: transferDate,
-              observations: `Transferencia desde el almacén ${sourceStoreId}`,
+              observations: `Transferencia desde el almacén ${
+                this.storeName(storeById, sourceStoreId) ?? 'origen'
+              }`,
               admissionDate: sourceInventory.admissionDate,
               expirationDate: sourceInventory.expirationDate,
               lote: sourceInventory.lote,

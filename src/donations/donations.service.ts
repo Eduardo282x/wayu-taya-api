@@ -139,7 +139,7 @@ export class DonationsService {
           det.benefited < 1
         ) {
           throw new BadRequestException(
-            `Las donaciones de salida requieren el campo "benefited" (mayor o igual a 1) en el medicamento #${index + 1}.`,
+            `Las donaciones de salida requieren el campo "benefited" (mayor o igual a 1) en la fila ${index + 1}.`,
           );
         }
       }
@@ -168,7 +168,7 @@ export class DonationsService {
       const amount = Number(det.amount);
       if (!Number.isInteger(amount) || amount <= 0) {
         throw new BadRequestException(
-          `La cantidad del medicamento #${index + 1} debe ser un entero mayor a 0.`,
+          `La cantidad de la medicina en la fila ${index + 1} debe ser un entero mayor a 0.`,
         );
       }
       if (
@@ -176,7 +176,7 @@ export class DonationsService {
         Number(det.storageId) <= 0
       ) {
         throw new BadRequestException(
-          `Selecciona un almacén válido para el medicamento #${index + 1}.`,
+          `Selecciona un almacén válido para la medicina en la fila ${index + 1}.`,
         );
       }
       if (
@@ -184,7 +184,7 @@ export class DonationsService {
         Number.isNaN(det.expirationDate.getTime())
       ) {
         throw new BadRequestException(
-          `La fecha de vencimiento del medicamento #${index + 1} no es válida.`,
+          `La fecha de vencimiento de la medicina en la fila ${index + 1} no es válida.`,
         );
       }
       if (
@@ -192,7 +192,7 @@ export class DonationsService {
         (!Number.isInteger(Number(det.benefited)) || Number(det.benefited) < 0)
       ) {
         throw new BadRequestException(
-          `Los beneficiados del medicamento #${index + 1} deben ser un entero mayor o igual a 0.`,
+          `Los beneficiados de la medicina en la fila ${index + 1} deben ser un entero mayor o igual a 0.`,
         );
       }
 
@@ -213,6 +213,7 @@ export class DonationsService {
    */
   private mergeDuplicateDetails(
     medicines: (DetDonationDTO & { medicineId: number })[],
+    medicineNames: Map<number, string> = new Map(),
   ): (DetDonationDTO & { medicineId: number })[] {
     const merged = new Map<string, DetDonationDTO & { medicineId: number }>();
 
@@ -228,7 +229,7 @@ export class DonationsService {
 
       if (existing.expirationDate.getTime() !== det.expirationDate.getTime()) {
         throw new BadRequestException(
-          `La medicina ${det.medicineId} aparece más de una vez para el mismo almacén y lote, pero con fechas de vencimiento distintas. Unifícalas antes de guardar.`,
+          `${this.medicineSubject(medicineNames, det.medicineId)} aparece más de una vez para el mismo almacén y lote, pero con fechas de vencimiento distintas. Unifícalas antes de guardar.`,
         );
       }
 
@@ -281,7 +282,7 @@ export class DonationsService {
       const store = byId.get(id);
       if (!store) {
         throw new BadRequestException(
-          `El almacén con id ${id} no existe. Actualiza los almacenes y vuelve a intentar.`,
+          'El almacén seleccionado no existe. Actualiza los almacenes y vuelve a intentar.',
         );
       }
       if (store.deleted) {
@@ -294,6 +295,48 @@ export class DonationsService {
 
   private sumBenefited(dets: DetDonationDTO[]): number {
     return dets.reduce((sum, det) => sum + (det.benefited ?? 0), 0);
+  }
+
+  /**
+   * Nombres de medicina por id para los mensajes de error. Evita exponer ids
+   * internos al usuario cuando una validación falla.
+   */
+  private async getMedicineNameMap(
+    tx: any,
+    medicineIds: number[],
+  ): Promise<Map<number, string>> {
+    const ids = [
+      ...new Set(
+        medicineIds.filter((id) => Number.isInteger(id) && Number(id) > 0),
+      ),
+    ];
+    if (ids.length === 0) return new Map();
+
+    const medicines = await tx.medicine.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, name: true },
+    });
+
+    return new Map(
+      medicines.map((medicine: any) => [medicine.id, medicine.name]),
+    );
+  }
+
+  private medicineSubject(
+    medicineNames: Map<number, string>,
+    medicineId: number,
+  ): string {
+    const name = medicineNames.get(medicineId);
+    return name ? `La medicina "${name}"` : 'La medicina seleccionada';
+  }
+
+  /** Igual que `medicineSubject` pero para usar en medio de una oración. */
+  private medicineReference(
+    medicineNames: Map<number, string>,
+    medicineId: number,
+  ): string {
+    const subject = this.medicineSubject(medicineNames, medicineId);
+    return subject.charAt(0).toLowerCase() + subject.slice(1);
   }
 
   private async resolveMedicines(
@@ -387,7 +430,7 @@ export class DonationsService {
       if (!name) {
         throw new BadRequestException(
           det.medicineId
-            ? `La medicina con id ${det.medicineId} ya no existe. Actualiza el catálogo y vuelve a seleccionarla.`
+            ? 'La medicina seleccionada ya no existe. Actualiza el catálogo y vuelve a seleccionarla.'
             : 'Cada detalle debe incluir una medicina válida.',
         );
       }
@@ -810,8 +853,13 @@ export class DonationsService {
         this.validateMedicineDetails(donation.medicines);
 
         const resolved = await this.resolveMedicines(tx, donation.medicines);
+        const medicineNames = await this.getMedicineNameMap(
+          tx,
+          resolved.map((item) => item.medicineId),
+        );
         const medicinesResolved = this.mergeDuplicateDetails(
           this.validateMedicineDetails(resolved),
+          medicineNames,
         );
         await this.validateStores(tx, medicinesResolved);
 
@@ -975,8 +1023,13 @@ export class DonationsService {
         this.validateMedicineDetails(donation.medicines);
 
         const resolved = await this.resolveMedicines(tx, donation.medicines);
+        const medicineNames = await this.getMedicineNameMap(
+          tx,
+          resolved.map((item) => item.medicineId),
+        );
         const medicinesResolved = this.mergeDuplicateDetails(
           this.validateMedicineDetails(resolved),
+          medicineNames,
         );
         await this.validateStores(tx, medicinesResolved);
 
@@ -1027,8 +1080,8 @@ export class DonationsService {
             updatedDonationType === 'Entrada' &&
             med.amount < consumoPosterior
           ) {
-            throw new Error(
-              `No se puede reducir la cantidad de medicina ${med.medicineId} a ${med.amount} porque se usaron ${consumoPosterior} unidades en salidas posteriores.`,
+            throw new BadRequestException(
+              `No se puede reducir la cantidad de ${this.medicineReference(medicineNames, med.medicineId)} a ${med.amount} porque se usaron ${consumoPosterior} unidades en salidas posteriores.`,
             );
           }
         }
@@ -1059,12 +1112,12 @@ export class DonationsService {
             const shortfall = revertedShortfallsByKey[key] ?? 0;
             if (shortfall > 0) {
               reversionWarnings.push(
-                `La medicina ${med.medicineId} tenía ${shortfall} unidad(es) ya salidas o transferidas.`,
+                `${this.medicineSubject(medicineNames, med.medicineId)} tenía ${shortfall} unidad(es) ya salidas o transferidas.`,
               );
             }
             if (shortfall > med.amount) {
               throw new BadRequestException(
-                `No se puede actualizar la medicina ${med.medicineId}: ${shortfall} unidades ya fueron salidas o transferidas y la nueva cantidad (${med.amount}) es menor.`,
+                `No se puede actualizar ${this.medicineReference(medicineNames, med.medicineId)}: ${shortfall} unidades ya fueron salidas o transferidas y la nueva cantidad (${med.amount}) es menor.`,
               );
             }
           }
