@@ -2013,7 +2013,8 @@ export class DonationsService {
       ];
 
       donationSheet.getColumn(2).numFmt = '0';
-      donationSheet.getColumn(4).numFmt = 'yyyy-mm-dd';
+      // Formato regional de Venezuela: la fecha se muestra como DD/MM/AAAA.
+      donationSheet.getColumn(4).numFmt = 'dd/mm/yyyy';
 
       donationSheet.getRow(1).font = {
         bold: true,
